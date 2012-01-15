@@ -39,7 +39,7 @@
     GADTs
  #-}
 
-module Compiler where
+module Frenetic.Compiler where
 
 import System.IO.Unsafe
 import System.IO
@@ -49,10 +49,11 @@ import Data.Set as Set
 import Data.Word
 import Data.List as List
 
-import Network 
-import Patterns
-import NetCore 
-import OpenFlow 
+import Frenetic.Network 
+import Frenetic.Patterns
+import Frenetic.Language
+import Frenetic.Switches.OpenFlow
+    
 import Nettle.OpenFlow.Match as OFMatch
 import Nettle.OpenFlow.Action as OFAction
 import Nettle.IPv4.IPAddress as IPAddress 
@@ -120,11 +121,11 @@ instance (Lattice a) => Lattice (Skeleton a) where
 instance (BooleanAlgebra a) => BooleanAlgebra (Skeleton a) where
   neg skel1 = skelMap neg skel1 +++ top 
 
-compileAction :: NetCore.Action -> OFAction.Action
+compileAction :: Frenetic.Language.Action -> OFAction.Action
 compileAction (AForward n) = 
   SendOutPort (PhysicalPort n)
 
-compileActions :: NetCore.Actions -> [OFAction.Action]
+compileActions :: Frenetic.Language.Actions -> [OFAction.Action]
 compileActions (PSet as) = Set.fold (\a l -> compileAction a : l) [] as
 compileActions (NSet as) = error "Cannot handle cofinite actions"
 
@@ -144,7 +145,7 @@ compilePredicate s (EUnion pr1 pr2) =
 compilePredicate s (ENegate pr1) = 
   neg $ compilePredicate s pr1
 
-compilePolicy :: Switch -> Policy p -> Skeleton NetCore.Actions
+compilePolicy :: Switch -> Policy p -> Skeleton Frenetic.Language.Actions
 compilePolicy s (PBasic pr1 as) = 
   skelMap (\b -> if b then as else PSet (Set.empty)) $ compilePredicate s pr1
 compilePolicy s (PUnion p1 p2) = 

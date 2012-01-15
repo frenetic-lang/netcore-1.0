@@ -38,14 +38,14 @@
     ExistentialQuantification
  #-}
 
-module NetCore where
+module Frenetic.Language where
 
 import System.IO.Unsafe
 import System.IO 
 import Data.Bits
 import Data.Set as Set
 
-import Network
+import Frenetic.Network
 
 --
 -- Predicates

@@ -39,7 +39,7 @@
     GADTs
  #-}
 
-module Patterns where
+module Frenetic.Patterns where
 
 import System.IO.Unsafe
 import System.IO
@@ -49,9 +49,9 @@ import Data.Set as Set
 import Data.Word
 import Data.List as List
 
-import Network 
-import NetCore 
-import OpenFlow 
+import Frenetic.Network 
+import Frenetic.Language 
+import Frenetic.Switches.OpenFlow 
 import Nettle.OpenFlow.Match as OFMatch
 import Nettle.OpenFlow.Action as OFAction
 import Nettle.IPv4.IPAddress as IPAddress 

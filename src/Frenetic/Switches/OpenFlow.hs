@@ -33,13 +33,13 @@
     NoMonomorphismRestriction
  #-}
 
-module OpenFlow where
+module Frenetic.Switches.OpenFlow where
 
 import Data.Map
 import Nettle.OpenFlow.Match
 import Nettle.OpenFlow.Action
 
-import Network 
+import Frenetic.Network 
 
 type Pattern = Match
 

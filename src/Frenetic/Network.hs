@@ -37,7 +37,7 @@
     GADTs
  #-}
 
-module Network where
+module Frenetic.Network where
 
 import Numeric
 import Data.Char 

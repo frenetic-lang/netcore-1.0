@@ -31,6 +31,8 @@
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
+module Frenetic.Server where
+
 import Data.List
 import Data.Either
 import Data.Set as Set
@@ -57,10 +59,10 @@ import Nettle.IPv4.IPAddress
 import Nettle.Servers.TCPServer
 import Nettle.Servers.MultiplexedTCPServer
 
-import Network
-import OpenFlow
-import NetCore
-import Compiler
+import Frenetic.Network
+import Frenetic.Switches.OpenFlow
+import Frenetic.Language
+import Frenetic.Compiler
 
 frenetic_port :: ServerPortNumber
 frenetic_port = 6633 
