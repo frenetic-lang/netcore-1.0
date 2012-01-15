@@ -24,7 +24,7 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /src/NetCore.hs                                                            --
+-- /src/Frenetic/Language.hs                                                            --
 -- Frenetic NetCore syntax                                                    --
 -- $Id$ --
 --------------------------------------------------------------------------------

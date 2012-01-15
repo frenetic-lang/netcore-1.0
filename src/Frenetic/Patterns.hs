@@ -51,13 +51,11 @@ import Data.List as List
 
 import Frenetic.Network 
 import Frenetic.Language 
-import Frenetic.Switches.OpenFlow 
 import Nettle.OpenFlow.Match as OFMatch
 import Nettle.OpenFlow.Action as OFAction
 import Nettle.IPv4.IPAddress as IPAddress 
 import Nettle.Ethernet.EthernetAddress 
 
---
 -- Patterns
 --
 
@@ -76,61 +74,3 @@ instance MatchElement IPAddressPrefix where
   mTop = defaultIPPrefix
   mMeet = IPAddress.intersect
 
-instance MatchElement OFMatch.Match where
-  mTop = Match { 
-    inPort = mTop,
-    srcEthAddress = mTop,
-    dstEthAddress = mTop,
-    vLANID = mTop,
-    vLANPriority = mTop,
-    ethFrameType = mTop,
-    ipTypeOfService = mTop,
-    ipProtocol = mTop,
-    srcIPAddress = mTop,
-    dstIPAddress = mTop,
-    srcTransportPort = mTop,
-    dstTransportPort = mTop }
-  mMeet ofm1 ofm2 = 
-    do { inport <- mMeet (inPort ofm1) (inPort ofm2)
-       ; srcethaddress <- mMeet (srcEthAddress ofm1) (srcEthAddress ofm2)
-       ; dstethaddress <- mMeet (dstEthAddress ofm1) (dstEthAddress ofm2)
-       ; vlanid <- mMeet (vLANID ofm1) (vLANID ofm2)
-       ; vlanpriority <- mMeet (vLANPriority ofm1) (vLANPriority ofm2)
-       ; ethframetype <- mMeet (ethFrameType ofm1) (ethFrameType ofm2)
-       ; iptypeofservice <- mMeet (ipTypeOfService ofm1) (ipTypeOfService ofm2)
-       ; ipprotocol <- mMeet (ipProtocol ofm1) (ipProtocol ofm2)
-       ; srcipaddress <- mMeet (srcIPAddress ofm1) (srcIPAddress ofm2)
-       ; dstipaddress <- mMeet (dstIPAddress ofm1) (dstIPAddress ofm2)
-       ; srctransportport <- mMeet (srcTransportPort ofm1) (srcTransportPort ofm2)
-       ; dsttransportport <- mMeet (dstTransportPort ofm1) (dstTransportPort ofm2)
-       ; Just $ Match { 
-           inPort = inport,
-           srcEthAddress = srcethaddress,
-           dstEthAddress = dstethaddress,
-           vLANID = vlanid,
-           vLANPriority = vlanpriority,
-           ethFrameType = ethframetype,
-           ipTypeOfService = iptypeofservice,
-           ipProtocol = ipprotocol,
-           srcIPAddress = srcipaddress,
-           dstIPAddress = dstipaddress,
-           srcTransportPort = srctransportport,
-           dstTransportPort = dsttransportport } }
-
-headerExactMatch :: (Bits b) => Header b -> Maybe b -> OFMatch.Match
-headerExactMatch Dl_src (Just (HardwareAddress v)) = mTop { srcEthAddress = Just v }
-headerExactMatch Dl_src Nothing = mTop
-headerExactMatch Dl_dst (Just (HardwareAddress v)) = mTop { dstEthAddress = Just v }
-headerExactMatch Dl_dst Nothing = mTop
-headerExactMatch Dl_typ v = mTop { ethFrameType = v }
-headerExactMatch Dl_vlan v = mTop { vLANID = v }
-headerExactMatch Dl_vlan_pcp v = mTop { vLANPriority = v }
-headerExactMatch Nw_src v = mTop { srcIPAddress = case v of { Just a -> (IPAddress a, maxPrefixLen); Nothing -> defaultIPPrefix } }
-headerExactMatch Nw_dst v = mTop { dstIPAddress = case v of { Just a -> (IPAddress a, maxPrefixLen); Nothing -> defaultIPPrefix } }
-headerExactMatch Nw_proto v = mTop { ipProtocol = v }
-headerExactMatch Nw_tos v = mTop { ipTypeOfService = v }
-headerExactMatch Tp_src v = mTop { srcTransportPort = v }
-headerExactMatch Tp_dst v = mTop { dstTransportPort = v }
-
-inportExactMatch :: Port -> OFMatch.Match
-inportExactMatch n = mTop { inPort = Just n }

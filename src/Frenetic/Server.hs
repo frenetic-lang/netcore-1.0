@@ -47,6 +47,7 @@ import Control.Exception.Base
 import Control.Concurrent
 import Control.Monad.State
 import Nettle.OpenFlow.FlowTable as FlowTable hiding (FlowRemoved)
+    
 import Nettle.OpenFlow.MessagesBinary
 import Nettle.OpenFlow.Messages as Messages
 import Nettle.OpenFlow.Packet 
@@ -60,6 +61,7 @@ import Nettle.Servers.TCPServer
 import Nettle.Servers.MultiplexedTCPServer
 
 import Frenetic.Network
+import Frenetic.Hosts.Nettle
 import Frenetic.Switches.OpenFlow
 import Frenetic.Language
 import Frenetic.Compiler
