@@ -194,20 +194,8 @@ loop proc =
            of_dispatch addr msg proc
       ; loop proc }
 
---
--- init_policy: currently baked
--- 
-init_policy :: Policy PacketInfo
-init_policy = 
-  PUnion (PBasic (EInport 1) (PSet $ Set.singleton (AForward 2)))
-         (PBasic (EInport 2) (PSet $ Set.singleton (AForward 1)))
-
-init_state :: ControllerState
-init_state = ControllerState { addrMap = Map.empty,
-                               policy = init_policy }
-
-main :: IO ()
-main = 
+freneticServer :: ControllerState -> IO ()
+freneticServer init_state = 
   do { proc <- openFlowServer frenetic_port
      ; hPutStrLn stderr "--- Welcome to Frenetic ---"
      ; evalStateT (loop proc) init_state }
