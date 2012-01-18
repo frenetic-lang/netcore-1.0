@@ -126,8 +126,7 @@ compileAction (AForward n) =
   SendOutPort (PhysicalPort n)
 
 compileActions :: Frenetic.Language.Actions -> [OFAction.Action]
-compileActions (PSet as) = Set.fold (\a l -> compileAction a : l) [] as
-compileActions (NSet as) = error "Cannot handle cofinite actions"
+compileActions s = Set.fold (\a l -> compileAction a : l) [] s
 
 compilePredicate :: Switch -> Predicate p -> Skeleton Bool 
 compilePredicate s (EInport n) = 
@@ -147,7 +146,7 @@ compilePredicate s (PrNegate pr1) =
 
 compilePolicy :: Switch -> Policy p -> Skeleton Frenetic.Language.Actions
 compilePolicy s (PoBasic pr1 as) = 
-  skelMap (\b -> if b then as else PSet (Set.empty)) $ compilePredicate s pr1
+  skelMap (\b -> if b then as else Set.empty) $ compilePredicate s pr1
 compilePolicy s (PoUnion p1 p2) = 
   compilePolicy s p1 \/ compilePolicy s p2 
 compilePolicy s (PoIntersect p1 p2) = 

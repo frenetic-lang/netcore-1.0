@@ -116,30 +116,14 @@ instance (Lattice a, Eq a) => Lattice (Maybe a) where
   meet (Just x) (Just y) = Just $ meet x y
 
 --
--- CoSets
+-- Sets (still needs to go)
 --
-data CoSet a = PSet (Set a) | NSet (Set a)
 
-instance Show a => Show (CoSet a) where
-  show (PSet s) = show (toList s)
-  show (NSet s) | Set.null s = "Universe"
-                | otherwise = "~" ++ show (toList s)
-
-instance Ord a => Lattice (CoSet a) where
-  top = NSet Set.empty
-  bottom = PSet Set.empty
-  join (PSet s1) (PSet s2) = PSet (Set.union s1 s2) 
-  join (NSet s1) (NSet s2) = NSet (Set.intersection s1 s2) 
-  join (PSet s1) (NSet s2) = NSet (Set.difference s2 s1) 
-  join (NSet s1) (PSet s2) = NSet (Set.difference s1 s2) 
-  meet (PSet s1) (PSet s2) = PSet (Set.intersection s1 s2) 
-  meet (NSet s1) (NSet s2) = NSet (Set.union s1 s2) 
-  meet (PSet s1) (NSet s2) = PSet (Set.difference s1 s2) 
-  meet (NSet s1) (PSet s2) = PSet (Set.difference s2 s1) 
-
-cosetToList :: CoSet a -> [a]
-cosetToList (PSet s) = Set.toList s
-coSetToList cs = error ("No support for cofinite sets" ++ show cs)
+instance Ord a => Lattice (Set a) where
+  top = undefined
+  bottom = Set.empty
+  join s1 s2 = Set.union s1 s2
+  meet s1 s2 = Set.intersection s1 s2 
 
 --
 -- Actions
@@ -151,7 +135,7 @@ data Action =
 instance Show Action where
   show (AForward p) = "forward(" ++ show p ++ ")"
 
-type Actions = CoSet Action
+type Actions = Set Action
 
 -- 
 -- Policies
@@ -188,7 +172,7 @@ interpretPredicate (PrNegate p1) t =
 
 interpretPolicy :: Policy p -> Transmission p -> Actions
 interpretPolicy (PoBasic pred as) t = 
-  if interpretPredicate pred t then as else PSet (Set.empty)
+  if interpretPredicate pred t then as else Set.empty
 interpretPolicy (PoUnion p1 p2) t = 
   interpretPolicy p1 t \/ interpretPolicy p2 t
 interpretPolicy (PoIntersect p1 p2) t = 
