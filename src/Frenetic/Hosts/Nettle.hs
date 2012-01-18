@@ -267,7 +267,7 @@ loop proc = do
 
 nettleServer :: Policy PacketInfo -> IO ()
 nettleServer init_policy = do let init_state = ControllerState { addrMap = Map.empty,
-                                                            policy = init_policy }
+                                                                 policy = init_policy }
                               proc <- openFlowServer frenetic_port
                               hPutStrLn stderr "--- Welcome to Frenetic ---"
                               evalStateT (loop proc) init_state 

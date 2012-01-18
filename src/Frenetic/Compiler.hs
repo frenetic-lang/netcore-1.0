@@ -108,6 +108,17 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
 --
 --
 
+-- {-|
+-- This class represents backend patterns.
+
+-- * @patOverapprox@ and @patUnderapprox@ must follow the laws in the
+--   Approx class. If the pattern is not a real underapproximation,
+--   @patUnderapprox@ must return Nothing.
+-- -}
+-- class (P.Pattern pat) => CompilePattern pat where
+--     patOverapprox :: Header r -> Wildcard r -> pat
+--     patUnderapprox :: Header r -> Wildcard r -> Maybe pat
+
 {-|
 This class represents backend actions.
 |-}

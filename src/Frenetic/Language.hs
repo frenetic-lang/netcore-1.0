@@ -44,13 +44,14 @@ import Data.Bits
 import Data.Set as Set
 
 import Frenetic.Network
-
+import Frenetic.Pattern as P
+    
 --
 -- Predicates
 --
 
 data Predicate p =
-    forall b. (Bits b) => PrHeader (Header b) (Maybe b)
+    forall b. (Bits b) => PrHeader (Header b) (P.Wildcard b)
   | PrTo Switch
   | PrInport Port
   | PrUnion (Predicate p) (Predicate p)
@@ -87,10 +88,9 @@ instance Show (Policy p) where
 -- Interpreter
 --
 interpretPredicate :: Predicate p -> Transmission p -> Bool
-interpretPredicate (PrHeader _ Nothing) _ = 
-  True
-interpretPredicate (PrHeader h (Just b)) (Transmission _ _ pkt) = 
-  getHeader pkt h == b 
+
+interpretPredicate (PrHeader h w) (Transmission _ _ pkt) = 
+  wBitsMake (getHeader pkt h) == w
 interpretPredicate (PrInport n) (Transmission _ n' _) = 
   n == n'
 interpretPredicate (PrUnion pr1 pr2) t = 
