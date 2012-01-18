@@ -40,8 +40,6 @@
 
 module Frenetic.Language where
 
-import System.IO.Unsafe
-import System.IO 
 import Data.Bits
 import Data.Set as Set
 
@@ -50,10 +48,11 @@ import Frenetic.Network
 --
 -- Predicates
 --
+
 data Predicate p =
     forall b. (Bits b) => PrHeader (Header b) (Maybe b)
   | PrTo Switch
-  | EInport Port
+  | PrInport Port
   | PrUnion (Predicate p) (Predicate p)
   | PrIntersect (Predicate p) (Predicate p)
   | PrDifference (Predicate p) (Predicate p)
@@ -62,84 +61,18 @@ data Predicate p =
 instance Show (Predicate pack) where
   show (PrHeader h bo) = "(" ++ show h ++ " : " ++ show bo ++ ")"
   show (PrTo s) = "switch(" ++ show s ++ ")"
-  show (EInport n) = "inport(" ++ show n ++ ")"
+  show (PrInport n) = "inport(" ++ show n ++ ")"
   show (PrUnion pr pr') = "(" ++ show pr ++ ") \\/ (" ++ show pr' ++ ")"
   show (PrIntersect pr pr') = "(" ++ show pr ++ ") /\\ (" ++ show pr' ++ ")"
   show (PrDifference pr pr') = "(" ++ show pr ++ ") // (" ++ show pr' ++ ")"
   show (PrNegate pr) = "~(" ++ show pr ++ ")"
 
---
--- Algebras
--- 
-class Lattice a where 
-  top :: a
-  bottom :: a
-  meet :: a -> a -> a
-  join :: a -> a -> a 
-
-(\/) :: (Lattice a) => a -> a -> a
-(\/) = join
-
-(/\) :: (Lattice a) => a -> a -> a
-(/\) = meet
-
-class (Lattice a) => BooleanAlgebra a where
-  neg :: a -> a
-  minus :: a -> a -> a
-  neg a = top `minus` a
-  minus a b = a `meet` (neg b)
-
-(//) :: (BooleanAlgebra a) => a -> a -> a
-(//) = minus
-
-instance Lattice Bool where
-  top = True
-  bottom = False
-  meet = (&&)
-  join = (||)
-
-instance BooleanAlgebra Bool where
-  neg = not
-  
-instance (Lattice a, Eq a) => Lattice (Maybe a) where
-  top = Just top
-  bottom = Just bottom
-  join x Nothing | x == top = top
-                 | otherwise = Nothing
-  join Nothing x | x == top = top
-                 | otherwise = Nothing
-  join (Just x) (Just y) = Just $ join x y
-  meet x Nothing | x == bottom = bottom
-                 | otherwise = Nothing
-  meet Nothing x | x == bottom = bottom
-                 | otherwise = Nothing
-  meet (Just x) (Just y) = Just $ meet x y
-
---
--- Sets (still needs to go)
---
-
-instance Ord a => Lattice (Set a) where
-  top = undefined
-  bottom = Set.empty
-  join s1 s2 = Set.union s1 s2
-  meet s1 s2 = Set.intersection s1 s2 
-
---
--- Actions
---
-data Action = 
-    AForward Port
-  deriving (Eq, Ord)
-
-instance Show Action where
-  show (AForward p) = "forward(" ++ show p ++ ")"
-
-type Actions = Set Action
-
 -- 
 -- Policies
 --
+
+type Actions = Set Port
+
 data Policy p = 
     PoBasic (Predicate p) Actions
   | PoUnion (Policy p) (Policy p)
@@ -150,7 +83,6 @@ instance Show (Policy p) where
   show (PoUnion t1 t2) = "(" ++ show t1 ++ ") \\/ (" ++ show t2 ++ ")"
   show (PoIntersect t1 t2) = "(" ++ show t1 ++ ") /\\ (" ++ show t2 ++ ")"
 
-
 --
 -- Interpreter
 --
@@ -159,21 +91,20 @@ interpretPredicate (PrHeader _ Nothing) _ =
   True
 interpretPredicate (PrHeader h (Just b)) (Transmission _ _ pkt) = 
   getHeader pkt h == b 
-interpretPredicate (EInport n) (Transmission _ n' _) = 
+interpretPredicate (PrInport n) (Transmission _ n' _) = 
   n == n'
-interpretPredicate (PrUnion p1 p2) t = 
-  interpretPredicate p1 t \/ interpretPredicate p2 t
-interpretPredicate (PrIntersect p1 p2) t = 
-  interpretPredicate p1 t /\ interpretPredicate p2 t
-interpretPredicate (PrDifference p1 p2) t = 
-  interpretPredicate p1 t // (interpretPredicate p2 t)
-interpretPredicate (PrNegate p1) t = 
-  interpretPredicate p1 t 
+interpretPredicate (PrUnion pr1 pr2) t = 
+  interpretPredicate pr1 t || interpretPredicate pr2 t
+interpretPredicate (PrIntersect pr1 pr2) t = 
+  interpretPredicate pr1 t && interpretPredicate pr2 t
+interpretPredicate (PrDifference pr1 pr2) t = 
+  interpretPredicate pr1 t && not (interpretPredicate pr2 t)
+interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
 
 interpretPolicy :: Policy p -> Transmission p -> Actions
-interpretPolicy (PoBasic pred as) t = 
-  if interpretPredicate pred t then as else Set.empty
+interpretPolicy (PoBasic pred as) t | interpretPredicate pred t = as
+                                    | otherwise = Set.empty
 interpretPolicy (PoUnion p1 p2) t = 
-  interpretPolicy p1 t \/ interpretPolicy p2 t
+  interpretPolicy p1 t `Set.union` interpretPolicy p2 t
 interpretPolicy (PoIntersect p1 p2) t = 
-  interpretPolicy p1 t /\ interpretPolicy p2 t
+  interpretPolicy p1 t `Set.intersection` interpretPolicy p2 t

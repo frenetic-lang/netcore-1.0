@@ -110,47 +110,47 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
   let (bs1',bs2',bs3') = cartMap h [] bs1 bs2 in 
   (Skeleton bs1', Skeleton bs2', Skeleton bs3')
 
-instance (Lattice a) => Lattice (Skeleton a) where
-  top = Skeleton [Bone P.top top]
-  bottom = Skeleton []
-  join skel1 skel2 = skel12 +++ skel1' +++ skel2' 
-    where (skel12, skel1', skel2') = skelCart join skel1 skel2
-  meet skel1 skel2 = skel12
-    where (skel12,_,_) = skelCart meet skel1 skel2
-
-instance (BooleanAlgebra a) => BooleanAlgebra (Skeleton a) where
-  neg skel1 = skelMap neg skel1 +++ top 
-
-compileAction :: Frenetic.Language.Action -> OFAction.Action
-compileAction (AForward n) = 
-  SendOutPort (PhysicalPort n)
-
+--
+--
+--
+                    
 compileActions :: Frenetic.Language.Actions -> [OFAction.Action]
-compileActions s = Set.fold (\a l -> compileAction a : l) [] s
+compileActions s = List.map (SendOutPort . PhysicalPort) $ Set.toList s
 
 compilePredicate :: Switch -> Predicate p -> Skeleton Bool 
-compilePredicate s (EInport n) = 
+compilePredicate s (PrInport n) = 
   Skeleton [Bone (inportExactMatch n) True,
             Bone P.top False] 
 compilePredicate s (PrHeader h mb) =   
   Skeleton [Bone (headerExactMatch h mb) True,
             Bone P.top False] 
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top True]
-                                | otherwise = Skeleton [Bone P.top False]
-compilePredicate s (PrIntersect pr1 pr2) = 
-  compilePredicate s pr1 /\ compilePredicate s pr2 
-compilePredicate s (PrUnion pr1 pr2) = 
-  compilePredicate s pr1 \/ compilePredicate s pr2 
-compilePredicate s (PrNegate pr1) = 
-  neg $ compilePredicate s pr1
+                             | otherwise = Skeleton [Bone P.top False]
+compilePredicate s (PrIntersect pr1 pr2) = skel12'
+    where
+      skel1 = compilePredicate s pr1
+      skel2 = compilePredicate s pr2
+      (skel12', skel1', skel2') = skelCart (&&) skel1 skel2
+compilePredicate s (PrUnion pr1 pr2) = skel12' +++ skel1' +++ skel2'
+    where
+      skel1 = compilePredicate s pr1
+      skel2 = compilePredicate s pr2
+      (skel12', skel1', skel2') = skelCart (||) skel1 skel2
+compilePredicate s (PrNegate pr) = skelMap not (compilePredicate s pr) +++ Skeleton [Bone P.top False]
 
 compilePolicy :: Switch -> Policy p -> Skeleton Frenetic.Language.Actions
-compilePolicy s (PoBasic pr1 as) = 
-  skelMap (\b -> if b then as else Set.empty) $ compilePredicate s pr1
-compilePolicy s (PoUnion p1 p2) = 
-  compilePolicy s p1 \/ compilePolicy s p2 
-compilePolicy s (PoIntersect p1 p2) = 
-  compilePolicy s p1 /\ compilePolicy s p2
+compilePolicy s (PoBasic po as) = 
+  skelMap (\b -> if b then as else Set.empty) $ compilePredicate s po
+compilePolicy s (PoUnion po1 po2) = skel12' +++ skel1' +++ skel2' 
+    where
+      skel1 = compilePolicy s po1
+      skel2 = compilePolicy s po2
+      (skel12', skel1', skel2') = skelCart (Set.union) skel1 skel2
+compilePolicy s (PoIntersect po1 po2) = skel12'
+    where
+      skel1 = compilePolicy s po1
+      skel2 = compilePolicy s po2
+      (skel12', skel1', skel2') = skelCart (Set.intersection) skel1 skel2
   
 compile :: Switch -> Policy p -> [Rule] 
 compile s p = 
