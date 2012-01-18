@@ -108,16 +108,17 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
 --
 --
 
--- {-|
--- This class represents backend patterns.
+{-|
+This class represents backend patterns.
 
--- * @patOverapprox@ and @patUnderapprox@ must follow the laws in the
---   Approx class. If the pattern is not a real underapproximation,
---   @patUnderapprox@ must return Nothing.
--- -}
--- class (P.Pattern pat) => CompilePattern pat where
---     patOverapprox :: Header r -> Wildcard r -> pat
---     patUnderapprox :: Header r -> Wildcard r -> Maybe pat
+* @patOverapprox@ and @patUnderapprox@ must follow the laws in the
+  Approx class. If the pattern is not a real underapproximation,
+  @patUnderapprox@ must return Nothing.
+-}
+class (P.Pattern pat) => CompilePattern pat where
+    patOverapprox :: Header r -> P.Wildcard r -> pat
+    patInport :: Port -> pat
+    patUnderapprox :: Header r -> P.Wildcard r -> Maybe pat
 
 {-|
 This class represents backend actions.
@@ -128,13 +129,13 @@ class (Eq act) => SwitchAction act where
     actTranslate :: Frenetic.Language.Actions -> act
                     
 
-compilePredicate :: (P.Pattern pat) => Switch -> Predicate p -> Skeleton pat Bool 
--- compilePredicate s (PrInport n) = 
---   Skeleton [Bone (inportExactMatch n) True,
---             Bone P.top False] 
--- compilePredicate s (PrHeader h mb) =   
---   Skeleton [Bone (headerExactMatch h mb) True,
---             Bone P.top False] 
+compilePredicate :: (CompilePattern pat) => Switch -> Predicate p -> Skeleton pat Bool 
+
+compilePredicate s (PrHeader h w) =   
+  Skeleton [Bone (patOverapprox h w) True,
+            Bone P.top False]
+compilePredicate s (PrInport n) = Skeleton [Bone (patInport n) True,
+                                            Bone P.top False] 
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top True]
                              | otherwise = Skeleton [Bone P.top False]
 compilePredicate s (PrIntersect pr1 pr2) = skel12'
@@ -149,7 +150,7 @@ compilePredicate s (PrUnion pr1 pr2) = skel12' +++ skel1' +++ skel2'
       (skel12', skel1', skel2') = skelCart (||) skel1 skel2
 compilePredicate s (PrNegate pr) = skelMap not (compilePredicate s pr) +++ Skeleton [Bone P.top False]
 
-compilePolicy :: (P.Pattern pat) => Switch -> Policy p -> Skeleton pat Frenetic.Language.Actions
+compilePolicy :: (CompilePattern pat) => Switch -> Policy p -> Skeleton pat Frenetic.Language.Actions
 compilePolicy s (PoBasic po as) = 
   skelMap (\b -> if b then as else Set.empty) $ compilePredicate s po
 compilePolicy s (PoUnion po1 po2) = skel12' +++ skel1' +++ skel2' 
@@ -163,10 +164,10 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (Set.intersection) skel1 skel2
 
-compile :: (P.Pattern pat, SwitchAction a) => Switch -> Policy p -> Skeleton pat a 
+compile :: (CompilePattern pat, SwitchAction a) => Switch -> Policy p -> Skeleton pat a 
 compile s p = skelMap actTranslate (compilePolicy s p)
 
-specialize :: (P.Pattern pat, SwitchAction a) => Policy p -> Switch -> Transmission p -> Skeleton pat a
+specialize :: (CompilePattern pat, SwitchAction a) => Policy p -> Switch -> Transmission p -> Skeleton pat a
 specialize policy switch t@(Transmission _ port pkt) = Skeleton []
   -- let actions = Prelude.map compileAction $ (Set.toList (interpretPolicy policy t)) in 
   -- let match = 

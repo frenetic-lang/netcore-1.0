@@ -125,6 +125,11 @@ instance P.Pattern OFMatch.Match where
            srcTransportPort = srctransportport,
            dstTransportPort = dsttransportport } }
 
+instance C.CompilePattern Match where
+    patOverapprox h w = undefined
+    patInport p = undefined
+    patUnderapprox = undefined
+  
 headerExactMatch :: (Bits b) => Header b -> Maybe b -> OFMatch.Match
 headerExactMatch Dl_src (Just (HardwareAddress v)) = P.top { srcEthAddress = Just v }
 headerExactMatch Dl_src Nothing = P.top
