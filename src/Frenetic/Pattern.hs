@@ -1,0 +1,231 @@
+
+--------------------------------------------------------------------------------
+-- The Frenetic Project                                                       --
+-- frenetic@frenetic-lang.org                                                 --
+--------------------------------------------------------------------------------
+-- Licensed to the Frenetic Project by one or more contributors. See the      --
+-- NOTICE file distributed with this work for additional information          --
+-- regarding copyright and ownership. The Frenetic Project licenses this      --
+-- file to you under the following license.                                   --
+--                                                                            --
+-- Redistribution and use in source and binary forms, with or without         --
+-- modification, are permitted provided the following conditions are met:     --
+-- * Redistributions of source code must retain the above copyright           --
+--   notice, this list of conditions and the following disclaimer.            --
+-- * Redistributions of binaries must reproduce the above copyright           --
+--   notice, this list of conditions and the following disclaimer in          --
+--   the documentation or other materials provided with the distribution.     --
+-- * The names of the copyright holds and contributors may not be used to     --
+--   endorse or promote products derived from this work without specific      --
+--   prior written permission.                                                --
+--                                                                            --
+-- Unless required by applicable law or agreed to in writing, software        --
+-- distributed under the License is distributed on an "AS IS" BASIS, WITHOUT  --
+-- WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the   --
+-- LICENSE file distributed with this work for specific language governing    --
+-- permissions and limitations under the License.                             --
+--------------------------------------------------------------------------------
+-- /src/Frenetic/Pattern.hs                                                   --
+-- Patterns                                                                   --
+-- $Id$ --
+--------------------------------------------------------------------------------
+
+{-# LANGUAGE ScopedTypeVariables,
+             ParallelListComp,
+             GeneralizedNewtypeDeriving #-}
+
+module Frenetic.Pattern where
+
+import Data.List hiding (intersect)
+import Data.Bits
+import Data.Word
+import Data.Maybe
+import Data.HList
+    
+{-|
+A class for types that compose similar to wildcards.
+
+All instances must satisfy the following:
+
+* @match@ defines a partial order; @top@ is the top element of this order
+  and @unsafeIntersect@ is a meet.
+
+* Meets are exact: if @match x y@ and @match x z@, then
+  @match x (unsafeIntersect y z)@.
+
+* If there exists an @x@ such that @match x y@ and @match x z@, then
+  @intersect y z = Just (unsafeIntersect y z)@
+
+Minimal complete definition: top and one of the following: (1) intersect or
+(2) unsafeIntersect and overlap.
+-}
+class (Eq a) => Pattern a where
+    top :: a
+    intersect :: a -> a -> Maybe a
+    unsafeIntersect :: a -> a -> a
+    match :: a -> a -> Bool
+    overlap :: a -> a -> Bool
+    disjoint :: a -> a -> Bool
+
+    intersect x y | overlap x y = Just $ unsafeIntersect x y
+                  | otherwise = Nothing
+    unsafeIntersect x y = fromJust $ intersect x y
+    match x y = intersect x y == Just x
+    overlap x y = isJust $ intersect x y
+    disjoint x y = isNothing $ intersect x y
+
+-- Wildcards
+                   
+data Wildcard a = Wildcard a a  -- Data and mask, respectively.
+
+instance (Bits a) => Eq (Wildcard a) where
+    (Wildcard x m) == (Wildcard x' m') =
+        m == m' && x .|. m == x' .|. m
+
+instance (Bits a) => Show (Wildcard a) where
+    show (Wildcard x m) = [f i | i <- reverse [0 .. n-1]] 
+        where
+          n = bitSize x
+
+          f i | testBit m i = '?'
+              | testBit x i = '1'
+              | otherwise = '0'
+
+instance (Bits a) => Pattern (Wildcard a) where
+    top = Wildcard 0 (complement 0)
+
+    unsafeIntersect (Wildcard x m) (Wildcard x' m') =
+        Wildcard ((x .|. m) .&. (x' .|. m')) (m .&. m')
+
+    overlap (Wildcard x m) (Wildcard x' m') = x .|. m'' == x' .|. m''
+        where
+          m'' = m .|. m'
+          
+    match (Wildcard x m) (Wildcard x' m') =
+        m .&. m' == m  &&  x .|. m' == x' .|. m' 
+         
+    disjoint w w' = not $ overlap w w'
+
+wBitsMake :: (Bits a) => a -> Wildcard a
+wBitsMake b = Wildcard b 0 
+                    
+wMake :: forall a. (Bits a) => String -> Wildcard a
+wMake s = foldl' unsafeIntersect top mds
+    where
+      n = bitSize (undefined :: a)
+
+      mds = [f i c | c <- s | i <- reverse [0 .. n - 1]]
+
+      f i '0' = Wildcard (complement $ bit i) (complement $ bit i)
+      f i '1' = Wildcard (complement 0) (complement $ bit i)
+      f i '?' = top
+      f i _ = error "Bit other than {0, 1, ?}"
+
+wReplaceData :: a -> Wildcard a -> Wildcard a
+wReplaceData x (Wildcard x' m) = Wildcard x m
+              
+wReplaceMask :: a -> Wildcard a -> Wildcard a
+wReplaceMask m (Wildcard x m') = Wildcard x m
+
+wMake8 :: String -> Wildcard Word8
+wMake8  = wMake
+
+wMake16 :: String -> Wildcard Word16
+wMake16 = wMake
+              
+wMake32 :: String -> Wildcard Word32
+wMake32 = wMake
+
+wMake64 :: String -> Wildcard Word64
+wMake64 = wMake
+
+showAbridged :: String -> String
+showAbridged = reverse . ('*' :) . dropWhile (== '?') . reverse
+
+-- Arbitrary "tuples"
+
+instance Pattern HNil where
+    top = HNil
+    intersect _ _ = Just HNil
+
+instance (Pattern a, Pattern b) => Pattern (HCons a b) where
+    top = HCons top top
+    intersect (HCons x y) (HCons x' y') = do x'' <- intersect x x'
+                                             y'' <- intersect y y'
+                                             Just $ HCons x'' y''
+
+-- Restricted wildcards
+
+{-|
+This class allows one to approximate wildcards with restricted variants.
+
+All instances must obey the laws!
+
+* /Approximations/: For all @x@, we have @match x (overapprox x)@ and
+  @match (underapprox x) x@.
+
+* /Tightest/: There is no @y@ such that (1) @match x y@ and
+   @match y (overapprox x)@ and (2) @match (underapprox x) y@ and
+   @match y x@.
+
+* /Monotonic/: If @match x y@, then (1) @match (overapprox x) (overapprox y)@
+  and (2) if the data of x and y are the same, then
+  @match (underapprox x) (underapprox y).
+-}
+class Approx a where
+    overapprox :: (Bits b) => Wildcard b -> a b
+    underapprox :: (Bits b) => Wildcard b -> a b
+
+-- Prefix patterns
+
+newtype Prefix a = Prefix (Wildcard a)
+    deriving (Eq, Pattern)
+
+instance (Bits a) => Show (Prefix a) where
+    show (Prefix w) = show w
+
+instance Approx Prefix where
+    overapprox (Wildcard x m) = Prefix (Wildcard x m')
+        where
+          n = bitSize m
+          m' = case elemIndex True $ map (testBit m) $ reverse [0 .. n - 1] of
+                 Just i -> foldl' setBit m $ reverse [0 .. (n - i - 2)]
+                 Nothing -> m
+
+    underapprox (Wildcard x m) = Prefix (Wildcard x m')
+        where
+          n = bitSize m
+          m' = case elemIndex False $ map (testBit m) $ [0 .. n - 1] of
+                 Just i -> foldl' clearBit m $ [i + 1 .. n - 1]
+                 Nothing -> m
+                            
+-- Exact patterns
+
+newtype Exact a = Exact (Wildcard a)
+    deriving (Eq, Pattern)
+
+instance (Bits a) => Show (Exact a) where
+    show (Exact w) = show w
+
+instance Approx Exact where
+    overapprox (Wildcard x m) | m == 0 = Exact (Wildcard x m)
+                              | otherwise = Exact (Wildcard x (complement 0))
+
+    underapprox (Wildcard x m) | m == complement 0 = Exact (Wildcard x m)
+                               | otherwise = Exact (Wildcard x 0)
+
+-- Useless patterns
+
+data Useless a = Useless
+                 deriving Eq
+
+instance Show (Useless a) where
+    show _ = "*"
+
+instance Pattern (Useless a) where
+    top = Useless
+    intersect _ _ = Just Useless
+
+instance Approx Useless where
+    overapprox _ = Useless
+    underapprox _ = Useless

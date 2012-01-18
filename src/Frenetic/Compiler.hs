@@ -50,7 +50,7 @@ import Data.Word
 import Data.List as List
 
 import Frenetic.Network 
-import Frenetic.Patterns
+import qualified Frenetic.Pattern as P
 import Frenetic.Language
 import Frenetic.Switches.OpenFlow
     
@@ -100,7 +100,7 @@ skelMap f (Skeleton bs) = Skeleton $ Prelude.map (\(Bone m a) -> Bone m (f a )) 
 skelCart :: (a -> a -> a) -> Skeleton a -> Skeleton a -> (Skeleton a, Skeleton a, Skeleton a)
 skelCart f (Skeleton bs1) (Skeleton bs2) = 
   let h bs x@(Bone m1 a1) y@(Bone m2 a2) = 
-        case mMeet m1 m2 of 
+        case P.intersect m1 m2 of 
           Just m12 -> 
             (bs ++ [Bone m12 (f a1 a2)],
              if m12 == m1 then Nothing else Just x,
@@ -111,7 +111,7 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
   (Skeleton bs1', Skeleton bs2', Skeleton bs3')
 
 instance (Lattice a) => Lattice (Skeleton a) where
-  top = Skeleton [Bone mTop top]
+  top = Skeleton [Bone P.top top]
   bottom = Skeleton []
   join skel1 skel2 = skel12 +++ skel1' +++ skel2' 
     where (skel12, skel1', skel2') = skelCart join skel1 skel2
@@ -132,12 +132,12 @@ compileActions (NSet as) = error "Cannot handle cofinite actions"
 compilePredicate :: Switch -> Predicate p -> Skeleton Bool 
 compilePredicate s (EInport n) = 
   Skeleton [Bone (inportExactMatch n) True,
-            Bone mTop False] 
+            Bone P.top False] 
 compilePredicate s (EHeader h mb) =   
   Skeleton [Bone (headerExactMatch h mb) True,
-            Bone mTop False] 
-compilePredicate s (ESwitch s') | s == s' = Skeleton [Bone mTop True]
-                                | otherwise = Skeleton [Bone mTop False]
+            Bone P.top False] 
+compilePredicate s (ESwitch s') | s == s' = Skeleton [Bone P.top True]
+                                | otherwise = Skeleton [Bone P.top False]
 compilePredicate s (EIntersect pr1 pr2) = 
   compilePredicate s pr1 /\ compilePredicate s pr2 
 compilePredicate s (EUnion pr1 pr2) = 
