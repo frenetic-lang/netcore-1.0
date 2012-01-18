@@ -51,22 +51,22 @@ import Frenetic.Network
 -- Predicates
 --
 data Predicate p =
-    forall b. (Bits b) => EHeader (Header b) (Maybe b)
-  | ESwitch Switch
+    forall b. (Bits b) => PrHeader (Header b) (Maybe b)
+  | PrTo Switch
   | EInport Port
-  | EUnion (Predicate p) (Predicate p)
-  | EIntersect (Predicate p) (Predicate p)
-  | EDifference (Predicate p) (Predicate p)
-  | ENegate (Predicate p)
+  | PrUnion (Predicate p) (Predicate p)
+  | PrIntersect (Predicate p) (Predicate p)
+  | PrDifference (Predicate p) (Predicate p)
+  | PrNegate (Predicate p)
 
 instance Show (Predicate pack) where
-  show (EHeader h bo) = "(" ++ show h ++ " : " ++ show bo ++ ")"
-  show (ESwitch s) = "switch(" ++ show s ++ ")"
+  show (PrHeader h bo) = "(" ++ show h ++ " : " ++ show bo ++ ")"
+  show (PrTo s) = "switch(" ++ show s ++ ")"
   show (EInport n) = "inport(" ++ show n ++ ")"
-  show (EUnion pr pr') = "(" ++ show pr ++ ") \\/ (" ++ show pr' ++ ")"
-  show (EIntersect pr pr') = "(" ++ show pr ++ ") /\\ (" ++ show pr' ++ ")"
-  show (EDifference pr pr') = "(" ++ show pr ++ ") // (" ++ show pr' ++ ")"
-  show (ENegate pr) = "~(" ++ show pr ++ ")"
+  show (PrUnion pr pr') = "(" ++ show pr ++ ") \\/ (" ++ show pr' ++ ")"
+  show (PrIntersect pr pr') = "(" ++ show pr ++ ") /\\ (" ++ show pr' ++ ")"
+  show (PrDifference pr pr') = "(" ++ show pr ++ ") // (" ++ show pr' ++ ")"
+  show (PrNegate pr) = "~(" ++ show pr ++ ")"
 
 --
 -- Algebras
@@ -157,39 +157,39 @@ type Actions = CoSet Action
 -- Policies
 --
 data Policy p = 
-    PBasic (Predicate p) Actions
-  | PUnion (Policy p) (Policy p)
-  | PIntersect (Policy p) (Policy p)
+    PoBasic (Predicate p) Actions
+  | PoUnion (Policy p) (Policy p)
+  | PoIntersect (Policy p) (Policy p)
               
 instance Show (Policy p) where
-  show (PBasic e as) = "(" ++ show e ++ ") -> " ++ show as
-  show (PUnion t1 t2) = "(" ++ show t1 ++ ") \\/ (" ++ show t2 ++ ")"
-  show (PIntersect t1 t2) = "(" ++ show t1 ++ ") /\\ (" ++ show t2 ++ ")"
+  show (PoBasic e as) = "(" ++ show e ++ ") -> " ++ show as
+  show (PoUnion t1 t2) = "(" ++ show t1 ++ ") \\/ (" ++ show t2 ++ ")"
+  show (PoIntersect t1 t2) = "(" ++ show t1 ++ ") /\\ (" ++ show t2 ++ ")"
 
 
 --
 -- Interpreter
 --
 interpretPredicate :: Predicate p -> Transmission p -> Bool
-interpretPredicate (EHeader _ Nothing) _ = 
+interpretPredicate (PrHeader _ Nothing) _ = 
   True
-interpretPredicate (EHeader h (Just b)) (Transmission _ _ pkt) = 
+interpretPredicate (PrHeader h (Just b)) (Transmission _ _ pkt) = 
   getHeader pkt h == b 
 interpretPredicate (EInport n) (Transmission _ n' _) = 
   n == n'
-interpretPredicate (EUnion p1 p2) t = 
+interpretPredicate (PrUnion p1 p2) t = 
   interpretPredicate p1 t \/ interpretPredicate p2 t
-interpretPredicate (EIntersect p1 p2) t = 
+interpretPredicate (PrIntersect p1 p2) t = 
   interpretPredicate p1 t /\ interpretPredicate p2 t
-interpretPredicate (EDifference p1 p2) t = 
+interpretPredicate (PrDifference p1 p2) t = 
   interpretPredicate p1 t // (interpretPredicate p2 t)
-interpretPredicate (ENegate p1) t = 
+interpretPredicate (PrNegate p1) t = 
   interpretPredicate p1 t 
 
 interpretPolicy :: Policy p -> Transmission p -> Actions
-interpretPolicy (PBasic pred as) t = 
+interpretPolicy (PoBasic pred as) t = 
   if interpretPredicate pred t then as else PSet (Set.empty)
-interpretPolicy (PUnion p1 p2) t = 
+interpretPolicy (PoUnion p1 p2) t = 
   interpretPolicy p1 t \/ interpretPolicy p2 t
-interpretPolicy (PIntersect p1 p2) t = 
+interpretPolicy (PoIntersect p1 p2) t = 
   interpretPolicy p1 t /\ interpretPolicy p2 t

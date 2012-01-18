@@ -133,24 +133,24 @@ compilePredicate :: Switch -> Predicate p -> Skeleton Bool
 compilePredicate s (EInport n) = 
   Skeleton [Bone (inportExactMatch n) True,
             Bone P.top False] 
-compilePredicate s (EHeader h mb) =   
+compilePredicate s (PrHeader h mb) =   
   Skeleton [Bone (headerExactMatch h mb) True,
             Bone P.top False] 
-compilePredicate s (ESwitch s') | s == s' = Skeleton [Bone P.top True]
+compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top True]
                                 | otherwise = Skeleton [Bone P.top False]
-compilePredicate s (EIntersect pr1 pr2) = 
+compilePredicate s (PrIntersect pr1 pr2) = 
   compilePredicate s pr1 /\ compilePredicate s pr2 
-compilePredicate s (EUnion pr1 pr2) = 
+compilePredicate s (PrUnion pr1 pr2) = 
   compilePredicate s pr1 \/ compilePredicate s pr2 
-compilePredicate s (ENegate pr1) = 
+compilePredicate s (PrNegate pr1) = 
   neg $ compilePredicate s pr1
 
 compilePolicy :: Switch -> Policy p -> Skeleton Frenetic.Language.Actions
-compilePolicy s (PBasic pr1 as) = 
+compilePolicy s (PoBasic pr1 as) = 
   skelMap (\b -> if b then as else PSet (Set.empty)) $ compilePredicate s pr1
-compilePolicy s (PUnion p1 p2) = 
+compilePolicy s (PoUnion p1 p2) = 
   compilePolicy s p1 \/ compilePolicy s p2 
-compilePolicy s (PIntersect p1 p2) = 
+compilePolicy s (PoIntersect p1 p2) = 
   compilePolicy s p1 /\ compilePolicy s p2
   
 compile :: Switch -> Policy p -> [Rule] 
