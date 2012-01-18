@@ -175,7 +175,7 @@ sendBufferedPacket :: SockAddr -> BufferID -> PortID -> Transmission PacketInfo 
 sendBufferedPacket addr mbid inport t proc = 
   do state <- get
      let pol = policy state 
-     let ofacts = compileActions (interpretPolicy pol t)
+     let ofacts = actTranslate (interpretPolicy pol t)
      let msg = Messages.PacketOut $ 
                    Nettle.OpenFlow.Packet.PacketOut 
                      { bufferIDData = Left mbid, 
@@ -204,7 +204,7 @@ packetIn addr pkt proc =
                 Just switch -> 
                     do let inport = receivedOnPort pkt 
                        let t = Transmission switch inport pkt
-                       installRules addr (specialize pol switch t) proc
+                       installRules addr (skelToRules $ specialize pol switch t) proc
                        case bufferID pkt of 
                          Nothing -> return () 
                          Just bid -> sendBufferedPacket addr bid inport t proc 
@@ -239,7 +239,7 @@ of_dispatch addr (xid, scmsg) proc =
            let pol = policy state 
            let addrs = addrMap state
            put (state { addrMap = Map.insert addr switch addrs })
-           installRules addr (compile switch pol) proc 
+           installRules addr (skelToRules $ compile switch pol) proc 
     PacketIn pkt -> 
         let src = show $ getHeader pkt Dl_src in 
         let dst = show $ getHeader pkt Dl_dst in 

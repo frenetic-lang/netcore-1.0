@@ -41,24 +41,14 @@
 
 module Frenetic.Compiler where
 
-import System.IO.Unsafe
-import System.IO
-import Data.Bits
 import Data.Map as Map
 import Data.Set as Set
-import Data.Word
 import Data.List as List
 
 import Frenetic.Network 
 import qualified Frenetic.Pattern as P
 import Frenetic.Language
-import Frenetic.Switches.OpenFlow
     
-import Nettle.OpenFlow.Match as OFMatch
-import Nettle.OpenFlow.Action as OFAction
-import Nettle.IPv4.IPAddress as IPAddress 
-import Nettle.Ethernet.EthernetAddress 
-
 --
 -- intermediate forms
 --
@@ -82,22 +72,26 @@ cartMap f c (x:xs) ys =
         (c', Nothing, Nothing) -> (c', Nothing, ys)        
 
 
-data Bone a = Bone OFMatch.Match a
-data Skeleton a = Skeleton [Bone a]
+data Bone pat a = Bone pat a
+data Skeleton pat a = Skeleton [Bone pat a]
 
-instance (Show a) => Show (Bone a) where
+instance (Show pat, Show a) => Show (Bone pat a) where
   show (Bone m a) = "Bone(" ++ show m ++ "," ++ show a ++ ")"
 
-instance (Show a) => Show (Skeleton a) where
+instance (Show pat, Show a) => Show (Skeleton pat a) where
   show (Skeleton bs) = concat (intersperse "\n" $ Prelude.map show bs)
 
-(+++) :: Skeleton a -> Skeleton a -> Skeleton a
+(+++) :: Skeleton pat a -> Skeleton pat a -> Skeleton pat a
 (+++) (Skeleton bs1) (Skeleton bs2) = Skeleton (bs1 ++ bs2)
 
-skelMap :: (a -> b) -> Skeleton a -> Skeleton b 
-skelMap f (Skeleton bs) = Skeleton $ Prelude.map (\(Bone m a) -> Bone m (f a )) bs
+skelMap :: (a -> b) -> Skeleton pat a -> Skeleton pat b 
+skelMap f (Skeleton bs) = Skeleton $ Prelude.map (\(Bone m a) -> Bone m (f a)) bs
 
-skelCart :: (a -> a -> a) -> Skeleton a -> Skeleton a -> (Skeleton a, Skeleton a, Skeleton a)
+skelCart :: (P.Pattern pat) =>
+            (a -> a -> a)
+         -> Skeleton pat a
+         -> Skeleton pat a
+         -> (Skeleton pat a, Skeleton pat a, Skeleton pat a)
 skelCart f (Skeleton bs1) (Skeleton bs2) = 
   let h bs x@(Bone m1 a1) y@(Bone m2 a2) = 
         case P.intersect m1 m2 of 
@@ -113,17 +107,23 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
 --
 --
 --
-                    
-compileActions :: Frenetic.Language.Actions -> [OFAction.Action]
-compileActions s = List.map (SendOutPort . PhysicalPort) $ Set.toList s
 
-compilePredicate :: Switch -> Predicate p -> Skeleton Bool 
-compilePredicate s (PrInport n) = 
-  Skeleton [Bone (inportExactMatch n) True,
-            Bone P.top False] 
-compilePredicate s (PrHeader h mb) =   
-  Skeleton [Bone (headerExactMatch h mb) True,
-            Bone P.top False] 
+{-|
+This class represents backend actions.
+|-}
+class (Eq act) => SwitchAction act where
+    actDefault :: act
+    actController :: act
+    actTranslate :: Frenetic.Language.Actions -> act
+                    
+
+compilePredicate :: (P.Pattern pat) => Switch -> Predicate p -> Skeleton pat Bool 
+-- compilePredicate s (PrInport n) = 
+--   Skeleton [Bone (inportExactMatch n) True,
+--             Bone P.top False] 
+-- compilePredicate s (PrHeader h mb) =   
+--   Skeleton [Bone (headerExactMatch h mb) True,
+--             Bone P.top False] 
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top True]
                              | otherwise = Skeleton [Bone P.top False]
 compilePredicate s (PrIntersect pr1 pr2) = skel12'
@@ -138,7 +138,7 @@ compilePredicate s (PrUnion pr1 pr2) = skel12' +++ skel1' +++ skel2'
       (skel12', skel1', skel2') = skelCart (||) skel1 skel2
 compilePredicate s (PrNegate pr) = skelMap not (compilePredicate s pr) +++ Skeleton [Bone P.top False]
 
-compilePolicy :: Switch -> Policy p -> Skeleton Frenetic.Language.Actions
+compilePolicy :: (P.Pattern pat) => Switch -> Policy p -> Skeleton pat Frenetic.Language.Actions
 compilePolicy s (PoBasic po as) = 
   skelMap (\b -> if b then as else Set.empty) $ compilePredicate s po
 compilePolicy s (PoUnion po1 po2) = skel12' +++ skel1' +++ skel2' 
@@ -151,14 +151,12 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel1 = compilePolicy s po1
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (Set.intersection) skel1 skel2
-  
-compile :: Switch -> Policy p -> [Rule] 
-compile s p = 
-  Prelude.map (\(Bone match actions) -> Rule match (compileActions actions)) bones
-  where Skeleton bones = compilePolicy s p  
 
-specialize :: Policy p -> Switch -> Transmission p -> [Rule]
-specialize policy switch t@(Transmission _ port pkt) = []
+compile :: (P.Pattern pat, SwitchAction a) => Switch -> Policy p -> Skeleton pat a 
+compile s p = skelMap actTranslate (compilePolicy s p)
+
+specialize :: (P.Pattern pat, SwitchAction a) => Policy p -> Switch -> Transmission p -> Skeleton pat a
+specialize policy switch t@(Transmission _ port pkt) = Skeleton []
   -- let actions = Prelude.map compileAction $ (Set.toList (interpretPolicy policy t)) in 
   -- let match = 
   --      Match { OFMatch.inPort = Just port,

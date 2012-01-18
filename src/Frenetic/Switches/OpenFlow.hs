@@ -45,9 +45,12 @@ import Nettle.OpenFlow.Action
 import Nettle.OpenFlow.Match as OFMatch
 import Nettle.OpenFlow.Action as OFAction
 import Nettle.IPv4.IPAddress as IPAddress
+import Data.Set as Set
+import Data.List as List
     
 import Frenetic.Network
 import qualified Frenetic.Pattern as P
+import qualified Frenetic.Compiler as C
 
 type Pattern = Match
 
@@ -72,7 +75,15 @@ instance (Eq a) => P.Pattern (Maybe a) where
 instance P.Pattern IPAddressPrefix where
   top = defaultIPPrefix
   intersect = IPAddress.intersect
-                   
+
+instance C.SwitchAction Actions where
+    actController = undefined
+    actDefault = undefined
+    actTranslate s = List.map (SendOutPort . PhysicalPort) $ Set.toList s
+
+skelToRules :: C.Skeleton Pattern Actions -> [Rule]
+skelToRules (C.Skeleton bones) = List.map (\(C.Bone p a) -> Rule p a) bones 
+
 instance P.Pattern OFMatch.Match where
   top = Match { 
     inPort = P.top,
