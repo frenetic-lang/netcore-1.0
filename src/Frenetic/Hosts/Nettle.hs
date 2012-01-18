@@ -54,7 +54,8 @@ import Network.Socket.Internal
 import Control.Exception.Base
 import Control.Concurrent
 import Control.Monad.State
-
+import Data.LargeWord
+    
 import Nettle.OpenFlow.FlowTable as FlowTable hiding (FlowRemoved)
 import Nettle.OpenFlow.Packet
 import Nettle.Ethernet.EthernetFrame
@@ -100,13 +101,15 @@ nettleEthernetBody pkt =
   case nettleEthernetFrame pkt of
     EthernetFrame _ bdy -> bdy
 
+ethToWord48 (EthernetAddress a b c d e f) = LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
+
 instance Packet Nettle.OpenFlow.Packet.PacketInfo where 
   getHeader pi h = 
     case h of 
       Dl_src -> 
-        HardwareAddress $ sourceMACAddress $ nettleEthernetHeaders pi
+        ethToWord48 $ sourceMACAddress $ nettleEthernetHeaders pi
       Dl_dst -> 
-        HardwareAddress $ destMACAddress $ nettleEthernetHeaders pi
+        ethToWord48 $ destMACAddress $ nettleEthernetHeaders pi
       Dl_typ -> 
         typeCode $ nettleEthernetHeaders pi
       Dl_vlan -> 

@@ -128,9 +128,7 @@ class (Eq act) => SwitchAction act where
     actController :: act
     actTranslate :: Frenetic.Language.Actions -> act
                     
-
 compilePredicate :: (CompilePattern pat) => Switch -> Predicate p -> Skeleton pat Bool 
-
 compilePredicate s (PrHeader h w) =   
   Skeleton [Bone (patOverapprox h w) True,
             Bone P.top False]

@@ -75,6 +75,12 @@ class (Eq a) => Pattern a where
     disjoint x y = isNothing $ intersect x y
 
 -- Wildcards
+-- instance Pattern a => Pattern (Maybe a) where
+--     top = Just top
+--     intersect (Just x) (Just y) = Just (x `intersect` y)
+--     intersect _ _ = Nothing
+    
+
                    
 data Wildcard a = Wildcard a a  -- Data and mask, respectively.
 
@@ -201,18 +207,12 @@ instance Approx Prefix where
                             
 -- Exact patterns
 
-newtype Exact a = Exact (Wildcard a)
-    deriving (Eq, Pattern)
 
-instance (Bits a) => Show (Exact a) where
-    show (Exact w) = show w
-
-instance Approx Exact where
-    overapprox (Wildcard x m) | m == 0 = Exact (Wildcard x m)
-                              | otherwise = Exact (Wildcard x (complement 0))
-
-    underapprox (Wildcard x m) | m == complement 0 = Exact (Wildcard x m)
-                               | otherwise = Exact (Wildcard x 0)
+instance Approx Maybe where
+    overapprox (Wildcard x m) | m == 0 = Just x
+                              | otherwise = Nothing
+    underapprox (Wildcard x m) | m == complement 0 = Just x
+                               | otherwise = Nothing
 
 -- Useless patterns
 

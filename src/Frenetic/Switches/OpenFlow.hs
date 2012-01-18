@@ -45,8 +45,10 @@ import Nettle.OpenFlow.Action
 import Nettle.OpenFlow.Match as OFMatch
 import Nettle.OpenFlow.Action as OFAction
 import Nettle.IPv4.IPAddress as IPAddress
+import Nettle.Ethernet.EthernetAddress
 import Data.Set as Set
 import Data.List as List
+import Data.LargeWord
     
 import Frenetic.Network
 import qualified Frenetic.Pattern as P
@@ -125,25 +127,32 @@ instance P.Pattern OFMatch.Match where
            srcTransportPort = srctransportport,
            dstTransportPort = dsttransportport } }
 
-instance C.CompilePattern Match where
-    patOverapprox h w = undefined
-    patInport p = undefined
-    patUnderapprox = undefined
-  
-headerExactMatch :: (Bits b) => Header b -> Maybe b -> OFMatch.Match
-headerExactMatch Dl_src (Just (HardwareAddress v)) = P.top { srcEthAddress = Just v }
-headerExactMatch Dl_src Nothing = P.top
-headerExactMatch Dl_dst (Just (HardwareAddress v)) = P.top { dstEthAddress = Just v }
-headerExactMatch Dl_dst Nothing = P.top
-headerExactMatch Dl_typ v = P.top { ethFrameType = v }
-headerExactMatch Dl_vlan v = P.top { vLANID = v }
-headerExactMatch Dl_vlan_pcp v = P.top { vLANPriority = v }
-headerExactMatch Nw_src v = P.top { srcIPAddress = case v of { Just a -> (IPAddress a, maxPrefixLen); Nothing -> defaultIPPrefix } }
-headerExactMatch Nw_dst v = P.top { dstIPAddress = case v of { Just a -> (IPAddress a, maxPrefixLen); Nothing -> defaultIPPrefix } }
-headerExactMatch Nw_proto v = P.top { ipProtocol = v }
-headerExactMatch Nw_tos v = P.top { ipTypeOfService = v }
-headerExactMatch Tp_src v = P.top { srcTransportPort = v }
-headerExactMatch Tp_dst v = P.top { dstTransportPort = v }
+word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) = EthernetAddress a b c d e f
 
-inportExactMatch :: Port -> OFMatch.Match
-inportExactMatch n = P.top { inPort = Just n }
+countBits :: (Bits a) => a -> Int
+countBits x = sum [1 | i <- [0 .. bitSize x], not $ testBit x i]
+                                                                                 
+instance C.CompilePattern Match where
+    patOverapprox Dl_src w = P.top { srcEthAddress = fmap word48ToEth $ P.overapprox w }
+    patOverapprox Dl_dst w = P.top { dstEthAddress = fmap word48ToEth $ P.overapprox w }
+    patOverapprox Dl_typ w = P.top { ethFrameType = P.overapprox w }
+    patOverapprox Dl_vlan w = P.top { vLANID = P.overapprox w }
+    patOverapprox Dl_vlan_pcp w = P.top { vLANPriority = P.overapprox w }
+    patOverapprox Nw_src w = P.top { srcIPAddress = (IPAddress x, fromIntegral $ countBits m) }
+        where
+          P.Prefix (P.Wildcard x m) = P.overapprox w
+    patOverapprox Nw_src w = P.top { dstIPAddress = (IPAddress x, fromIntegral $ countBits m) }
+        where
+          P.Prefix (P.Wildcard x m) = P.overapprox w
+    patOverapprox Nw_proto w = P.top { ipProtocol = P.overapprox w }
+    patOverapprox Nw_tos w = P.top { ipTypeOfService = P.overapprox w }
+    patOverapprox Tp_src w = P.top { srcTransportPort = P.overapprox w }
+    patOverapprox Tp_dst w = P.top { dstTransportPort = P.overapprox w }
+
+    patInport p = P.top { inPort = Just p }
+
+    patUnderapprox = undefined
+
+-- headerExactMatch Nw_src v = P.top { srcIPAddress = case v of { Just a -> (IPAddress a, maxPrefixLen); Nothing -> defaultIPPrefix } }
+-- headerExactMatch Nw_dst v = P.top { dstIPAddress = case v of { Just a -> (IPAddress a, maxPrefixLen); Nothing -> 
+

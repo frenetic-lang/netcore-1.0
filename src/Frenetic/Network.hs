@@ -42,29 +42,28 @@ module Frenetic.Network where
 import Numeric
 import Data.Char 
 import Data.Word
-
-import Nettle.Ethernet.EthernetAddress 
+import Data.LargeWord
 
 --
 -- Basic types
 -- 
 type Switch = Word64
 type Port = Word16
-data HardwareAddress = HardwareAddress EthernetAddress
-  deriving Eq
 
-instance Show HardwareAddress where
-  show (HardwareAddress (EthernetAddress w1 w2 w3 w4 w5 w6)) = 
-    let hex x = (if x < 10 then "0" else "") ++ showHex x "" in 
-    (hex w1) ++ ":" ++ (hex w2) ++ ":" ++ (hex w3) ++ ":" ++ 
-    (hex w4) ++ ":" ++ (hex w5) ++ ":" ++ (hex w6)
+type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8)))) 
+    
+-- instance Show HardwareAddress where
+--   show (HardwareAddress (EthernetAddress w1 w2 w3 w4 w5 w6)) = 
+--     let hex x = (if x < 10 then "0" else "") ++ showHex x "" in 
+--     (hex w1) ++ ":" ++ (hex w2) ++ ":" ++ (hex w3) ++ ":" ++ 
+--     (hex w4) ++ ":" ++ (hex w5) ++ ":" ++ (hex w6)
 
 -- 
 -- Headers
 -- 
 data Header b where
-  Dl_src :: Header HardwareAddress
-  Dl_dst :: Header HardwareAddress
+  Dl_src :: Header Word48
+  Dl_dst :: Header Word48
   Dl_typ :: Header Word16
   Dl_vlan :: Header Word16
   Dl_vlan_pcp :: Header Word8
