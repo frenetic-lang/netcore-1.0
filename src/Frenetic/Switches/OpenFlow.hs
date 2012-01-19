@@ -41,142 +41,134 @@
 
 module Frenetic.Switches.OpenFlow where
 
-import Data.Map
 import Data.Bits
-import Nettle.OpenFlow.Match
-import Nettle.OpenFlow.Action
-import qualified Nettle.OpenFlow.Packet as Pack
+import Data.Word
+import Data.LargeWord
+import qualified Data.Set as Set
+import Data.Typeable
+
 import Nettle.OpenFlow.Match as OFMatch
 import Nettle.OpenFlow.Action as OFAction
-import Nettle.IPv4.IPAddress as IPAddress
+import qualified Nettle.IPv4.IPAddress as IPAddress
 import Nettle.Ethernet.EthernetAddress
-import Data.Set as Set
-import Data.List as List
-import Data.LargeWord
-import Data.Typeable
     
-import qualified Frenetic.Pattern as P
+import Frenetic.Pattern
 import Frenetic.Language
 import Frenetic.Compiler
+
+--
+--
+--
     
-type Pattern = Match
-
-type Actions = [Action]
-
-data Rule = Rule Pattern Frenetic.Switches.OpenFlow.Actions
+data Rule = Rule OFMatch.Match [OFAction.Action]
 
 instance Show Rule where
   show (Rule p a) = "Rule(" ++ show p ++ ", " ++ show a ++ ")"
 
-data Classifier = Classifier [Rule]
+--
+--
+--
 
-data Configuration = Configuration (Map Switch Classifier)
+skelToRules :: Skeleton OFMatch.Match OFAction.ActionSequence -> [Rule]
+skelToRules (Skeleton bones) = map (\(Bone p a) -> Rule p a) bones 
+                    
+ethToWord48 (EthernetAddress a b c d e f) =
+    LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
+             
+word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
+    EthernetAddress a b c d e f
 
-instance (Eq a) => P.Pattern (Maybe a) where
-  top = Nothing
-  intersect x Nothing = Just x
-  intersect Nothing x = Just x
-  intersect m1 m2 | m1 == m2 = Just m1
-                  | otherwise = Nothing
-                   
-instance P.Pattern IPAddressPrefix where
-  top = defaultIPPrefix
+prefixToIPAddressPrefix :: Prefix Word32 -> IPAddress.IPAddressPrefix
+prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
+    (IPAddress.IPAddress x, fromIntegral $ sum [1 | i <- [0 .. 31], not $ testBit m i])
+
+instance Pattern IPAddress.IPAddressPrefix where
+  top = IPAddress.defaultIPPrefix
   intersect = IPAddress.intersect
 
-instance Actionable Frenetic.Switches.OpenFlow.Actions where
-    actController = undefined
-    actDefault = undefined
-    actTranslate s = List.map (SendOutPort . PhysicalPort) $ Set.toList s
-
-skelToRules :: Skeleton Pattern Frenetic.Switches.OpenFlow.Actions -> [Rule]
-skelToRules (Skeleton bones) = List.map (\(Bone p a) -> Rule p a) bones 
-
-instance P.Pattern OFMatch.Match where
-  top = Match { 
-          inPort = P.top,
-          srcEthAddress = P.top,
-    dstEthAddress = P.top,
-    vLANID = P.top,
-    vLANPriority = P.top,
-    ethFrameType = P.top,
-    ipTypeOfService = P.top,
-    ipProtocol = P.top,
-    srcIPAddress = P.top,
-    dstIPAddress = P.top,
-    srcTransportPort = P.top,
-    dstTransportPort = P.top }
-  intersect ofm1 ofm2 = 
-    do inport <- P.intersect (inPort ofm1) (inPort ofm2)
-       srcethaddress <- P.intersect (srcEthAddress ofm1) (srcEthAddress ofm2)
-       dstethaddress <- P.intersect (dstEthAddress ofm1) (dstEthAddress ofm2)
-       vlanid <- P.intersect (vLANID ofm1) (vLANID ofm2)
-       vlanpriority <- P.intersect (vLANPriority ofm1) (vLANPriority ofm2)
-       ethframetype <- P.intersect (ethFrameType ofm1) (ethFrameType ofm2)
-       iptypeofservice <- P.intersect (ipTypeOfService ofm1) (ipTypeOfService ofm2)
-       ipprotocol <- P.intersect (ipProtocol ofm1) (ipProtocol ofm2)
-       srcipaddress <- P.intersect (srcIPAddress ofm1) (srcIPAddress ofm2)
-       dstipaddress <- P.intersect (dstIPAddress ofm1) (dstIPAddress ofm2)
-       srctransportport <- P.intersect (srcTransportPort ofm1) (srcTransportPort ofm2)
-       dsttransportport <- P.intersect (dstTransportPort ofm1) (dstTransportPort ofm2)
-       return $ Match { 
-           inPort = inport,
-           srcEthAddress = srcethaddress,
-           dstEthAddress = dstethaddress,
-           vLANID = vlanid,
-           vLANPriority = vlanpriority,
-           ethFrameType = ethframetype,
-           ipTypeOfService = iptypeofservice,
-           ipProtocol = ipprotocol,
-           srcIPAddress = srcipaddress,
-           dstIPAddress = dstipaddress,
-           srcTransportPort = srctransportport,
-           dstTransportPort = dsttransportport }
-
-word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) = EthernetAddress a b c d e f
-
-countBits :: (Bits a) => a -> Int
-countBits x = sum [1 | i <- [0 .. bitSize x], not $ testBit x i]
-                                                                                 
-instance Patternable Match where
-    patOverapprox Dl_src w = P.top { srcEthAddress = fmap word48ToEth $ P.overapprox w }
-    patOverapprox Dl_dst w = P.top { dstEthAddress = fmap word48ToEth $ P.overapprox w }
-    patOverapprox Dl_typ w = P.top { ethFrameType = P.overapprox w }
-    patOverapprox Dl_vlan w = P.top { vLANID = P.overapprox w }
-    patOverapprox Dl_vlan_pcp w = P.top { vLANPriority = P.overapprox w }
-    patOverapprox Nw_src w = P.top { srcIPAddress = (IPAddress x, fromIntegral $ countBits m) }
-        where
-          P.Prefix (P.Wildcard x m) = P.overapprox w
-    patOverapprox Nw_dst w = P.top { dstIPAddress = (IPAddress x, fromIntegral $ countBits m) }
-        where
-          P.Prefix (P.Wildcard x m) = P.overapprox w
-    patOverapprox Nw_proto w = P.top { ipProtocol = P.overapprox w }
-    patOverapprox Nw_tos w = P.top { ipTypeOfService = P.overapprox w }
-    patOverapprox Tp_src w = P.top { srcTransportPort = P.overapprox w }
-    patOverapprox Tp_dst w = P.top { dstTransportPort = P.overapprox w }
-
-    patInport p = P.top { inPort = Just p }
-
-    patUnderapprox Dl_src w v = do p <- P.underapprox w v
-                                   return $ P.top { srcEthAddress = fmap word48ToEth $ p }
-    patUnderapprox Dl_dst w v = do p <- P.underapprox w v
-                                   return $ P.top { dstEthAddress = fmap word48ToEth $ p }
-    patUnderapprox Dl_typ w v = do p <- P.underapprox w v
-                                   return $ P.top { ethFrameType = p }
-    patUnderapprox Dl_vlan w v = do p <- P.underapprox w v
-                                    return $ P.top { vLANID = p }
-    patUnderapprox Dl_vlan_pcp w v = do p <- P.underapprox w v
-                                        return $ P.top { vLANPriority = p }
-    patUnderapprox Nw_src w v = do P.Prefix (P.Wildcard x m) <- P.underapprox w v
-                                   return $ P.top { srcIPAddress = (IPAddress x, fromIntegral $ countBits m) }
-    patUnderapprox Nw_dst w v = do P.Prefix (P.Wildcard x m) <- P.underapprox w v
-                                   return $ P.top { dstIPAddress = (IPAddress x, fromIntegral $ countBits m) }
-    patUnderapprox Nw_proto w v = do p <- P.underapprox w v
-                                     return $ P.top { ipProtocol = p }
-    patUnderapprox Nw_tos w v = do p <- P.underapprox w v
-                                   return $ P.top { ipTypeOfService = p }
-    patUnderapprox Tp_src w v = do p <- P.underapprox w v
-                                   return $ P.top { srcTransportPort = p }
-    patUnderapprox Tp_dst w v = do p <- P.underapprox w v 
-                                   return $ P.top { dstTransportPort = p }
+instance Actionable OFAction.ActionSequence where
+    actController = sendToController 0
+    actDefault = sendToController 0
+    actTranslate s = map (SendOutPort . PhysicalPort) $ Set.toList s
 
 deriving instance Typeable OFMatch.Match
+
+instance Pattern OFMatch.Match where
+  top = Match { 
+          inPort = top,
+          srcEthAddress = top,
+          dstEthAddress = top,
+          vLANID = top,
+          vLANPriority = top,
+          ethFrameType = top,
+          ipTypeOfService = top,
+          ipProtocol = top,
+          srcIPAddress = top,
+          dstIPAddress = top,
+          srcTransportPort = top,
+          dstTransportPort = top }
+        
+  intersect ofm1 ofm2 = 
+      do inport <- intersect (inPort ofm1) (inPort ofm2)
+         srcethaddress <- intersect (srcEthAddress ofm1) (srcEthAddress ofm2)
+         dstethaddress <- intersect (dstEthAddress ofm1) (dstEthAddress ofm2)
+         vlanid <- intersect (vLANID ofm1) (vLANID ofm2)
+         vlanpriority <- intersect (vLANPriority ofm1) (vLANPriority ofm2)
+         ethframetype <- intersect (ethFrameType ofm1) (ethFrameType ofm2)
+         iptypeofservice <- intersect (ipTypeOfService ofm1) (ipTypeOfService ofm2)
+         ipprotocol <- intersect (ipProtocol ofm1) (ipProtocol ofm2)
+         srcipaddress <- intersect (srcIPAddress ofm1) (srcIPAddress ofm2)
+         dstipaddress <- intersect (dstIPAddress ofm1) (dstIPAddress ofm2)
+         srctransportport <- intersect (srcTransportPort ofm1) (srcTransportPort ofm2)
+         dsttransportport <- intersect (dstTransportPort ofm1) (dstTransportPort ofm2)
+         return $ Match { 
+                      inPort = inport,
+                      srcEthAddress = srcethaddress,
+                      dstEthAddress = dstethaddress,
+                      vLANID = vlanid,
+                      vLANPriority = vlanpriority,
+                      ethFrameType = ethframetype,
+                      ipTypeOfService = iptypeofservice,
+                      ipProtocol = ipprotocol,
+                      srcIPAddress = srcipaddress,
+                      dstIPAddress = dstipaddress,
+                      srcTransportPort = srctransportport,
+                      dstTransportPort = dsttransportport }
+
+instance Patternable OFMatch.Match where
+    patOverapprox Dl_src w = top { srcEthAddress = fmap word48ToEth $ overapprox w }
+    patOverapprox Dl_dst w = top { dstEthAddress = fmap word48ToEth $ overapprox w }
+    patOverapprox Dl_typ w = top { ethFrameType = overapprox w }
+    patOverapprox Dl_vlan w = top { vLANID = overapprox w }
+    patOverapprox Dl_vlan_pcp w = top { vLANPriority = overapprox w }
+    patOverapprox Nw_src w = top { srcIPAddress = prefixToIPAddressPrefix $ overapprox w  }
+    patOverapprox Nw_dst w = top { dstIPAddress = prefixToIPAddressPrefix $ overapprox w  }
+    patOverapprox Nw_proto w = top { ipProtocol = overapprox w }
+    patOverapprox Nw_tos w = top { ipTypeOfService = overapprox w }
+    patOverapprox Tp_src w = top { srcTransportPort = overapprox w }
+    patOverapprox Tp_dst w = top { dstTransportPort = overapprox w }
+
+    patInport p = top { inPort = Just p }
+
+    patUnderapprox Dl_src w v = do p <- underapprox w v
+                                   return $ top { srcEthAddress = fmap word48ToEth $ p }
+    patUnderapprox Dl_dst w v = do p <- underapprox w v
+                                   return $ top { dstEthAddress = fmap word48ToEth $ p }
+    patUnderapprox Dl_typ w v = do p <- underapprox w v
+                                   return $ top { ethFrameType = p }
+    patUnderapprox Dl_vlan w v = do p <- underapprox w v
+                                    return $ top { vLANID = p }
+    patUnderapprox Dl_vlan_pcp w v = do p <- underapprox w v
+                                        return $ top { vLANPriority = p }
+    patUnderapprox Nw_src w v = do p <- underapprox w v
+                                   return $ top { srcIPAddress = prefixToIPAddressPrefix p }
+    patUnderapprox Nw_dst w v = do p <- underapprox w v
+                                   return $ top { dstIPAddress = prefixToIPAddressPrefix p }
+    patUnderapprox Nw_proto w v = do p <- underapprox w v
+                                     return $ top { ipProtocol = p }
+    patUnderapprox Nw_tos w v = do p <- underapprox w v
+                                   return $ top { ipTypeOfService = p }
+    patUnderapprox Tp_src w v = do p <- underapprox w v
+                                   return $ top { srcTransportPort = p }
+    patUnderapprox Tp_dst w v = do p <- underapprox w v 
+                                   return $ top { dstTransportPort = p }

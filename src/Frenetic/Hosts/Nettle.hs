@@ -70,19 +70,25 @@ import Frenetic.Language
 import Frenetic.Compiler
 import Frenetic.Switches.OpenFlow
 
+--
+-- Data types
+--
+
 data ControllerState = 
        ControllerState { addrMap :: Map SockAddr Switch,
                          policy :: Policy }
 
-type ControllerOp  = StateT ControllerState IO
+type ControllerOp = StateT ControllerState IO
 
-type FSCMessage = (TransactionID,SCMessage)
-type FCSMessage = (TransactionID,CSMessage)
+type FSCMessage = (TransactionID, SCMessage)
+type FCSMessage = (TransactionID, CSMessage)
 
 type OFProcess = 
   Process (TCPMessage FSCMessage) (SockAddr, FCSMessage) IOException
 
--- Packet instances    
+-- Packet instances
+
+
 
 nettleEthernetFrame pkt = 
   case runGetE getEthernetFrame $ packetData pkt of 
@@ -96,8 +102,6 @@ nettleEthernetHeaders pkt =
 nettleEthernetBody pkt = 
   case nettleEthernetFrame pkt of
     EthernetFrame _ bdy -> bdy
-
-ethToWord48 (EthernetAddress a b c d e f) = LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
 
 instance Packet Nettle.OpenFlow.Packet.PacketInfo where 
   pktGetHeader pi h = 

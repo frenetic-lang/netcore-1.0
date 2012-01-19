@@ -74,13 +74,6 @@ class (Eq a) => Pattern a where
     overlap x y = isJust $ intersect x y
     disjoint x y = isNothing $ intersect x y
 
--- Wildcards
--- instance Pattern a => Pattern (Maybe a) where
---     top = Just top
---     intersect (Just x) (Just y) = Just (x `intersect` y)
---     intersect _ _ = Nothing
-    
-
                    
 data Wildcard a = Wildcard a a  -- Data and mask, respectively.
 
@@ -96,6 +89,14 @@ instance (Bits a) => Show (Wildcard a) where
           f i | testBit m i = '?'
               | testBit x i = '1'
               | otherwise = '0'
+
+-- "Maybe" for exact matches. Don't be confused.
+instance (Eq a) => Pattern (Maybe a) where
+  top = Nothing
+  intersect x Nothing = Just x
+  intersect Nothing x = Just x
+  intersect m1 m2 | m1 == m2 = Just m1
+                  | otherwise = Nothing
 
 instance (Bits a) => Pattern (Wildcard a) where
     top = Wildcard 0 (complement 0)
