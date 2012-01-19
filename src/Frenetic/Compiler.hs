@@ -105,6 +105,17 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
   let (bs1',bs2',bs3') = cartMap h [] bs1 bs2 in 
   (Skeleton bs1', Skeleton bs2', Skeleton bs3')
 
+{- Pruning -}
+skelPrune :: (Transmissionable ptrn pkt, Actionable act) =>
+             pkt -> Skeleton ptrn act -> Skeleton ptrn act
+skelPrune pkt (Skeleton bones) = Skeleton $ removeControllers [] bones
+    where
+      removeControllers prefix [] = []
+      removeControllers prefix (Bone ptrn actn : bones) 
+          | not $ patMatch ptrn pkt = removeControllers prefix bones
+          | actn == actController = removeControllers (ptrn : prefix) bones
+          | any (P.overlap ptrn) prefix = removeControllers (ptrn : prefix) bones
+          | otherwise = Bone ptrn actn : removeControllers prefix bones
 
 --
 -- compile
@@ -185,4 +196,5 @@ specialize :: (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt, Actionable a
               Transmission ptrn pkt
            -> Policy
            -> Skeleton ptrn actn
-specialize tr po = compile (trSwitch tr) (expandPolicy tr po)
+specialize tr po = skelPrune (trPkt tr) $ compile (trSwitch tr) (expandPolicy tr po)
+

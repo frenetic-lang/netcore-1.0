@@ -118,7 +118,7 @@ instance P.Pattern OFMatch.Match where
        dstipaddress <- P.intersect (dstIPAddress ofm1) (dstIPAddress ofm2)
        srctransportport <- P.intersect (srcTransportPort ofm1) (srcTransportPort ofm2)
        dsttransportport <- P.intersect (dstTransportPort ofm1) (dstTransportPort ofm2)
-       Just $ Match { 
+       return $ Match { 
            inPort = inport,
            srcEthAddress = srcethaddress,
            dstEthAddress = dstethaddress,
@@ -130,7 +130,7 @@ instance P.Pattern OFMatch.Match where
            srcIPAddress = srcipaddress,
            dstIPAddress = dstipaddress,
            srcTransportPort = srctransportport,
-           dstTransportPort = dsttransportport } }
+           dstTransportPort = dsttransportport }
 
 word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) = EthernetAddress a b c d e f
 
