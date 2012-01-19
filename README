@@ -1,0 +1,7 @@
+
+Install GHC 7.2.
+
+Install containers
+        iproute
+        network
+        nettle-openflow
