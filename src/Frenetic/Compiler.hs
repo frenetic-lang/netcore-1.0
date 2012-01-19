@@ -110,9 +110,13 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
 -- compile
 --
   
-compilePredicate :: (Patternable ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
+compilePredicate :: forall ptrn. (Typeable ptrn, Patternable ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
 compilePredicate s (PrHeader h w) = Skeleton [Bone (patOverapprox h w) True,
                                               Bone P.top False]
+compilePredicate s (PrPattern _ dyn) =
+    case fromDynamic dyn :: Maybe ptrn of
+      Just ptrn -> Skeleton [Bone ptrn True, Bone P.top False]
+      Nothing -> Skeleton [Bone P.top False]
 compilePredicate s (PrInport n) = Skeleton [Bone (patInport n) True,
                                             Bone P.top False] 
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top True]
@@ -130,7 +134,7 @@ compilePredicate s (PrUnion pr1 pr2) = skel12' +++ skel1' +++ skel2'
 compilePredicate s (PrNegate pr) = skelMap not (compilePredicate s pr) +++
                                    Skeleton [Bone P.top False]
 
-compilePolicy :: (Patternable ptrn) => Switch -> Policy -> Skeleton ptrn Frenetic.Language.Actions
+compilePolicy :: (Patternable ptrn, Typeable ptrn) => Switch -> Policy -> Skeleton ptrn Frenetic.Language.Actions
 compilePolicy s (PoBasic po as) = 
     skelMap (\b -> if b then as else Set.empty) $ compilePredicate s po
 compilePolicy s (PoUnion po1 po2) = skel12' +++ skel1' +++ skel2' 
@@ -144,21 +148,24 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (Set.intersection) skel1 skel2
 
-compile :: (Patternable ptrn, Actionable actn) => Switch -> Policy -> Skeleton ptrn actn 
+compile :: (Typeable ptrn, Patternable ptrn, Actionable actn) => Switch -> Policy -> Skeleton ptrn actn 
 compile s p = skelMap actTranslate (compilePolicy s p)
 
 --
 -- specialization
 --
               
-expandPredicate :: forall ptrn pkt. (Typeable ptrn, Transmissionable ptrn pkt) =>
+expandPredicate :: forall ptrn pkt. (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt) =>
                    Transmission ptrn pkt
                 -> Predicate
                 -> Predicate
-expandPredicate tr (PrHeader h w) = case patUnderapprox h w :: Maybe ptrn of
-                                        Just pat -> PrUnion (PrHeader h w) (PrPattern pat (toDyn pat))
-                                        Nothing -> PrHeader h w
-expandPredicate tr (PrPattern ptrn dyn) = PrPattern ptrn dyn
+expandPredicate tr (PrHeader h w@(P.Wildcard x m)) =
+    case (patUnderapprox h w' :: Maybe ptrn) of
+      Just pat -> PrUnion (PrHeader h w) (PrPattern (show pat) (toDyn pat))
+      Nothing -> PrHeader h w
+    where
+      w' = P.Wildcard (pktGetHeader (trPkt tr) h) m
+expandPredicate tr (PrPattern s dyn) = PrPattern s dyn
 expandPredicate tr (PrTo s) = PrTo s
 expandPredicate tr (PrInport p) = PrInport p
 expandPredicate tr (PrUnion pr1 pr2) =
@@ -169,10 +176,15 @@ expandPredicate tr (PrDifference pr1 pr2) =
     PrDifference (expandPredicate tr pr1) (expandPredicate tr pr2)
 expandPredicate tr (PrNegate pr) = PrNegate (expandPredicate tr pr)
 
-expandPolicy ::  (Transmissionable ptrn pkt) => Transmission ptrn pkt -> Policy -> Policy
-expandPolicy = undefined
+expandPolicy ::  (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt) => Transmission ptrn pkt -> Policy -> Policy
+expandPolicy tr (PoBasic pr as) = PoBasic (expandPredicate tr pr) as
+expandPolicy tr (PoUnion po1 po2) = PoUnion (expandPolicy tr po1) (expandPolicy tr po2)
+expandPolicy tr (PoIntersect po1 po2) = PoIntersect (expandPolicy tr po1) (expandPolicy tr po2)
+expandPolicy tr (PoDifference po1 po2) = PoDifference (expandPolicy tr po1) (expandPolicy tr po2)
 
-
+specialize :: (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt, Actionable actn) => Transmission ptrn pkt -> Policy -> Skeleton ptrn actn
+specialize tr po = compile (trSwitch tr) (expandPolicy tr po)
+              
 -- specialize :: (Patternable ptrn pkt, Actionable actn pkt) => Policy -> Switch -> Transmission pkt -> Skeleton ptrn actn
 -- specialize policy switch t@(Transmission _ port pkt) = Skeleton []
 --   -- let actions = Prelude.map compileAction $ (Set.toList (interpretPolicy policy t)) in 

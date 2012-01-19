@@ -125,8 +125,7 @@ class (Eq actn) => Actionable actn where
 --
 
 data Predicate = forall b. (Bits b) => PrHeader (Header b) (P.Wildcard b)
-               -- These are the same things.
-               | forall ptrn. (Patternable ptrn) => PrPattern ptrn Dynamic
+               | PrPattern String Dynamic
                | PrTo Switch
                | PrInport Port
                | PrUnion Predicate Predicate
@@ -137,6 +136,7 @@ data Predicate = forall b. (Bits b) => PrHeader (Header b) (P.Wildcard b)
 instance Show Predicate where
   show (PrHeader h w) = "(" ++ show h ++ " : " ++ show w ++ ")"
   show (PrTo s) = "switch(" ++ show s ++ ")"
+  show (PrPattern s _) = s
   show (PrInport n) = "inport(" ++ show n ++ ")"
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
@@ -172,6 +172,7 @@ interpretPredicate (PrHeader h w) tr = wBitsMake (pktGetHeader (trPkt tr) h) == 
 interpretPredicate (PrPattern _ dyn) tr =
     case fromDynamic dyn :: Maybe ptrn of
       Just ptrn -> patMatch ptrn (trPkt tr)
+      Nothing -> False
 interpretPredicate (PrInport n) tr = n == trPort tr
 interpretPredicate (PrUnion pr1 pr2) t = 
   interpretPredicate pr1 t || interpretPredicate pr2 t

@@ -33,7 +33,10 @@
     NoMonomorphismRestriction,
     GADTs,
     TypeSynonymInstances,
-    FlexibleInstances
+    FlexibleInstances,
+    MultiParamTypeClasses,
+    StandaloneDeriving,
+    DeriveDataTypeable
  #-}
 
 module Frenetic.Switches.OpenFlow where
@@ -42,6 +45,7 @@ import Data.Map
 import Data.Bits
 import Nettle.OpenFlow.Match
 import Nettle.OpenFlow.Action
+import qualified Nettle.OpenFlow.Packet as Pack
 import Nettle.OpenFlow.Match as OFMatch
 import Nettle.OpenFlow.Action as OFAction
 import Nettle.IPv4.IPAddress as IPAddress
@@ -49,16 +53,17 @@ import Nettle.Ethernet.EthernetAddress
 import Data.Set as Set
 import Data.List as List
 import Data.LargeWord
+import Data.Typeable
     
-import Frenetic.Network
 import qualified Frenetic.Pattern as P
-import qualified Frenetic.Compiler as C
-
+import Frenetic.Language
+import Frenetic.Compiler
+    
 type Pattern = Match
 
 type Actions = [Action]
 
-data Rule = Rule Pattern Actions
+data Rule = Rule Pattern Frenetic.Switches.OpenFlow.Actions
 
 instance Show Rule where
   show (Rule p a) = "Rule(" ++ show p ++ ", " ++ show a ++ ")"
@@ -78,13 +83,13 @@ instance P.Pattern IPAddressPrefix where
   top = defaultIPPrefix
   intersect = IPAddress.intersect
 
-instance C.SwitchAction Actions where
+instance Actionable Frenetic.Switches.OpenFlow.Actions where
     actController = undefined
     actDefault = undefined
     actTranslate s = List.map (SendOutPort . PhysicalPort) $ Set.toList s
 
-skelToRules :: C.Skeleton Pattern Actions -> [Rule]
-skelToRules (C.Skeleton bones) = List.map (\(C.Bone p a) -> Rule p a) bones 
+skelToRules :: Skeleton Pattern Frenetic.Switches.OpenFlow.Actions -> [Rule]
+skelToRules (Skeleton bones) = List.map (\(Bone p a) -> Rule p a) bones 
 
 instance P.Pattern OFMatch.Match where
   top = Match { 
@@ -132,7 +137,7 @@ word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
 countBits :: (Bits a) => a -> Int
 countBits x = sum [1 | i <- [0 .. bitSize x], not $ testBit x i]
                                                                                  
-instance C.CompilePattern Match where
+instance Patternable Match where
     patOverapprox Dl_src w = P.top { srcEthAddress = fmap word48ToEth $ P.overapprox w }
     patOverapprox Dl_dst w = P.top { dstEthAddress = fmap word48ToEth $ P.overapprox w }
     patOverapprox Dl_typ w = P.top { ethFrameType = P.overapprox w }
@@ -151,6 +156,7 @@ instance C.CompilePattern Match where
 
     patInport p = P.top { inPort = Just p }
 
+    patUnderapprox = undefined
     -- patUnderapprox Dl_src w = P.top { srcEthAddress = fmap word48ToEth $ P.overapprox w }
     -- patUnderapprox Dl_dst w = P.top { dstEthAddress = fmap word48ToEth $ P.overapprox w }
     -- patUnderapprox Dl_typ w = P.top { ethFrameType = P.overapprox w }
@@ -167,3 +173,4 @@ instance C.CompilePattern Match where
     -- patUnderapprox Tp_src w = P.top { srcTransportPort = P.overapprox w }
     -- patUnderapprox Tp_dst w = P.top { dstTransportPort = P.overapprox w }
 
+deriving instance Typeable OFMatch.Match

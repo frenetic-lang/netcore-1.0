@@ -36,7 +36,8 @@
     FlexibleInstances,
     Rank2Types,
     GADTs,
-    ExistentialQuantification
+    ExistentialQuantification,
+    MultiParamTypeClasses
  #-}
 
 module Frenetic.Hosts.Nettle where
@@ -55,7 +56,8 @@ import Control.Exception.Base
 import Control.Concurrent
 import Control.Monad.State
 import Data.LargeWord
-    
+
+import qualified Nettle.OpenFlow.Match as OFMatch
 import Nettle.OpenFlow.FlowTable as FlowTable hiding (FlowRemoved)
 import Nettle.OpenFlow.Packet
 import Nettle.Ethernet.EthernetFrame
@@ -70,13 +72,12 @@ import Nettle.Servers.TCPServer
 import Nettle.Servers.MultiplexedTCPServer
 
 import Frenetic.Language
-import Frenetic.Network
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compiler
 
 data ControllerState = 
        ControllerState { addrMap :: Map SockAddr Switch,
-                         policy :: Policy PacketInfo }
+                         policy :: Policy }
 
 type ControllerOp  = StateT ControllerState IO
 
@@ -104,7 +105,7 @@ nettleEthernetBody pkt =
 ethToWord48 (EthernetAddress a b c d e f) = LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
 
 instance Packet Nettle.OpenFlow.Packet.PacketInfo where 
-  getHeader pi h = 
+  pktGetHeader pi h = 
     case h of 
       Dl_src -> 
         ethToWord48 $ sourceMACAddress $ nettleEthernetHeaders pi
@@ -157,6 +158,9 @@ instance Packet Nettle.OpenFlow.Packet.PacketInfo where
           IPInEthernet (IPPacket _ (ICMPInIP (_,cod))) -> fromIntegral cod
           _ -> 0
 
+instance Transmissionable OFMatch.Match PacketInfo where
+    patMatch = undefined
+               
 -- Nettle server
 
 
@@ -174,7 +178,7 @@ installRules addr rules proc =
                               applyToPacket=Nothing,
                               overlapAllowed=True } 
 
-sendBufferedPacket :: SockAddr -> BufferID -> PortID -> Transmission PacketInfo -> OFProcess -> ControllerOp ()
+sendBufferedPacket :: SockAddr -> BufferID -> PortID -> Transmission OFMatch.Match PacketInfo -> OFProcess -> ControllerOp ()
 sendBufferedPacket addr mbid inport t proc = 
   do state <- get
      let pol = policy state 
@@ -206,8 +210,8 @@ packetIn addr pkt proc =
               case Map.lookup addr addrs of
                 Just switch -> 
                     do let inport = receivedOnPort pkt 
-                       let t = Transmission switch inport pkt
-                       installRules addr (skelToRules $ specialize pol switch t) proc
+                       let t = Transmission (undefined :: OFMatch.Match) switch inport pkt
+                       installRules addr (skelToRules $ specialize t pol) proc
                        case bufferID pkt of 
                          Nothing -> return () 
                          Just bid -> sendBufferedPacket addr bid inport t proc 
@@ -244,8 +248,8 @@ of_dispatch addr (xid, scmsg) proc =
            put (state { addrMap = Map.insert addr switch addrs })
            installRules addr (skelToRules $ compile switch pol) proc 
     PacketIn pkt -> 
-        let src = show $ getHeader pkt Dl_src in 
-        let dst = show $ getHeader pkt Dl_dst in 
+        let src = show $ pktGetHeader pkt Dl_src in 
+        let dst = show $ pktGetHeader pkt Dl_dst in 
         do liftIO $ hPutStrLn stderr ("PacketIn: " ++ src ++ " => " ++ dst)
            packetIn addr pkt proc
     PortStatus status -> do return ()
@@ -268,7 +272,7 @@ loop proc = do
         do of_dispatch addr msg proc
   loop proc 
 
-nettleServer :: Policy PacketInfo -> IO ()
+nettleServer :: Policy -> IO ()
 nettleServer init_policy = do let init_state = ControllerState { addrMap = Map.empty,
                                                                  policy = init_policy }
                               proc <- openFlowServer frenetic_port
