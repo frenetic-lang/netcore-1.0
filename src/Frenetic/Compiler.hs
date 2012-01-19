@@ -173,6 +173,7 @@ compilePredicate s (PrPattern _ dyn) =
     case fromDynamic dyn :: Maybe ptrn of
       Just ptrn -> Skeleton [Bone ptrn True]
       Nothing -> Skeleton []
+compilePredicate s (PrInspect ins) = Skeleton [Bone P.top True] -- this needs to be a maybe! FIX
 compilePredicate s (PrInport n) = Skeleton [Bone (patInport n) True] 
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top True]
                              | otherwise = Skeleton []
@@ -192,6 +193,7 @@ compilePredicate s (PrNegate pr) = skelMap not (compilePredicate s pr) +++
 compilePolicy :: (Patternable ptrn, Typeable ptrn) => Switch -> Policy -> Skeleton ptrn Frenetic.Language.Actions
 compilePolicy s (PoBasic po as) = 
     skelMap (\b -> if b then as else Set.empty) $ compilePredicate s po
+compilePolicy s (PoDoer doer) = Skeleton [Bone P.top Set.empty] -- this needs to be a maybe! FIX!
 compilePolicy s (PoUnion po1 po2) = skel12' +++ skel1' +++ skel2' 
     where
       skel1 = compilePolicy s po1
@@ -216,6 +218,7 @@ expandPredicate tr (PrHeader h w) =
     case (patUnderapprox h w (pktGetHeader (trPkt tr) h) :: Maybe ptrn) of
       Just pat -> PrUnion (PrHeader h w) (PrPattern (show pat) (toDyn pat))
       Nothing -> PrHeader h w
+expandPredicate tr (PrInspect ins) = undefined
 expandPredicate tr (PrPattern s dyn) = PrPattern s dyn
 expandPredicate tr (PrTo s) = PrTo s
 expandPredicate tr (PrInport p) = PrInport p
@@ -230,6 +233,7 @@ expandPredicate tr (PrNegate pr) = PrNegate (expandPredicate tr pr)
 expandPolicy :: (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt) =>
                 Transmission ptrn pkt -> Policy -> Policy
 expandPolicy tr (PoBasic pr as) = PoBasic (expandPredicate tr pr) as
+expandPolicy tr (PoDoer doer) = undefined
 expandPolicy tr (PoUnion po1 po2) = PoUnion (expandPolicy tr po1) (expandPolicy tr po2)
 expandPolicy tr (PoIntersect po1 po2) = PoIntersect (expandPolicy tr po1) (expandPolicy tr po2)
 expandPolicy tr (PoDifference po1 po2) = PoDifference (expandPolicy tr po1) (expandPolicy tr po2)

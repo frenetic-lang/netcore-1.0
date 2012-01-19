@@ -124,8 +124,32 @@ class (Eq actn) => Actionable actn where
 -- Predicates
 --
 
+data HeaderW = forall r. (Bits r) => HeaderW (Header r)
+
+-- Can't derive these.
+instance Show HeaderW where
+    show (HeaderW h) = show h
+                       
+type Headers = [HeaderW]
+
+data Inspector = Inspector {
+      insDesc :: String,
+      insApply :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Bool),
+      insInv :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
+    }
+
+data Doer = Doer {
+      doDesc :: String,
+      doApply :: (forall ptrn pkt. Transmissionable ptrn pkt =>
+                  Transmission ptrn pkt ->
+                  [Transmission ptrn pkt]),
+      doInv :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
+    }
+
+
 data Predicate = forall b. (Bits b) => PrHeader (Header b) (P.Wildcard b)
                | PrPattern String Dynamic
+               | PrInspect Inspector
                | PrTo Switch
                | PrInport Port
                | PrUnion Predicate Predicate
@@ -136,7 +160,8 @@ data Predicate = forall b. (Bits b) => PrHeader (Header b) (P.Wildcard b)
 instance Show Predicate where
   show (PrHeader h w) = "(" ++ show h ++ " : " ++ show w ++ ")"
   show (PrTo s) = "switch(" ++ show s ++ ")"
-  show (PrPattern s _) = s
+  show (PrInspect ins) = insDesc ins
+  show (PrPattern desc _) = desc
   show (PrInport n) = "inport(" ++ show n ++ ")"
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
@@ -150,12 +175,14 @@ instance Show Predicate where
 type Actions = Set Port
 
 data Policy = PoBasic Predicate Actions
+            | PoDoer Doer
             | PoUnion Policy Policy
             | PoIntersect Policy Policy
             | PoDifference Policy Policy
                   
 instance Show Policy where
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
+  show (PoDoer doer) = doDesc doer 
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
   show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
@@ -173,6 +200,7 @@ interpretPredicate (PrPattern _ dyn) tr =
     case fromDynamic dyn :: Maybe ptrn of
       Just ptrn -> patMatch ptrn (trPkt tr)
       Nothing -> False
+interpretPredicate (PrInspect ins) tr = insApply ins tr
 interpretPredicate (PrInport n) tr = n == trPort tr
 interpretPredicate (PrUnion pr1 pr2) t = 
   interpretPredicate pr1 t || interpretPredicate pr2 t
@@ -186,11 +214,12 @@ interpretPolicy :: (Typeable ptrn, Transmissionable ptrn pkt) =>
                    Policy
                 -> Transmission ptrn pkt
                 -> Actions
-interpretPolicy (PoBasic pred as) t | interpretPredicate pred t = as
+interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = as
                                     | otherwise = Set.empty
-interpretPolicy (PoUnion p1 p2) t = 
-  interpretPolicy p1 t `Set.union` interpretPolicy p2 t
-interpretPolicy (PoIntersect p1 p2) t = 
-  interpretPolicy p1 t `Set.intersection` interpretPolicy p2 t
-interpretPolicy (PoDifference p1 p2) t = 
-  interpretPolicy p1 t `Set.difference` interpretPolicy p2 t
+interpretPolicy (PoDoer doer) tr = undefined -- the return type is wrong, fix later.
+interpretPolicy (PoUnion p1 p2) tr = 
+  interpretPolicy p1 tr `Set.union` interpretPolicy p2 tr
+interpretPolicy (PoIntersect p1 p2) tr = 
+  interpretPolicy p1 tr `Set.intersection` interpretPolicy p2 tr
+interpretPolicy (PoDifference p1 p2) tr = 
+  interpretPolicy p1 tr `Set.difference` interpretPolicy p2 tr

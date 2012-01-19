@@ -91,6 +91,7 @@ instance Actionable OFAction.ActionSequence where
     actDefault = sendToController 0
     actTranslate s = map (SendOutPort . PhysicalPort) $ Set.toList s
 
+-- Gonna need this for embedded patterns
 deriving instance Typeable OFMatch.Match
 
 instance Pattern OFMatch.Match where
