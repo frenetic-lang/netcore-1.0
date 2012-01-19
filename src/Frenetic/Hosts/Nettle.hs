@@ -42,38 +42,33 @@
 
 module Frenetic.Hosts.Nettle where
 
-import Data.List
-import Data.Either
 import Data.Set as Set
 import Data.Map as Map
-import Data.Word
-import System.IO
-import System.IO.Unsafe
-import Numeric
-import Data.Char
-import Network.Socket.Internal
+import Data.LargeWord
+
 import Control.Exception.Base
 import Control.Concurrent
 import Control.Monad.State
-import Data.LargeWord
 
-import qualified Nettle.OpenFlow.Match as OFMatch
-import Nettle.OpenFlow.FlowTable as FlowTable hiding (FlowRemoved)
-import Nettle.OpenFlow.Packet
+import System.IO
+
 import Nettle.Ethernet.EthernetFrame
 import Nettle.Ethernet.EthernetAddress
 import Nettle.IPv4.IPPacket
 import Nettle.IPv4.IPAddress
+import Nettle.OpenFlow.FlowTable as FlowTable hiding (FlowRemoved)
+import qualified Nettle.OpenFlow.Match as OFMatch
 import Nettle.OpenFlow.MessagesBinary
 import Nettle.OpenFlow.Messages as Messages
+import Nettle.OpenFlow.Packet
 import Nettle.OpenFlow.Port
 import Nettle.OpenFlow.Switch
 import Nettle.Servers.TCPServer
 import Nettle.Servers.MultiplexedTCPServer
 
 import Frenetic.Language
-import Frenetic.Switches.OpenFlow
 import Frenetic.Compiler
+import Frenetic.Switches.OpenFlow
 
 data ControllerState = 
        ControllerState { addrMap :: Map SockAddr Switch,
