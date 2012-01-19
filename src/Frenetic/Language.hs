@@ -24,8 +24,8 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /src/NetCore.hs                                                            --
--- Frenetic NetCore syntax                                                    --
+-- /src/Language.hs                                                           --
+-- Frenetic Language stuff                                                    --
 -- $Id$ --
 --------------------------------------------------------------------------------
 
@@ -35,37 +35,112 @@
     FlexibleInstances,
     Rank2Types,
     GADTs,
-    ExistentialQuantification
+    ExistentialQuantification,
+    MultiParamTypeClasses,
+    FunctionalDependencies,
+    ScopedTypeVariables
  #-}
 
 module Frenetic.Language where
 
 import Data.Bits
+import Data.LargeWord
+import Data.Word
 import Data.Set as Set
+import Data.Typeable
+import Data.Dynamic
 
-import Frenetic.Network
 import Frenetic.Pattern as P
+
+--
+-- Basic network elements
+--
+
+type Switch = Word64
+type Port = Word16
+
+
     
+type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
+
+data Header b where
+  Dl_src :: Header Word48
+  Dl_dst :: Header Word48
+  Dl_typ :: Header Word16
+  Dl_vlan :: Header Word16
+  Dl_vlan_pcp :: Header Word8
+  Nw_src :: Header Word32
+  Nw_dst :: Header Word32
+  Nw_proto :: Header Word8
+  Nw_tos :: Header Word8
+  Tp_src :: Header Word16
+  Tp_dst :: Header Word16
+
+deriving instance Eq b => Eq (Header b)
+deriving instance Show b => Show (Header b)
+deriving instance Ord b => Ord (Header b)
+
+class (Eq pkt) => Packet pkt where
+  pktGetHeader :: (Bits b) => pkt -> Header b -> b
+  pktSetHeader :: (Bits b) => pkt -> Header b -> b -> pkt
+
+-- remember this used to be existential.
+-- more elegant way to store ptrn later.
+data Transmission ptrn pkt = Transmission {
+      trPattern :: ptrn,
+      trSwitch :: Switch,
+      trPort :: Port,
+      trPkt :: pkt
+    }
+
+--
+-- Core compilation classes
+--
+
+{-|
+This class represents backend patterns.
+
+* @patOverapprox@ and @patUnderapprox@ must follow the laws in the
+  Approx class. If the pattern is not a real underapproximation,
+  @patUnderapprox@ must return Nothing.
+-}
+class (P.Pattern ptrn) => Patternable ptrn where
+    patOverapprox :: Header r -> P.Wildcard r -> ptrn
+    patInport :: Port -> ptrn
+    patUnderapprox :: Header r -> P.Wildcard r -> Maybe ptrn
+
+class (Patternable ptrn, Packet pkt) => Transmissionable ptrn pkt where
+    patMatch :: ptrn -> pkt -> Bool
+
+{-|
+This class represents backend actions.
+|-}
+class (Eq actn) => Actionable actn where
+    actDefault :: actn
+    actController :: actn
+    actTranslate :: Frenetic.Language.Actions -> actn
+                
 --
 -- Predicates
 --
 
-data Predicate p =
-    forall b. (Bits b) => PrHeader (Header b) (P.Wildcard b)
-  | PrTo Switch
-  | PrInport Port
-  | PrUnion (Predicate p) (Predicate p)
-  | PrIntersect (Predicate p) (Predicate p)
-  | PrDifference (Predicate p) (Predicate p)
-  | PrNegate (Predicate p)
+data Predicate = forall b. (Bits b) => PrHeader (Header b) (P.Wildcard b)
+               -- These are the same things.
+               | forall ptrn. (Patternable ptrn) => PrPattern ptrn Dynamic
+               | PrTo Switch
+               | PrInport Port
+               | PrUnion Predicate Predicate
+               | PrIntersect Predicate Predicate
+               | PrDifference Predicate Predicate
+               | PrNegate Predicate
 
-instance Show (Predicate pack) where
-  show (PrHeader h bo) = "(" ++ show h ++ " : " ++ show bo ++ ")"
+instance Show Predicate where
+  show (PrHeader h w) = "(" ++ show h ++ " : " ++ show w ++ ")"
   show (PrTo s) = "switch(" ++ show s ++ ")"
   show (PrInport n) = "inport(" ++ show n ++ ")"
-  show (PrUnion pr pr') = "(" ++ show pr ++ ") \\/ (" ++ show pr' ++ ")"
-  show (PrIntersect pr pr') = "(" ++ show pr ++ ") /\\ (" ++ show pr' ++ ")"
-  show (PrDifference pr pr') = "(" ++ show pr ++ ") // (" ++ show pr' ++ ")"
+  show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
+  show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
+  show (PrDifference pr1 pr2) = "(" ++ show pr1 ++ ") // (" ++ show pr2 ++ ")"
   show (PrNegate pr) = "~(" ++ show pr ++ ")"
 
 -- 
@@ -74,25 +149,30 @@ instance Show (Predicate pack) where
 
 type Actions = Set Port
 
-data Policy p = 
-    PoBasic (Predicate p) Actions
-  | PoUnion (Policy p) (Policy p)
-  | PoIntersect (Policy p) (Policy p)
-              
-instance Show (Policy p) where
-  show (PoBasic e as) = "(" ++ show e ++ ") -> " ++ show as
-  show (PoUnion t1 t2) = "(" ++ show t1 ++ ") \\/ (" ++ show t2 ++ ")"
-  show (PoIntersect t1 t2) = "(" ++ show t1 ++ ") /\\ (" ++ show t2 ++ ")"
+data Policy = PoBasic Predicate Actions
+            | PoUnion Policy Policy
+            | PoIntersect Policy Policy
+            | PoDifference Policy Policy
+                  
+instance Show Policy where
+  show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
+  show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
+  show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
+  show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
 
 --
 -- Interpreter
 --
-interpretPredicate :: Predicate p -> Transmission p -> Bool
 
-interpretPredicate (PrHeader h w) (Transmission _ _ pkt) = 
-  wBitsMake (getHeader pkt h) == w
-interpretPredicate (PrInport n) (Transmission _ n' _) = 
-  n == n'
+interpretPredicate :: forall ptrn pkt. (Typeable ptrn, Transmissionable ptrn pkt) =>
+                      Predicate
+                   -> Transmission ptrn pkt
+                   -> Bool
+interpretPredicate (PrHeader h w) tr = wBitsMake (pktGetHeader (trPkt tr) h) == w
+interpretPredicate (PrPattern _ dyn) tr =
+    case fromDynamic dyn :: Maybe ptrn of
+      Just ptrn -> patMatch ptrn (trPkt tr)
+interpretPredicate (PrInport n) tr = n == trPort tr
 interpretPredicate (PrUnion pr1 pr2) t = 
   interpretPredicate pr1 t || interpretPredicate pr2 t
 interpretPredicate (PrIntersect pr1 pr2) t = 
@@ -101,10 +181,15 @@ interpretPredicate (PrDifference pr1 pr2) t =
   interpretPredicate pr1 t && not (interpretPredicate pr2 t)
 interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
 
-interpretPolicy :: Policy p -> Transmission p -> Actions
+interpretPolicy :: (Typeable ptrn, Transmissionable ptrn pkt) =>
+                   Policy
+                -> Transmission ptrn pkt
+                -> Actions
 interpretPolicy (PoBasic pred as) t | interpretPredicate pred t = as
                                     | otherwise = Set.empty
 interpretPolicy (PoUnion p1 p2) t = 
   interpretPolicy p1 t `Set.union` interpretPolicy p2 t
 interpretPolicy (PoIntersect p1 p2) t = 
   interpretPolicy p1 t `Set.intersection` interpretPolicy p2 t
+interpretPolicy (PoDifference p1 p2) t = 
+  interpretPolicy p1 t `Set.difference` interpretPolicy p2 t

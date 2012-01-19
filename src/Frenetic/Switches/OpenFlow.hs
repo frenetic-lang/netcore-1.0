@@ -141,7 +141,7 @@ instance C.CompilePattern Match where
     patOverapprox Nw_src w = P.top { srcIPAddress = (IPAddress x, fromIntegral $ countBits m) }
         where
           P.Prefix (P.Wildcard x m) = P.overapprox w
-    patOverapprox Nw_src w = P.top { dstIPAddress = (IPAddress x, fromIntegral $ countBits m) }
+    patOverapprox Nw_dst w = P.top { dstIPAddress = (IPAddress x, fromIntegral $ countBits m) }
         where
           P.Prefix (P.Wildcard x m) = P.overapprox w
     patOverapprox Nw_proto w = P.top { ipProtocol = P.overapprox w }
@@ -151,8 +151,19 @@ instance C.CompilePattern Match where
 
     patInport p = P.top { inPort = Just p }
 
-    patUnderapprox = undefined
-
--- headerExactMatch Nw_src v = P.top { srcIPAddress = case v of { Just a -> (IPAddress a, maxPrefixLen); Nothing -> defaultIPPrefix } }
--- headerExactMatch Nw_dst v = P.top { dstIPAddress = case v of { Just a -> (IPAddress a, maxPrefixLen); Nothing -> 
+    -- patUnderapprox Dl_src w = P.top { srcEthAddress = fmap word48ToEth $ P.overapprox w }
+    -- patUnderapprox Dl_dst w = P.top { dstEthAddress = fmap word48ToEth $ P.overapprox w }
+    -- patUnderapprox Dl_typ w = P.top { ethFrameType = P.overapprox w }
+    -- patUnderapprox Dl_vlan w = P.top { vLANID = P.overapprox w }
+    -- patUnderapprox Dl_vlan_pcp w = P.top { vLANPriority = P.overapprox w }
+    -- patUnderapprox Nw_src w = P.top { srcIPAddress = (IPAddress x, fromIntegral $ countBits m) }
+    --     where
+    --       P.Prefix (P.Wildcard x m) = P.overapprox w
+    -- patUnderapprox Nw_src w = P.top { dstIPAddress = (IPAddress x, fromIntegral $ countBits m) }
+    --     where
+    --       P.Prefix (P.Wildcard x m) = P.overapprox w
+    -- patUnderapprox Nw_proto w = P.top { ipProtocol = P.overapprox w }
+    -- patUnderapprox Nw_tos w = P.top { ipTypeOfService = P.overapprox w }
+    -- patUnderapprox Tp_src w = P.top { srcTransportPort = P.overapprox w }
+    -- patUnderapprox Tp_dst w = P.top { dstTransportPort = P.overapprox w }
 

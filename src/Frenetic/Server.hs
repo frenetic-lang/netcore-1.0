@@ -24,7 +24,7 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /src/Network.hs                                                            --
+-- /src/Server.hs                                                            --
 -- Frenetic front-end                                                         --
 -- $Id$ --
 --------------------------------------------------------------------------------
@@ -34,8 +34,7 @@
 module Frenetic.Server where
 
 import Frenetic.Hosts.Nettle
-import Nettle.OpenFlow.Packet
 import Frenetic.Language
 
-freneticServer :: Policy PacketInfo -> IO ()
+freneticServer :: Policy -> IO ()
 freneticServer = nettleServer

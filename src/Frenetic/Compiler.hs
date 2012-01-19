@@ -44,8 +44,9 @@ module Frenetic.Compiler where
 import Data.Map as Map
 import Data.Set as Set
 import Data.List as List
-
-import Frenetic.Network 
+import Data.Typeable
+import Data.Dynamic
+    
 import qualified Frenetic.Pattern as P
 import Frenetic.Language
     
@@ -104,34 +105,14 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
   let (bs1',bs2',bs3') = cartMap h [] bs1 bs2 in 
   (Skeleton bs1', Skeleton bs2', Skeleton bs3')
 
---
---
---
 
-{-|
-This class represents backend patterns.
-
-* @patOverapprox@ and @patUnderapprox@ must follow the laws in the
-  Approx class. If the pattern is not a real underapproximation,
-  @patUnderapprox@ must return Nothing.
--}
-class (P.Pattern pat) => CompilePattern pat where
-    patOverapprox :: Header r -> P.Wildcard r -> pat
-    patInport :: Port -> pat
-    patUnderapprox :: Header r -> P.Wildcard r -> Maybe pat
-
-{-|
-This class represents backend actions.
-|-}
-class (Eq act) => SwitchAction act where
-    actDefault :: act
-    actController :: act
-    actTranslate :: Frenetic.Language.Actions -> act
-                    
-compilePredicate :: (CompilePattern pat) => Switch -> Predicate p -> Skeleton pat Bool 
-compilePredicate s (PrHeader h w) =   
-  Skeleton [Bone (patOverapprox h w) True,
-            Bone P.top False]
+--
+-- compile
+--
+  
+compilePredicate :: (Patternable ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
+compilePredicate s (PrHeader h w) = Skeleton [Bone (patOverapprox h w) True,
+                                              Bone P.top False]
 compilePredicate s (PrInport n) = Skeleton [Bone (patInport n) True,
                                             Bone P.top False] 
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top True]
@@ -146,11 +127,12 @@ compilePredicate s (PrUnion pr1 pr2) = skel12' +++ skel1' +++ skel2'
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
       (skel12', skel1', skel2') = skelCart (||) skel1 skel2
-compilePredicate s (PrNegate pr) = skelMap not (compilePredicate s pr) +++ Skeleton [Bone P.top False]
+compilePredicate s (PrNegate pr) = skelMap not (compilePredicate s pr) +++
+                                   Skeleton [Bone P.top False]
 
-compilePolicy :: (CompilePattern pat) => Switch -> Policy p -> Skeleton pat Frenetic.Language.Actions
+compilePolicy :: (Patternable ptrn) => Switch -> Policy -> Skeleton ptrn Frenetic.Language.Actions
 compilePolicy s (PoBasic po as) = 
-  skelMap (\b -> if b then as else Set.empty) $ compilePredicate s po
+    skelMap (\b -> if b then as else Set.empty) $ compilePredicate s po
 compilePolicy s (PoUnion po1 po2) = skel12' +++ skel1' +++ skel2' 
     where
       skel1 = compilePolicy s po1
@@ -162,23 +144,49 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (Set.intersection) skel1 skel2
 
-compile :: (CompilePattern pat, SwitchAction a) => Switch -> Policy p -> Skeleton pat a 
+compile :: (Patternable ptrn, Actionable actn) => Switch -> Policy -> Skeleton ptrn actn 
 compile s p = skelMap actTranslate (compilePolicy s p)
 
-specialize :: (CompilePattern pat, SwitchAction a) => Policy p -> Switch -> Transmission p -> Skeleton pat a
-specialize policy switch t@(Transmission _ port pkt) = Skeleton []
-  -- let actions = Prelude.map compileAction $ (Set.toList (interpretPolicy policy t)) in 
-  -- let match = 
-  --      Match { OFMatch.inPort = Just port,
-  --              OFMatch.srcEthAddress = Just $ (\ (HardwareAddress e) -> e) $ getHeader pkt Dl_src,
-  --              OFMatch.dstEthAddress = Just $ (\ (HardwareAddress e) -> e) $ getHeader pkt Dl_dst,
-  --              OFMatch.vLANID = Just $ getHeader pkt Dl_vlan, 
-  --              OFMatch.vLANPriority = Just $ getHeader pkt Dl_vlan_pcp, 
-  --              OFMatch.ethFrameType = Just $ getHeader pkt Dl_typ,
-  --              OFMatch.ipTypeOfService = Just $ getHeader pkt Nw_tos,
-  --              OFMatch.ipProtocol = Just $ getHeader pkt Nw_proto,
-  --              OFMatch.srcIPAddress = ((IPAddress $ getHeader pkt Nw_src), 32),
-  --              OFMatch.dstIPAddress = ((IPAddress $ getHeader pkt Nw_dst), 32),
-  --              OFMatch.srcTransportPort = Just $ getHeader pkt Tp_src,
-  --              OFMatch.dstTransportPort = Just $ getHeader pkt Tp_dst } in 
-  -- [Rule match actions]
+--
+-- specialization
+--
+              
+expandPredicate :: forall ptrn pkt. (Typeable ptrn, Transmissionable ptrn pkt) =>
+                   Transmission ptrn pkt
+                -> Predicate
+                -> Predicate
+expandPredicate tr (PrHeader h w) = case patUnderapprox h w :: Maybe ptrn of
+                                        Just pat -> PrUnion (PrHeader h w) (PrPattern pat (toDyn pat))
+                                        Nothing -> PrHeader h w
+expandPredicate tr (PrPattern ptrn dyn) = PrPattern ptrn dyn
+expandPredicate tr (PrTo s) = PrTo s
+expandPredicate tr (PrInport p) = PrInport p
+expandPredicate tr (PrUnion pr1 pr2) =
+    PrUnion (expandPredicate tr pr1) (expandPredicate tr pr2)
+expandPredicate tr (PrIntersect pr1 pr2) =
+    PrIntersect (expandPredicate tr pr1) (expandPredicate tr pr2)
+expandPredicate tr (PrDifference pr1 pr2) =
+    PrDifference (expandPredicate tr pr1) (expandPredicate tr pr2)
+expandPredicate tr (PrNegate pr) = PrNegate (expandPredicate tr pr)
+
+expandPolicy ::  (Transmissionable ptrn pkt) => Transmission ptrn pkt -> Policy -> Policy
+expandPolicy = undefined
+
+
+-- specialize :: (Patternable ptrn pkt, Actionable actn pkt) => Policy -> Switch -> Transmission pkt -> Skeleton ptrn actn
+-- specialize policy switch t@(Transmission _ port pkt) = Skeleton []
+--   -- let actions = Prelude.map compileAction $ (Set.toList (interpretPolicy policy t)) in 
+--   -- let match = 
+--   --      Match { OFMatch.inPort = Just port,
+--   --              OFMatch.srcEthAddress = Just $ (\ (HardwareAddress e) -> e) $ getHeader pkt Dl_src,
+--   --              OFMatch.dstEthAddress = Just $ (\ (HardwareAddress e) -> e) $ getHeader pkt Dl_dst,
+--   --              OFMatch.vLANID = Just $ getHeader pkt Dl_vlan, 
+--   --              OFMatch.vLANPriority = Just $ getHeader pkt Dl_vlan_pcp, 
+--   --              OFMatch.ethFrameType = Just $ getHeader pkt Dl_typ,
+--   --              OFMatch.ipTypeOfService = Just $ getHeader pkt Nw_tos,
+--   --              OFMatch.ipProtocol = Just $ getHeader pkt Nw_proto,
+--   --              OFMatch.srcIPAddress = ((IPAddress $ getHeader pkt Nw_src), 32),
+--   --              OFMatch.dstIPAddress = ((IPAddress $ getHeader pkt Nw_dst), 32),
+--   --              OFMatch.srcTransportPort = Just $ getHeader pkt Tp_src,
+--   --              OFMatch.dstTransportPort = Just $ getHeader pkt Tp_dst } in 
+--   -- [Rule match actions]
