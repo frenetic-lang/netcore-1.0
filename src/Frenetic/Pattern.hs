@@ -180,7 +180,7 @@ All instances must obey the laws!
 -}
 class Approx a where
     overapprox :: (Bits b) => Wildcard b -> a b
-    underapprox :: (Bits b) => Wildcard b -> a b
+    underapprox :: (Bits b) => Wildcard b -> b -> Maybe (a b)
 
 -- Prefix patterns
 
@@ -191,14 +191,15 @@ instance (Bits a) => Show (Prefix a) where
     show (Prefix w) = show w
 
 instance Approx Prefix where
-    overapprox (Wildcard x m) = Prefix (Wildcard x m')
+    overapprox w@(Wildcard x m) = Prefix (Wildcard x m')
         where
           n = bitSize m
           m' = case elemIndex True $ map (testBit m) $ reverse [0 .. n - 1] of
                  Just i -> foldl' setBit m $ reverse [0 .. (n - i - 2)]
                  Nothing -> m
 
-    underapprox (Wildcard x m) = Prefix (Wildcard x m')
+    underapprox w@(Wildcard x m) x' | match (wBitsMake x') w = Just $ Prefix (Wildcard x' m')
+                                    | otherwise = Nothing
         where
           n = bitSize m
           m' = case elemIndex False $ map (testBit m) $ [0 .. n - 1] of
@@ -207,25 +208,10 @@ instance Approx Prefix where
                             
 -- Exact patterns
 
-
 instance Approx Maybe where
     overapprox (Wildcard x m) | m == 0 = Just x
                               | otherwise = Nothing
-    underapprox (Wildcard x m) | m == complement 0 = Just x
-                               | otherwise = Nothing
+    underapprox (Wildcard x m) x' | m == complement 0 && x == x' = Just (Just x)
+                                  | otherwise = Nothing
 
--- Useless patterns
 
-data Useless a = Useless
-                 deriving Eq
-
-instance Show (Useless a) where
-    show _ = "*"
-
-instance Pattern (Useless a) where
-    top = Useless
-    intersect _ _ = Just Useless
-
-instance Approx Useless where
-    overapprox _ = Useless
-    underapprox _ = Useless

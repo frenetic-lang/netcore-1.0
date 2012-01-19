@@ -156,21 +156,27 @@ instance Patternable Match where
 
     patInport p = P.top { inPort = Just p }
 
-    patUnderapprox = undefined
-    -- patUnderapprox Dl_src w = P.top { srcEthAddress = fmap word48ToEth $ P.overapprox w }
-    -- patUnderapprox Dl_dst w = P.top { dstEthAddress = fmap word48ToEth $ P.overapprox w }
-    -- patUnderapprox Dl_typ w = P.top { ethFrameType = P.overapprox w }
-    -- patUnderapprox Dl_vlan w = P.top { vLANID = P.overapprox w }
-    -- patUnderapprox Dl_vlan_pcp w = P.top { vLANPriority = P.overapprox w }
-    -- patUnderapprox Nw_src w = P.top { srcIPAddress = (IPAddress x, fromIntegral $ countBits m) }
-    --     where
-    --       P.Prefix (P.Wildcard x m) = P.overapprox w
-    -- patUnderapprox Nw_src w = P.top { dstIPAddress = (IPAddress x, fromIntegral $ countBits m) }
-    --     where
-    --       P.Prefix (P.Wildcard x m) = P.overapprox w
-    -- patUnderapprox Nw_proto w = P.top { ipProtocol = P.overapprox w }
-    -- patUnderapprox Nw_tos w = P.top { ipTypeOfService = P.overapprox w }
-    -- patUnderapprox Tp_src w = P.top { srcTransportPort = P.overapprox w }
-    -- patUnderapprox Tp_dst w = P.top { dstTransportPort = P.overapprox w }
+    patUnderapprox Dl_src w v = do p <- P.underapprox w v
+                                   return $ P.top { srcEthAddress = fmap word48ToEth $ p }
+    patUnderapprox Dl_dst w v = do p <- P.underapprox w v
+                                   return $ P.top { dstEthAddress = fmap word48ToEth $ p }
+    patUnderapprox Dl_typ w v = do p <- P.underapprox w v
+                                   return $ P.top { ethFrameType = p }
+    patUnderapprox Dl_vlan w v = do p <- P.underapprox w v
+                                    return $ P.top { vLANID = p }
+    patUnderapprox Dl_vlan_pcp w v = do p <- P.underapprox w v
+                                        return $ P.top { vLANPriority = p }
+    patUnderapprox Nw_src w v = do P.Prefix (P.Wildcard x m) <- P.underapprox w v
+                                   return $ P.top { srcIPAddress = (IPAddress x, fromIntegral $ countBits m) }
+    patUnderapprox Nw_dst w v = do P.Prefix (P.Wildcard x m) <- P.underapprox w v
+                                   return $ P.top { dstIPAddress = (IPAddress x, fromIntegral $ countBits m) }
+    patUnderapprox Nw_proto w v = do p <- P.underapprox w v
+                                     return $ P.top { ipProtocol = p }
+    patUnderapprox Nw_tos w v = do p <- P.underapprox w v
+                                   return $ P.top { ipTypeOfService = p }
+    patUnderapprox Tp_src w v = do p <- P.underapprox w v
+                                   return $ P.top { srcTransportPort = p }
+    patUnderapprox Tp_dst w v = do p <- P.underapprox w v 
+                                   return $ P.top { dstTransportPort = p }
 
 deriving instance Typeable OFMatch.Match

@@ -159,12 +159,10 @@ expandPredicate :: forall ptrn pkt. (Show ptrn, Typeable ptrn, Transmissionable 
                    Transmission ptrn pkt
                 -> Predicate
                 -> Predicate
-expandPredicate tr (PrHeader h w@(P.Wildcard x m)) =
-    case (patUnderapprox h w' :: Maybe ptrn) of
+expandPredicate tr (PrHeader h w) =
+    case (patUnderapprox h w (pktGetHeader (trPkt tr) h) :: Maybe ptrn) of
       Just pat -> PrUnion (PrHeader h w) (PrPattern (show pat) (toDyn pat))
       Nothing -> PrHeader h w
-    where
-      w' = P.Wildcard (pktGetHeader (trPkt tr) h) m
 expandPredicate tr (PrPattern s dyn) = PrPattern s dyn
 expandPredicate tr (PrTo s) = PrTo s
 expandPredicate tr (PrInport p) = PrInport p
@@ -176,13 +174,19 @@ expandPredicate tr (PrDifference pr1 pr2) =
     PrDifference (expandPredicate tr pr1) (expandPredicate tr pr2)
 expandPredicate tr (PrNegate pr) = PrNegate (expandPredicate tr pr)
 
-expandPolicy ::  (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt) => Transmission ptrn pkt -> Policy -> Policy
+expandPolicy ::  (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt) =>
+                 Transmission ptrn pkt
+             -> Policy
+             -> Policy
 expandPolicy tr (PoBasic pr as) = PoBasic (expandPredicate tr pr) as
 expandPolicy tr (PoUnion po1 po2) = PoUnion (expandPolicy tr po1) (expandPolicy tr po2)
 expandPolicy tr (PoIntersect po1 po2) = PoIntersect (expandPolicy tr po1) (expandPolicy tr po2)
 expandPolicy tr (PoDifference po1 po2) = PoDifference (expandPolicy tr po1) (expandPolicy tr po2)
 
-specialize :: (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt, Actionable actn) => Transmission ptrn pkt -> Policy -> Skeleton ptrn actn
+specialize :: (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt, Actionable actn) =>
+              Transmission ptrn pkt
+           -> Policy
+           -> Skeleton ptrn actn
 specialize tr po = compile (trSwitch tr) (expandPolicy tr po)
               
 -- specialize :: (Patternable ptrn pkt, Actionable actn pkt) => Policy -> Switch -> Transmission pkt -> Skeleton ptrn actn

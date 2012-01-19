@@ -107,7 +107,7 @@ This class represents backend patterns.
 class (P.Pattern ptrn) => Patternable ptrn where
     patOverapprox :: Header r -> P.Wildcard r -> ptrn
     patInport :: Port -> ptrn
-    patUnderapprox :: Header r -> P.Wildcard r -> Maybe ptrn
+    patUnderapprox :: Header r -> P.Wildcard r -> r -> Maybe ptrn
 
 class (Patternable ptrn, Packet pkt) => Transmissionable ptrn pkt where
     patMatch :: ptrn -> pkt -> Bool
