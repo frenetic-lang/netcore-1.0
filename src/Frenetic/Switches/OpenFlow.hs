@@ -93,8 +93,8 @@ skelToRules (Skeleton bones) = List.map (\(Bone p a) -> Rule p a) bones
 
 instance P.Pattern OFMatch.Match where
   top = Match { 
-    inPort = P.top,
-    srcEthAddress = P.top,
+          inPort = P.top,
+          srcEthAddress = P.top,
     dstEthAddress = P.top,
     vLANID = P.top,
     vLANPriority = P.top,
@@ -106,19 +106,19 @@ instance P.Pattern OFMatch.Match where
     srcTransportPort = P.top,
     dstTransportPort = P.top }
   intersect ofm1 ofm2 = 
-    do { inport <- P.intersect (inPort ofm1) (inPort ofm2)
-       ; srcethaddress <- P.intersect (srcEthAddress ofm1) (srcEthAddress ofm2)
-       ; dstethaddress <- P.intersect (dstEthAddress ofm1) (dstEthAddress ofm2)
-       ; vlanid <- P.intersect (vLANID ofm1) (vLANID ofm2)
-       ; vlanpriority <- P.intersect (vLANPriority ofm1) (vLANPriority ofm2)
-       ; ethframetype <- P.intersect (ethFrameType ofm1) (ethFrameType ofm2)
-       ; iptypeofservice <- P.intersect (ipTypeOfService ofm1) (ipTypeOfService ofm2)
-       ; ipprotocol <- P.intersect (ipProtocol ofm1) (ipProtocol ofm2)
-       ; srcipaddress <- P.intersect (srcIPAddress ofm1) (srcIPAddress ofm2)
-       ; dstipaddress <- P.intersect (dstIPAddress ofm1) (dstIPAddress ofm2)
-       ; srctransportport <- P.intersect (srcTransportPort ofm1) (srcTransportPort ofm2)
-       ; dsttransportport <- P.intersect (dstTransportPort ofm1) (dstTransportPort ofm2)
-       ; Just $ Match { 
+    do inport <- P.intersect (inPort ofm1) (inPort ofm2)
+       srcethaddress <- P.intersect (srcEthAddress ofm1) (srcEthAddress ofm2)
+       dstethaddress <- P.intersect (dstEthAddress ofm1) (dstEthAddress ofm2)
+       vlanid <- P.intersect (vLANID ofm1) (vLANID ofm2)
+       vlanpriority <- P.intersect (vLANPriority ofm1) (vLANPriority ofm2)
+       ethframetype <- P.intersect (ethFrameType ofm1) (ethFrameType ofm2)
+       iptypeofservice <- P.intersect (ipTypeOfService ofm1) (ipTypeOfService ofm2)
+       ipprotocol <- P.intersect (ipProtocol ofm1) (ipProtocol ofm2)
+       srcipaddress <- P.intersect (srcIPAddress ofm1) (srcIPAddress ofm2)
+       dstipaddress <- P.intersect (dstIPAddress ofm1) (dstIPAddress ofm2)
+       srctransportport <- P.intersect (srcTransportPort ofm1) (srcTransportPort ofm2)
+       dsttransportport <- P.intersect (dstTransportPort ofm1) (dstTransportPort ofm2)
+       Just $ Match { 
            inPort = inport,
            srcEthAddress = srcethaddress,
            dstEthAddress = dstethaddress,
