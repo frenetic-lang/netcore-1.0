@@ -43,6 +43,7 @@
 
 module Frenetic.Language where
 
+import qualified Data.List as List
 import Data.Bits
 import Data.LargeWord
 import Data.Word
@@ -91,7 +92,7 @@ data Transmission ptrn pkt = Transmission {
       trSwitch :: Switch,
       trPort :: Port,
       trPkt :: pkt
-    }
+    } deriving (Eq)
 
 --
 -- Core compilation classes
@@ -210,16 +211,21 @@ interpretPredicate (PrDifference pr1 pr2) t =
   interpretPredicate pr1 t && not (interpretPredicate pr2 t)
 interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
 
+interpretActions :: Transmission ptrn pkt -> Actions -> [Transmission ptrn pkt]
+interpretActions (Transmission ptrn s prt pkt) actn =
+    [Transmission ptrn s prt' pkt | prt' <- Set.toList actn] -- not totally sure of this FIX
+
+-- FIX maybe we shouldn't use list set operations here.
 interpretPolicy :: (Typeable ptrn, Transmissionable ptrn pkt) =>
                    Policy
                 -> Transmission ptrn pkt
-                -> Actions
-interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = as
-                                    | otherwise = Set.empty
-interpretPolicy (PoDoer doer) tr = undefined -- the return type is wrong, fix later.
+                -> [Transmission ptrn pkt]
+interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = interpretActions tr as
+                                     | otherwise = []
+interpretPolicy (PoDoer doer) tr = doApply doer tr
 interpretPolicy (PoUnion p1 p2) tr = 
-  interpretPolicy p1 tr `Set.union` interpretPolicy p2 tr
+  interpretPolicy p1 tr `List.union` interpretPolicy p2 tr
 interpretPolicy (PoIntersect p1 p2) tr = 
-  interpretPolicy p1 tr `Set.intersection` interpretPolicy p2 tr
+  interpretPolicy p1 tr `List.intersect` interpretPolicy p2 tr
 interpretPolicy (PoDifference p1 p2) tr = 
-  interpretPolicy p1 tr `Set.difference` interpretPolicy p2 tr
+  (interpretPolicy p1 tr) List.\\ (interpretPolicy p2 tr)

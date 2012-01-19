@@ -181,7 +181,7 @@ sendBufferedPacket :: SockAddr -> BufferID -> PortID -> Transmission OFMatch.Mat
 sendBufferedPacket addr mbid inport t proc = 
   do state <- get
      let pol = policy state 
-     let ofacts = actTranslate (interpretPolicy pol t)
+     let ofacts = undefined -- interpretPolicy pol t
      let msg = Messages.PacketOut $ 
                    Nettle.OpenFlow.Packet.PacketOut 
                      { bufferIDData = Left mbid, 
