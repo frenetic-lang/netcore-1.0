@@ -54,7 +54,7 @@ import qualified Data.Set           as Set
 import qualified Data.Map           as Map
 import           Data.Typeable
   
-import qualified Frenetic.Pattern   as P
+import           Frenetic.Pattern
 import           Frenetic.Language
     
 
@@ -110,18 +110,19 @@ cartMap f c (x:xs) ys =
  Classifiers
 -}
 
+{-| Target of compilation -}
 newtype Classifier ptrn a = Classifier [(ptrn, a)]
 $(mkNewTypes [''Classifier])
 
 instance (Show ptrn, Show a) => Show (Classifier ptrn a) where
   show = concat . List.intersperse "\n" . List.map show . unpack 
 
--- Aliases for a valid classifier.
-class (Patternable ptrn, Actionable act) => ValidClassifier ptrn act 
-instance (Patternable ptrn, Actionable act) => ValidClassifier ptrn act 
+class (GPattern ptrn, GAction actn) => ValidClassifier ptrn actn
+instance (GPattern ptrn, GAction actn) => ValidClassifier ptrn actn
 
-class (ValidClassifier ptrn actn, Transmissionable ptrn pkt) => ValidMatchEnvironment ptrn actn pkt
-instance (ValidClassifier ptrn actn, Transmissionable ptrn pkt) => ValidMatchEnvironment ptrn actn pkt
+
+class (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
+instance (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
 
 
 {-| Try to reduce the number of rules in the classifier. |-}
@@ -129,56 +130,58 @@ minimize :: (ValidClassifier ptrn actn) => Classifier ptrn actn -> Classifier pt
 minimize = undefined
 
 {-| Removes any rules that (1) have controller rules, (2) don't match the packet, (3) overlap with a rule that we previously removed.-}
-prune :: (Transmissionable ptrn pkt, Actionable act) =>
-         pkt -> Classifier ptrn act -> Classifier ptrn act
+prune :: (ValidEnvironment ptrn actn pkt) =>
+         pkt -> Classifier ptrn actn -> Classifier ptrn actn
 prune pkt = newLift $ removeControllers []
     where
       removeControllers prefix [] = []
       removeControllers prefix ((ptrn, actn) : rules) 
-          | not $ patMatch ptrn pkt = removeControllers prefix rules
-          | actn == actController = removeControllers (ptrn : prefix) rules
-          | any (P.overlap ptrn) prefix = removeControllers (ptrn : prefix) rules
+          | not $ ptrnMatchPkt pkt ptrn  = removeControllers prefix rules
+          | actn == actnController = removeControllers (ptrn : prefix) rules
+          | any (overlap ptrn) prefix = removeControllers (ptrn : prefix) rules
           | otherwise = (ptrn, actn) : removeControllers prefix rules
 
 
-{- Skeletons -}
-       
-data Bone ptrn actn = Bone ptrn Predicate (actn, actn)
+{-| The intermediate form -} 
+data Bone ptrn actn = Bone ptrn Pattern (actn, actn)
+                    deriving (Show, Eq)
 newtype Skeleton ptrn actn = Skeleton [Bone ptrn actn]
+                           deriving (Eq)
 $(mkNewTypes [''Skeleton])
 
-
--- 
--- Skeletons
--- 
-
--- instance (Show ptrn, Show a) => Show (Skeleton ptrn a) where
---   show (Skeleton bs) = concat (List.intersperse "\n" $ List.map show bs)
+instance (Show ptrn, Show actn) => Show (Skeleton ptrn actn) where
+  show = concat . List.intersperse "\n" . List.map show . unpack 
 
 (+++) = newLift2 (++)
 
-skelMap :: (a -> b) -> Skeleton ptrn a -> Skeleton ptrn b 
-skelMap f (Skeleton bones) = Skeleton $ map (\(Bone ptrn pr (act1, act2)) -> Bone ptrn pr (f act1, f act2)) bones 
+skelMap :: ((a, a) -> (b, b)) -> Skeleton ptrn a -> Skeleton ptrn b 
+skelMap f (Skeleton bones) = Skeleton $ map (\(Bone ptrn pr actns) -> Bone ptrn pr (f actns)) bones 
 
--- skelcart :: (P.Pattern ptrn) =>
---             (a -> a -> a)
---             -> Skeleton ptrn a
---             -> Skeleton ptrn a
---             -> (Skeleton ptrn a, Skeleton ptrn a, Skeleton ptrn a)
--- skelCart f (Skeleton bs1) (Skeleton bs2) = 
---   let h bs x@(Bone m1 a1) y@(Bone m2 a2) = 
---         case P.intersect m1 m2 of 
---           Just m12 -> 
---             (bs ++ [Bone m12 (f a1 a2)],
---              if m12 == m1 then Nothing else Just x,
---              if m12 == m2 then Nothing else Just y)
---           Nothing -> 
---             (bs, Just x, Just y) in 
---   let (bs1',bs2',bs3') = cartMap h [] bs1 bs2 in 
---   (Skeleton bs1', Skeleton bs2', Skeleton bs3')
+skelCart :: (GPattern ptrn) =>
+            ((a, a) -> (a, a) -> (a, a))
+            -> Skeleton ptrn a
+            -> Skeleton ptrn a
+            -> (Skeleton ptrn a, Skeleton ptrn a, Skeleton ptrn a)
+skelCart f (Skeleton bs1) (Skeleton bs2) = 
+  let 
+    (bs1',bs2',bs3') = cartMap h [] bs1 bs2 
+  in 
+   (Skeleton bs1', Skeleton bs2', Skeleton bs3')
+  where
+    h bs x@(Bone ptrn1 iptrn1 actns1) y@(Bone ptrn2 iptrn2 actns2) = 
+        case intersect ptrn1 ptrn2 of 
+          Just ptrn12 -> 
+            -- FIX. No unsafe!
+            (bs ++ [Bone ptrn12 (unsafeIntersect iptrn1 iptrn2) (f actns1 actns2)],
+             if ptrn12 == ptrn1 then Nothing else Just x,
+             if ptrn12 == ptrn2 then Nothing else Just y)
+          Nothing -> 
+            (bs, Just x, Just y) 
+  
+    
   
 -- {-| Minimize. |-}
--- skelMinimize :: (Patternable ptrn, Actionable actn) => Skeleton ptrn actn -> Skeleton ptrn actn
+-- skelMinimize :: (GPattern ptrn, GAction actn) => Skeleton ptrn actn -> Skeleton ptrn actn
 -- skelMinimize (Skeleton bones) = Skeleton bones''
 --     where
 --       bones' = selfMap f [] False bones
@@ -193,84 +196,78 @@ skelMap f (Skeleton bones) = Skeleton $ map (\(Bone ptrn pr (act1, act2)) -> Bon
 --                          Just bone2)
 --         where 
 --             ctxtmeets = mapMaybe (P.intersect ptrn) (Prelude.map (\(Bone ptrn actn) -> ptrn) ctxt)
---             conflict = P.overlap ptrn ptrn' && P.unsafeIntersect ptrn ptrn' `List.notElem` ctxtmeets
+--             conflict = overlap ptrn ptrn' && P.unsafeIntersect ptrn ptrn' `List.notElem` ctxtmeets
                               
 --       -- remove bottom elements from end of classifier
---       bones'' = reverse $ dropWhile (\(Bone ptrn actn) -> actn == actController) $ reverse bones'
+--       bones'' = reverse $ dropWhile (\(Bone ptrn actn) -> actn == actnController) $ reverse bones'
 
 --
 -- compile
 --
+          
+skelActLift :: (a -> a -> a) -> ((a, a) -> (a, a) -> (a, a))
+skelActLift f = \(a1, a2) (a1', a2') -> (f a1 a1', f a2 a2') 
   
-skelCart :: (P.Pattern ptrn) =>
-            (a -> a -> a)
-            -> Skeleton ptrn a
-            -> Skeleton ptrn a
-            -> (Skeleton ptrn a, Skeleton ptrn a, Skeleton ptrn a) 
-skelCart = undefined
-prAll = undefined
-
-compilePredicate :: forall ptrn. (Patternable ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
-compilePredicate s (PrHeader h w) = Skeleton [Bone (patOverapprox h w) (PrHeader h w) (True, True)]
-compilePredicate s (PrPattern _ dyn) =
+compilePredicate :: forall ptrn. (GPattern ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
+compilePredicate s (PrPattern pat) = Skeleton [Bone (ptrnOverapprox pat) pat (True, True)]
+compilePredicate s (PrSwitchPattern _ dyn) =
   case fromDynamic dyn :: Maybe ptrn of
-    Just ptrn -> Skeleton [Bone ptrn (PrPattern undefined dyn) (True, True)]
+    Just ptrn -> Skeleton [Bone ptrn undefined (True, True)]
     Nothing -> Skeleton []
 --compilePredicate s (PrInspect ins) = Skeleton [Bone P.top True] -- this needs to be a maybe! FIX
-compilePredicate s (PrInport n) = Skeleton [Bone (patInport n) (PrInport n) (True, True)]
-compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top prAll (True, True)]
+compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top (True, True)]
                              | otherwise = Skeleton []
 compilePredicate s (PrIntersect pr1 pr2) = skel12'
     where
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
-      (skel12', skel1', skel2') = skelCart (&&) skel1 skel2
+      (skel12', skel1', skel2') = skelCart (skelActLift ( &&)) skel1 skel2
 compilePredicate s (PrUnion pr1 pr2) = skel12' +++ skel1' +++ skel2'
     where
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
-      (skel12', skel1', skel2') = skelCart (||) skel1 skel2
-compilePredicate s (PrNegate pr) = skelMap not (compilePredicate s pr) +++
-                                   Skeleton [Bone P.top prAll (True, True)]
+      (skel12', skel1', skel2') = skelCart (skelActLift ( ||)) skel1 skel2
+compilePredicate s (PrNegate pr) = skelMap (\(a1, a2) -> (not a2, not a1)) (compilePredicate s pr) +++
+                                   Skeleton [Bone top top (True, True)]
 
 
-compilePolicy :: (Patternable ptrn) => Switch -> Policy -> Skeleton ptrn Frenetic.Language.Actions
+compilePolicy :: (GPattern ptrn) => Switch -> Policy -> Skeleton ptrn Actions
 compilePolicy s (PoBasic po as) = 
     skelMap f $ compilePredicate s po
   where
-    f True = as
-    f False = Set.empty
+    f (True, True) = (as,  as)
+    f (False, True ) = (Set.empty, as)
+    f (False, False) = (Set.empty,  Set.empty)
     
 --compilePolicy s (PoDoer doer) = Skeleton [Bone P.top Set.empty] -- this needs to be a maybe! FIX!
 compilePolicy s (PoUnion po1 po2) = skel12' +++ skel1' +++ skel2' 
     where
       skel1 = compilePolicy s po1
       skel2 = compilePolicy s po2
-      (skel12', skel1', skel2') = skelCart Set.union skel1 skel2
+      (skel12', skel1', skel2') = skelCart (skelActLift Set.union) skel1 skel2
 compilePolicy s (PoIntersect po1 po2) = skel12'
     where
       skel1 = compilePolicy s po1
       skel2 = compilePolicy s po2
-      (skel12', skel1', skel2') = skelCart Set.intersection skel1 skel2
-
+      (skel12', skel1', skel2') = skelCart (skelActLift  Set.intersection) skel1 skel2
+act1, act2
 compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
-compile s po = undefined -- skelMap actTranslate (compilePolicy s po)
+compile s po = undefined -- skelMap actnTranslate (compilePolicy s po)
 
 --
 -- specialization
 --
               
 
-expandPredicate :: forall ptrn pkt. (Transmissionable ptrn pkt) =>
+expandPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
                    Transmission ptrn pkt -> Predicate -> Predicate
-expandPredicate tr (PrHeader h w) =
-    case (patUnderapprox h w (pktGetHeader (trPkt tr) h) :: Maybe ptrn) of
-      Just pat -> PrUnion (PrHeader h w) (PrPattern (show pat) (toDyn pat))
-      Nothing -> PrHeader h w
+expandPredicate tr (PrPattern ptrn) =
+  case (ptrnUnderapprox  (pktToIdeal $ trPkt tr)  ptrn :: Maybe ptrn) of
+      Just pat -> PrUnion (PrPattern ptrn) (PrSwitchPattern (show pat) (toDyn pat))
+      Nothing -> PrPattern ptrn
 --expandPredicate tr (PrInspect ins) = undefined
-expandPredicate tr (PrPattern s dyn) = PrPattern s dyn
+expandPredicate tr (PrSwitchPattern s dyn) = PrSwitchPattern s dyn
 expandPredicate tr (PrTo s) = PrTo s
-expandPredicate tr (PrInport p) = PrInport p
 expandPredicate tr (PrUnion pr1 pr2) =
     PrUnion (expandPredicate tr pr1) (expandPredicate tr pr2)
 expandPredicate tr (PrIntersect pr1 pr2) =
@@ -279,7 +276,7 @@ expandPredicate tr (PrDifference pr1 pr2) =
     PrDifference (expandPredicate tr pr1) (expandPredicate tr pr2)
 expandPredicate tr (PrNegate pr) = PrNegate (expandPredicate tr pr)
 
-expandPolicy :: (Transmissionable ptrn pkt) =>
+expandPolicy :: (ValidTransmission ptrn pkt) =>
                 Transmission ptrn pkt -> Policy -> Policy
 expandPolicy tr (PoBasic pr as) = PoBasic (expandPredicate tr pr) as
 --expandPolicy tr (PoDoer doer) = undefined
@@ -288,6 +285,6 @@ expandPolicy tr (PoIntersect po1 po2) = PoIntersect (expandPolicy tr po1) (expan
 expandPolicy tr (PoDifference po1 po2) = PoDifference (expandPolicy tr po1) (expandPolicy tr po2)
 
 {-| Reactive specialization. |-}
-specialize :: (ValidMatchEnvironment ptrn actn pkt) =>
+specialize :: (ValidEnvironment ptrn actn pkt) =>
               Transmission ptrn pkt -> Policy -> Classifier ptrn actn
 specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) (expandPolicy tr po)

@@ -210,16 +210,16 @@ class (Show actn, Eq actn) => GAction actn where
 
 -- data Inspector = Inspector {
 --       insDesc :: String,
---       insApply :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Bool),
---       insInv :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
+--       insApply :: (forall ptrn pkt. ValidTransmission ptrn pkt => Transmission ptrn pkt -> Bool),
+--       insInv :: (forall ptrn pkt. ValidTransmission ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
 --     }
 
 -- data Doer = Doer {
 --       doDesc :: String,
---       doApply :: (forall ptrn pkt. Transmissionable ptrn pkt =>
+--       doApply :: (forall ptrn pkt. ValidTransmission ptrn pkt =>
 --                   Transmission ptrn pkt ->
 --                   [Transmission ptrn pkt]),
---       doInv :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
+--       doInv :: (forall ptrn pkt. ValidTransmission ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
 --     }
 
 

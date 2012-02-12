@@ -157,8 +157,8 @@ instance Packet Nettle.OpenFlow.Packet.PacketInfo where
           IPInEthernet (IPPacket _ (ICMPInIP (_,cod))) -> fromIntegral cod
           _ -> 0
 
-instance Transmissionable OFMatch.Match PacketInfo where
-    patMatch = undefined
+instance ValidTransmission OFMatch.Match PacketInfo where
+    ptrnMatchPkt = undefined
                
 -- Nettle server
 

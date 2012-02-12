@@ -88,10 +88,10 @@ instance Pattern IPAddress.IPAddressPrefix where
   top = IPAddress.defaultIPPrefix
   intersect = IPAddress.intersect
 
-instance Actionable OFAction.ActionSequence where
-    actController = sendToController 0
-    actDefault = sendToController 0
-    actTranslate s = map (SendOutPort . PhysicalPort) $ Set.toList s
+instance GAction OFAction.ActionSequence where
+    actnController = sendToController 0
+    actnDefault = sendToController 0
+    actnTranslate s = map (SendOutPort . PhysicalPort) $ Set.toList s
 
 -- Gonna need this for embedded patterns
 deriving instance Typeable OFMatch.Match
@@ -138,7 +138,7 @@ instance Pattern OFMatch.Match where
                       srcTransportPort = srctransportport,
                       dstTransportPort = dsttransportport }
 
-instance Patternable OFMatch.Match where
+instance GPattern OFMatch.Match where
     patOverapprox Dl_src w = top { srcEthAddress = fmap word48ToEth $ overapprox w }
     patOverapprox Dl_dst w = top { dstEthAddress = fmap word48ToEth $ overapprox w }
     patOverapprox Dl_typ w = top { ethFrameType = overapprox w }
