@@ -42,33 +42,33 @@
 
 module Frenetic.Hosts.Nettle where
 
-import Data.Set as Set
-import Data.Map as Map
-import Data.LargeWord
+import           Data.Set                            as Set
+import           Data.Map                            as Map
+import           Data.LargeWord
 
-import Control.Exception.Base
-import Control.Concurrent
-import Control.Monad.State
+import           Control.Exception.Base
+import           Control.Concurrent
+import           Control.Monad.State
 
-import System.IO
+import           System.IO
 
-import Nettle.Ethernet.EthernetFrame
-import Nettle.Ethernet.EthernetAddress
-import Nettle.IPv4.IPPacket
-import Nettle.IPv4.IPAddress
-import Nettle.OpenFlow.FlowTable as FlowTable hiding (FlowRemoved)
-import qualified Nettle.OpenFlow.Match as OFMatch
-import Nettle.OpenFlow.MessagesBinary
-import Nettle.OpenFlow.Messages as Messages
-import Nettle.OpenFlow.Packet
-import Nettle.OpenFlow.Port
-import Nettle.OpenFlow.Switch
-import Nettle.Servers.TCPServer
-import Nettle.Servers.MultiplexedTCPServer
+import           Nettle.Ethernet.EthernetFrame
+import           Nettle.Ethernet.EthernetAddress
+import           Nettle.IPv4.IPPacket
+import           Nettle.IPv4.IPAddress
+import           Nettle.OpenFlow.FlowTable           as FlowTable hiding (FlowRemoved)
+import qualified Nettle.OpenFlow.Match               as OFMatch
+import           Nettle.OpenFlow.MessagesBinary
+import           Nettle.OpenFlow.Messages            as Messages
+import           Nettle.OpenFlow.Packet
+import           Nettle.OpenFlow.Port
+import           Nettle.OpenFlow.Switch
+import           Nettle.Servers.TCPServer
+import           Nettle.Servers.MultiplexedTCPServer
 
-import Frenetic.Language
-import Frenetic.Compiler
-import Frenetic.Switches.OpenFlow
+import           Frenetic.Language
+import           Frenetic.Compiler
+import           Frenetic.Switches.OpenFlow
 
 --
 -- Data types
@@ -210,7 +210,7 @@ packetIn addr pkt proc =
                 Just switch -> 
                     do let inport = receivedOnPort pkt 
                        let t = Transmission (undefined :: OFMatch.Match) switch inport pkt
-                       installRules addr (skelToRules $ specialize t pol) proc
+                       installRules addr (classifierToRules $ specialize t pol) proc
                        case bufferID pkt of 
                          Nothing -> return () 
                          Just bid -> sendBufferedPacket addr bid inport t proc 
@@ -245,7 +245,7 @@ of_dispatch addr (xid, scmsg) proc =
            let pol = policy state 
            let addrs = addrMap state
            put (state { addrMap = Map.insert addr switch addrs })
-           installRules addr (skelToRules $ compile switch pol) proc 
+           installRules addr (classifierToRules $ compile switch pol) proc 
     PacketIn pkt -> 
         let src = show $ pktGetHeader pkt Dl_src in 
         let dst = show $ pktGetHeader pkt Dl_dst in 

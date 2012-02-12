@@ -41,20 +41,22 @@
 
 module Frenetic.Switches.OpenFlow where
 
-import Data.Bits
-import Data.Word
-import Data.LargeWord
-import qualified Data.Set as Set
-import Data.Typeable
+import           Control.Newtype
 
-import Nettle.OpenFlow.Match as OFMatch
-import Nettle.OpenFlow.Action as OFAction
-import qualified Nettle.IPv4.IPAddress as IPAddress
-import Nettle.Ethernet.EthernetAddress
+import           Data.Bits
+import           Data.LargeWord
+import qualified Data.Set                        as Set
+import           Data.Typeable
+import           Data.Word
+
+import           Nettle.OpenFlow.Match           as OFMatch
+import           Nettle.OpenFlow.Action          as OFAction
+import qualified Nettle.IPv4.IPAddress           as IPAddress
+import           Nettle.Ethernet.EthernetAddress
     
-import Frenetic.Pattern
-import Frenetic.Language
-import Frenetic.Compiler
+import           Frenetic.Pattern
+import           Frenetic.Language
+import           Frenetic.Compiler
 
 --
 --
@@ -69,8 +71,8 @@ instance Show Rule where
 --
 --
 
-skelToRules :: Skeleton OFMatch.Match OFAction.ActionSequence -> [Rule]
-skelToRules (Skeleton bones) = map (\(Bone p a) -> Rule p a) bones 
+classifierToRules :: Classifier OFMatch.Match OFAction.ActionSequence -> [Rule]
+classifierToRules = map (\(p, a) -> Rule p a) . unpack
                     
 ethToWord48 (EthernetAddress a b c d e f) =
     LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))

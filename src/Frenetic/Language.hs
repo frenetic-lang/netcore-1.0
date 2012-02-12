@@ -43,15 +43,15 @@
 
 module Frenetic.Language where
 
-import qualified Data.List as List
-import Data.Bits
-import Data.LargeWord
-import Data.Word
-import Data.Set as Set
-import Data.Typeable
-import Data.Dynamic
+import qualified Data.List        as List
+import           Data.Bits
+import           Data.LargeWord
+import           Data.Word
+import           Data.Set         as Set
+import           Data.Typeable
+import           Data.Dynamic
 
-import Frenetic.Pattern as P
+import           Frenetic.Pattern as P
 
 --
 -- Basic network elements
@@ -60,33 +60,90 @@ import Frenetic.Pattern as P
 type Switch = Word64
 type Port = Word16
 
-
-    
 type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
 
-data Header b where
-  Dl_src :: Header Word48
-  Dl_dst :: Header Word48
-  Dl_typ :: Header Word16
-  Dl_vlan :: Header Word16
-  Dl_vlan_pcp :: Header Word8
-  Nw_src :: Header Word32
-  Nw_dst :: Header Word32
-  Nw_proto :: Header Word8
-  Nw_tos :: Header Word8
-  Tp_src :: Header Word16
-  Tp_dst :: Header Word16
+data IdealPacket = IdealPacket {
+    ipktDlSrc :: Word48
+  , ipktDlDst :: Word48
+  , ipktDlTyp :: Word16
+  , ipktDlVlan :: Word16
+  , ipktDlVlanPcp :: Word8
+  , ipktNwSrc :: Word32
+  , ipktNwDst :: Word32
+  , ipktNwProto :: Word8
+  , ipktNwTos :: Word8
+  , ipktTpSrc :: Word16
+  , ipktTpDst :: Wildcard Word16
+  , ipktInPort :: Port
+  , ipktPayload :: String
+  } deriving (Show, Eq)
 
-deriving instance Eq b => Eq (Header b)
-deriving instance Show b => Show (Header b)
-deriving instance Ord b => Ord (Header b)
+data IdealPattern = IdealPattern { 
+  ipatDlSrc :: Wildcard Word48
+  , ipatDlDst :: Wildcard Word48
+  , ipatDlTyp :: Wildcard Word16
+  , ipatDlVlan :: Wildcard Word16
+  , ipatDlVlanPcp :: Wildcard Word8
+  , ipatNwSrc :: Wildcard Word32
+  , ipatNwDst :: Wildcard Word32
+  , ipatNwProto :: Wildcard Word8
+  , ipatNwTos :: Wildcard Word8
+  , ipatTpSrc :: Wildcard Word16
+  , ipatTpDst :: Wildcard Word16
+  , ipatInPort :: Maybe Port
+  } deriving (Show, Eq)
+                    
+instance P.Pattern IdealPattern where
+  top = IdealPattern {
+    ipatDlSrc = P.top
+    , ipatDlDst = P.top
+    , ipatDlTyp = P.top
+    , ipatDlVlan = P.top
+    , ipatDlVlanPcp = P.top
+    , ipatNwSrc = P.top
+    , ipatNwDst = P.top
+    , ipatNwProto = P.top
+    , ipatNwTos = P.top
+    , ipatTpSrc = P.top
+    , ipatTpDst = P.top
+    , ipatInPort = P.top
+    }
+        
+  intersect p1 p2 = do ipatDlSrc' <- intersect (ipatDlSrc p1) (ipatDlSrc p2)
+                       ipatDlDst' <- intersect (ipatDlDst p1) (ipatDlDst p2)
+                       ipatDlTyp' <- intersect (ipatDlTyp p1) (ipatDlTyp p2)
+                       ipatDlVlan' <- intersect (ipatDlVlan p1) (ipatDlVlan p2)
+                       ipatDlVlanPcp' <- intersect (ipatDlVlanPcp p1) (ipatDlVlanPcp p2)
+                       ipatNwSrc' <- intersect (ipatNwSrc p1) (ipatNwSrc p2)
+                       ipatNwDst' <- intersect (ipatNwDst p1) (ipatNwDst p2)
+                       ipatNwProto' <- intersect (ipatNwProto p1) (ipatNwProto p2)
+                       ipatNwTos' <- intersect (ipatNwTos p1) (ipatNwTos p2)
+                       ipatTpSrc' <- intersect (ipatTpSrc p1) (ipatTpSrc p2)
+                       ipatTpDst' <- intersect (ipatTpDst p1) (ipatTpDst p2)
+                       ipatInPort' <- intersect (ipatInPort p1) (ipatInPort p2)
+                       return $ IdealPattern {
+                         ipatDlSrc = ipatDlSrc'
+                         , ipatDlDst = ipatDlDst'
+                         , ipatDlTyp = ipatDlTyp'
+                         , ipatDlVlan = ipatDlVlan'
+                         , ipatDlVlanPcp = ipatDlVlanPcp'
+                         , ipatNwSrc = ipatNwSrc'
+                         , ipatNwDst = ipatNwDst'
+                         , ipatNwProto = ipatNwProto'
+                         , ipatNwTos = ipatNwTos'
+                         , ipatTpSrc = ipatTpSrc'
+                         , ipatTpDst = ipatTpDst'
+                         , ipatInPort = ipatInPort'
+                         }
 
-class (Eq pkt) => Packet pkt where
-  pktGetHeader :: (Bits b) => pkt -> Header b -> b
-  pktSetHeader :: (Bits b) => pkt -> Header b -> b -> pkt
+instance Packet IdealPacket where 
+  pktToIdeal = id
+  pktFromIdeal pkt1 pkt2 = pkt2
 
--- remember this used to be existential.
--- more elegant way to store ptrn later.
+class (Show pkt, Eq pkt) => Packet pkt where
+  pktToIdeal :: pkt -> IdealPacket
+  pktFromIdeal :: pkt -> IdealPacket -> pkt
+  
 data Transmission ptrn pkt = Transmission {
       trPattern :: ptrn,
       trSwitch :: Switch,
@@ -105,10 +162,9 @@ This class represents backend patterns.
   Approx class. If the pattern is not a real underapproximation,
   @patUnderapprox@ must return Nothing.
 -}
-class (P.Pattern ptrn) => Patternable ptrn where
-    patOverapprox :: Header r -> P.Wildcard r -> ptrn
-    patInport :: Port -> ptrn
-    patUnderapprox :: Header r -> P.Wildcard r -> r -> Maybe ptrn
+class (Typeable ptrn, Show ptrn, P.Pattern ptrn) => Patternable ptrn where
+    patOverapprox :: IdealPattern -> ptrn
+    patUnderapprox :: IdealPacket -> IdealPattern -> Maybe ptrn
 
 class (Patternable ptrn, Packet pkt) => Transmissionable ptrn pkt where
     patMatch :: ptrn -> pkt -> Bool
@@ -125,32 +181,32 @@ class (Eq actn) => Actionable actn where
 -- Predicates
 --
 
-data HeaderW = forall r. (Bits r) => HeaderW (Header r)
+-- data HeaderW = forall r. (Show r, Bits r) => HeaderW (Header r)
 
--- Can't derive these.
-instance Show HeaderW where
-    show (HeaderW h) = show h
+-- -- Can't derive these.
+-- instance Show HeaderW where
+--     show (HeaderW h) = show h
                        
-type Headers = [HeaderW]
+-- type Headers = [HeaderW]
 
-data Inspector = Inspector {
-      insDesc :: String,
-      insApply :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Bool),
-      insInv :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
-    }
+-- data Inspector = Inspector {
+--       insDesc :: String,
+--       insApply :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Bool),
+--       insInv :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
+--     }
 
-data Doer = Doer {
-      doDesc :: String,
-      doApply :: (forall ptrn pkt. Transmissionable ptrn pkt =>
-                  Transmission ptrn pkt ->
-                  [Transmission ptrn pkt]),
-      doInv :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
-    }
+-- data Doer = Doer {
+--       doDesc :: String,
+--       doApply :: (forall ptrn pkt. Transmissionable ptrn pkt =>
+--                   Transmission ptrn pkt ->
+--                   [Transmission ptrn pkt]),
+--       doInv :: (forall ptrn pkt. Transmissionable ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
+--     }
 
 
-data Predicate = forall b. (Bits b) => PrHeader (Header b) (P.Wildcard b)
-               | PrPattern String Dynamic
-               | PrInspect Inspector
+data Predicate = PrIdealPattern IdealPattern
+               | PrSwitchPattern String Dynamic
+--               | PrInspect Inspector
                | PrTo Switch
                | PrInport Port
                | PrUnion Predicate Predicate
@@ -159,10 +215,11 @@ data Predicate = forall b. (Bits b) => PrHeader (Header b) (P.Wildcard b)
                | PrNegate Predicate
 
 instance Show Predicate where
-  show (PrHeader h w) = "(" ++ show h ++ " : " ++ show w ++ ")"
+-- FIX
+  show (PrIdealPattern pat) = show pat  
   show (PrTo s) = "switch(" ++ show s ++ ")"
-  show (PrInspect ins) = insDesc ins
-  show (PrPattern desc _) = desc
+--  show (PrInspect ins) = insDesc ins
+  show (PrSwitchPattern desc _) = desc
   show (PrInport n) = "inport(" ++ show n ++ ")"
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
@@ -176,14 +233,14 @@ instance Show Predicate where
 type Actions = Set Port
 
 data Policy = PoBasic Predicate Actions
-            | PoDoer Doer
+--            | PoDoer Doer
             | PoUnion Policy Policy
             | PoIntersect Policy Policy
             | PoDifference Policy Policy
                   
 instance Show Policy where
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
-  show (PoDoer doer) = doDesc doer 
+--  show (PoDoer doer) = doDesc doer 
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
   show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
@@ -196,12 +253,12 @@ interpretPredicate :: forall ptrn pkt. (Typeable ptrn, Transmissionable ptrn pkt
                       Predicate
                    -> Transmission ptrn pkt
                    -> Bool
-interpretPredicate (PrHeader h w) tr = wBitsMake (pktGetHeader (trPkt tr) h) == w
-interpretPredicate (PrPattern _ dyn) tr =
+--interpretPredicate (PrHeader h w) tr = wBitsMake (pktGetHeader (trPkt tr) h) == w
+interpretPredicate (PrSwitchPattern _ dyn) tr =
     case fromDynamic dyn :: Maybe ptrn of
       Just ptrn -> patMatch ptrn (trPkt tr)
       Nothing -> False
-interpretPredicate (PrInspect ins) tr = insApply ins tr
+--interpretPredicate (PrInspect ins) tr = insApply ins tr
 interpretPredicate (PrInport n) tr = n == trPort tr
 interpretPredicate (PrUnion pr1 pr2) t = 
   interpretPredicate pr1 t || interpretPredicate pr2 t
@@ -222,7 +279,7 @@ interpretPolicy :: (Typeable ptrn, Transmissionable ptrn pkt) =>
                 -> [Transmission ptrn pkt]
 interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = interpretActions tr as
                                      | otherwise = []
-interpretPolicy (PoDoer doer) tr = doApply doer tr
+--interpretPolicy (PoDoer doer) tr = doApply doer tr
 interpretPolicy (PoUnion p1 p2) tr = 
   interpretPolicy p1 tr `List.union` interpretPolicy p2 tr
 interpretPolicy (PoIntersect p1 p2) tr = 

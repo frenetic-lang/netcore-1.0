@@ -26,7 +26,7 @@
 --------------------------------------------------------------------------------
 -- /src/Compiler.hs                                                            --
 -- NetCore compiler                                                           --
--- $Id$ --
+-- $Id$ -- 
 --------------------------------------------------------------------------------
 
 {-# LANGUAGE 
@@ -36,23 +36,35 @@
     ScopedTypeVariables,
     FlexibleInstances,
     TypeSynonymInstances, 
-    GADTs
+    GADTs,
+TemplateHaskell,
+MultiParamTypeClasses
  #-}
 
 module Frenetic.Compiler where
 
-import Data.Set as Set
-import Data.List as List
-import Data.Maybe
-import Data.Typeable
-import Data.Dynamic
+import           Frenetic.Util
+import           Control.Newtype.TH
+import           Control.Newtype
+
+import           Data.Dynamic
+import qualified Data.List          as List
+import           Data.Maybe
+import qualified Data.Set           as Set
+import qualified Data.Map           as Map
+import           Data.Typeable
   
-import qualified Frenetic.Pattern as P
-import Frenetic.Language
+import qualified Frenetic.Pattern   as P
+import           Frenetic.Language
     
+
 --
 -- strange n^2 list algorithms
 --
+
+
+
+
 
 -- f is your self map function
 -- ctxt is everything we've seen before
@@ -94,88 +106,119 @@ cartMap f c (x:xs) ys =
         (c', Just x', Nothing) -> cartMap' c' x' ys
         (c', Nothing, Nothing) -> (c', Nothing, ys)        
 
--- 
--- Skeletons
---
+{-
+ Classifiers
+-}
 
-data Bone ptrn a = Bone ptrn a
-data Skeleton ptrn a = Skeleton [Bone ptrn a]
+newtype Classifier ptrn a = Classifier [(ptrn, a)]
+$(mkNewTypes [''Classifier])
 
-instance (Show ptrn, Show a) => Show (Bone ptrn a) where
-  show (Bone m a) = "Bone(" ++ show m ++ "," ++ show a ++ ")"
+instance (Show ptrn, Show a) => Show (Classifier ptrn a) where
+  show = concat . List.intersperse "\n" . List.map show . unpack 
 
-instance (Show ptrn, Show a) => Show (Skeleton ptrn a) where
-  show (Skeleton bs) = concat (intersperse "\n" $ Prelude.map show bs)
+-- Aliases for a valid classifier.
+class (Patternable ptrn, Actionable act) => ValidClassifier ptrn act 
+instance (Patternable ptrn, Actionable act) => ValidClassifier ptrn act 
 
-(+++) :: Skeleton ptrn a -> Skeleton ptrn a -> Skeleton ptrn a
-(+++) (Skeleton bs1) (Skeleton bs2) = Skeleton (bs1 ++ bs2)
+class (ValidClassifier ptrn actn, Transmissionable ptrn pkt) => ValidMatchEnvironment ptrn actn pkt
+instance (ValidClassifier ptrn actn, Transmissionable ptrn pkt) => ValidMatchEnvironment ptrn actn pkt
 
-skelMap :: (a -> b) -> Skeleton ptrn a -> Skeleton ptrn b 
-skelMap f (Skeleton bs) = Skeleton $ Prelude.map (\(Bone m a) -> Bone m (f a)) bs
 
-skelCart :: (P.Pattern ptrn) =>
-            (a -> a -> a)
-         -> Skeleton ptrn a
-         -> Skeleton ptrn a
-         -> (Skeleton ptrn a, Skeleton ptrn a, Skeleton ptrn a)
-skelCart f (Skeleton bs1) (Skeleton bs2) = 
-  let h bs x@(Bone m1 a1) y@(Bone m2 a2) = 
-        case P.intersect m1 m2 of 
-          Just m12 -> 
-            (bs ++ [Bone m12 (f a1 a2)],
-             if m12 == m1 then Nothing else Just x,
-             if m12 == m2 then Nothing else Just y)
-          Nothing -> 
-            (bs, Just x, Just y) in 
-  let (bs1',bs2',bs3') = cartMap h [] bs1 bs2 in 
-  (Skeleton bs1', Skeleton bs2', Skeleton bs3')
-  
-{-| Minimize. |-}
-skelMinimize :: (Patternable ptrn, Actionable actn) => Skeleton ptrn actn -> Skeleton ptrn actn
-skelMinimize (Skeleton bones) = Skeleton bones''
-    where
-      bones' = selfMap f [] False bones
-      f ctxt isDisjoint bone1@(Bone ptrn act) bone2@(Bone ptrn' act')
-          -- Remove shadows
-          | ptrn' `P.match` ptrn = (isDisjoint, Just bone1, Nothing)
-          -- Remove fallthroughs
-          | ptrn `P.match` ptrn' && act == act' && not isDisjoint =
-              (False, Nothing, Just bone2) 
-          | otherwise = (isDisjoint || (act /= act' && conflict),
-                         Just bone1,
-                         Just bone2)
-          where
-            ctxtmeets = mapMaybe (P.intersect ptrn) (Prelude.map (\(Bone ptrn actn) -> ptrn) ctxt)
-            conflict = P.overlap ptrn ptrn' && P.unsafeIntersect ptrn ptrn' `List.notElem` ctxtmeets
-                              
-      -- remove bottom elements from end of classifier
-      bones'' = reverse $ dropWhile (\(Bone ptrn actn) -> actn == actController) $ reverse bones'
+{-| Try to reduce the number of rules in the classifier. |-}
+minimize :: (ValidClassifier ptrn actn) => Classifier ptrn actn -> Classifier ptrn actn
+minimize = undefined
 
-{- Pruning -}
-skelPrune :: (Transmissionable ptrn pkt, Actionable act) =>
-             pkt -> Skeleton ptrn act -> Skeleton ptrn act
-skelPrune pkt (Skeleton bones) = Skeleton $ removeControllers [] bones
+{-| Removes any rules that (1) have controller rules, (2) don't match the packet, (3) overlap with a rule that we previously removed.-}
+prune :: (Transmissionable ptrn pkt, Actionable act) =>
+         pkt -> Classifier ptrn act -> Classifier ptrn act
+prune pkt = newLift $ removeControllers []
     where
       removeControllers prefix [] = []
-      removeControllers prefix (Bone ptrn actn : bones) 
-          | not $ patMatch ptrn pkt = removeControllers prefix bones
-          | actn == actController = removeControllers (ptrn : prefix) bones
-          | any (P.overlap ptrn) prefix = removeControllers (ptrn : prefix) bones
-          | otherwise = Bone ptrn actn : removeControllers prefix bones
+      removeControllers prefix ((ptrn, actn) : rules) 
+          | not $ patMatch ptrn pkt = removeControllers prefix rules
+          | actn == actController = removeControllers (ptrn : prefix) rules
+          | any (P.overlap ptrn) prefix = removeControllers (ptrn : prefix) rules
+          | otherwise = (ptrn, actn) : removeControllers prefix rules
+
+
+{- Skeletons -}
+       
+data Bone ptrn actn = Bone ptrn Predicate (actn, actn)
+newtype Skeleton ptrn actn = Skeleton [Bone ptrn actn]
+$(mkNewTypes [''Skeleton])
+
+
+-- 
+-- Skeletons
+-- 
+
+-- instance (Show ptrn, Show a) => Show (Skeleton ptrn a) where
+--   show (Skeleton bs) = concat (List.intersperse "\n" $ List.map show bs)
+
+(+++) = newLift2 (++)
+
+skelMap :: (a -> b) -> Skeleton ptrn a -> Skeleton ptrn b 
+skelMap f (Skeleton bones) = Skeleton $ map (\(Bone ptrn pr (act1, act2)) -> Bone ptrn pr (f act1, f act2)) bones 
+
+-- skelcart :: (P.Pattern ptrn) =>
+--             (a -> a -> a)
+--             -> Skeleton ptrn a
+--             -> Skeleton ptrn a
+--             -> (Skeleton ptrn a, Skeleton ptrn a, Skeleton ptrn a)
+-- skelCart f (Skeleton bs1) (Skeleton bs2) = 
+--   let h bs x@(Bone m1 a1) y@(Bone m2 a2) = 
+--         case P.intersect m1 m2 of 
+--           Just m12 -> 
+--             (bs ++ [Bone m12 (f a1 a2)],
+--              if m12 == m1 then Nothing else Just x,
+--              if m12 == m2 then Nothing else Just y)
+--           Nothing -> 
+--             (bs, Just x, Just y) in 
+--   let (bs1',bs2',bs3') = cartMap h [] bs1 bs2 in 
+--   (Skeleton bs1', Skeleton bs2', Skeleton bs3')
+  
+-- {-| Minimize. |-}
+-- skelMinimize :: (Patternable ptrn, Actionable actn) => Skeleton ptrn actn -> Skeleton ptrn actn
+-- skelMinimize (Skeleton bones) = Skeleton bones''
+--     where
+--       bones' = selfMap f [] False bones
+--       f ctxt isDisjoint bone1@(Bone ptrn act) bone2@(Bone ptrn' act')
+--           -- Remove shadows
+--           | ptrn' `P.match` ptrn = (isDisjoint, Just bone1, Nothing)
+--           -- Remove fallthroughs
+--           | ptrn `P.match` ptrn' && act == act' && not isDisjoint =
+--               (False, Nothing, Just bone2) 
+--           | otherwise = (isDisjoint || (act /= act' && conflict),
+--                          Just bone1,
+--                          Just bone2)
+--         where 
+--             ctxtmeets = mapMaybe (P.intersect ptrn) (Prelude.map (\(Bone ptrn actn) -> ptrn) ctxt)
+--             conflict = P.overlap ptrn ptrn' && P.unsafeIntersect ptrn ptrn' `List.notElem` ctxtmeets
+                              
+--       -- remove bottom elements from end of classifier
+--       bones'' = reverse $ dropWhile (\(Bone ptrn actn) -> actn == actController) $ reverse bones'
 
 --
 -- compile
 --
   
-compilePredicate :: forall ptrn. (Typeable ptrn, Patternable ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
-compilePredicate s (PrHeader h w) = Skeleton [Bone (patOverapprox h w) True]
+skelCart :: (P.Pattern ptrn) =>
+            (a -> a -> a)
+            -> Skeleton ptrn a
+            -> Skeleton ptrn a
+            -> (Skeleton ptrn a, Skeleton ptrn a, Skeleton ptrn a) 
+skelCart = undefined
+prAll = undefined
+
+compilePredicate :: forall ptrn. (Patternable ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
+compilePredicate s (PrHeader h w) = Skeleton [Bone (patOverapprox h w) (PrHeader h w) (True, True)]
 compilePredicate s (PrPattern _ dyn) =
-    case fromDynamic dyn :: Maybe ptrn of
-      Just ptrn -> Skeleton [Bone ptrn True]
-      Nothing -> Skeleton []
-compilePredicate s (PrInspect ins) = Skeleton [Bone P.top True] -- this needs to be a maybe! FIX
-compilePredicate s (PrInport n) = Skeleton [Bone (patInport n) True] 
-compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top True]
+  case fromDynamic dyn :: Maybe ptrn of
+    Just ptrn -> Skeleton [Bone ptrn (PrPattern undefined dyn) (True, True)]
+    Nothing -> Skeleton []
+--compilePredicate s (PrInspect ins) = Skeleton [Bone P.top True] -- this needs to be a maybe! FIX
+compilePredicate s (PrInport n) = Skeleton [Bone (patInport n) (PrInport n) (True, True)]
+compilePredicate s (PrTo s') | s == s' = Skeleton [Bone P.top prAll (True, True)]
                              | otherwise = Skeleton []
 compilePredicate s (PrIntersect pr1 pr2) = skel12'
     where
@@ -188,12 +231,17 @@ compilePredicate s (PrUnion pr1 pr2) = skel12' +++ skel1' +++ skel2'
       skel2 = compilePredicate s pr2
       (skel12', skel1', skel2') = skelCart (||) skel1 skel2
 compilePredicate s (PrNegate pr) = skelMap not (compilePredicate s pr) +++
-                                   Skeleton [Bone P.top True]
+                                   Skeleton [Bone P.top prAll (True, True)]
 
-compilePolicy :: (Patternable ptrn, Typeable ptrn) => Switch -> Policy -> Skeleton ptrn Frenetic.Language.Actions
+
+compilePolicy :: (Patternable ptrn) => Switch -> Policy -> Skeleton ptrn Frenetic.Language.Actions
 compilePolicy s (PoBasic po as) = 
-    skelMap (\b -> if b then as else Set.empty) $ compilePredicate s po
-compilePolicy s (PoDoer doer) = Skeleton [Bone P.top Set.empty] -- this needs to be a maybe! FIX!
+    skelMap f $ compilePredicate s po
+  where
+    f True = as
+    f False = Set.empty
+    
+--compilePolicy s (PoDoer doer) = Skeleton [Bone P.top Set.empty] -- this needs to be a maybe! FIX!
 compilePolicy s (PoUnion po1 po2) = skel12' +++ skel1' +++ skel2' 
     where
       skel1 = compilePolicy s po1
@@ -205,20 +253,21 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart Set.intersection skel1 skel2
 
-compile :: (Typeable ptrn, Patternable ptrn, Actionable actn) => Switch -> Policy -> Skeleton ptrn actn 
-compile s p = skelMinimize $ skelMap actTranslate (compilePolicy s p)
+compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
+compile s po = undefined -- skelMap actTranslate (compilePolicy s po)
 
 --
 -- specialization
 --
               
-expandPredicate :: forall ptrn pkt. (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt) =>
+
+expandPredicate :: forall ptrn pkt. (Transmissionable ptrn pkt) =>
                    Transmission ptrn pkt -> Predicate -> Predicate
 expandPredicate tr (PrHeader h w) =
     case (patUnderapprox h w (pktGetHeader (trPkt tr) h) :: Maybe ptrn) of
       Just pat -> PrUnion (PrHeader h w) (PrPattern (show pat) (toDyn pat))
       Nothing -> PrHeader h w
-expandPredicate tr (PrInspect ins) = undefined
+--expandPredicate tr (PrInspect ins) = undefined
 expandPredicate tr (PrPattern s dyn) = PrPattern s dyn
 expandPredicate tr (PrTo s) = PrTo s
 expandPredicate tr (PrInport p) = PrInport p
@@ -230,15 +279,15 @@ expandPredicate tr (PrDifference pr1 pr2) =
     PrDifference (expandPredicate tr pr1) (expandPredicate tr pr2)
 expandPredicate tr (PrNegate pr) = PrNegate (expandPredicate tr pr)
 
-expandPolicy :: (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt) =>
+expandPolicy :: (Transmissionable ptrn pkt) =>
                 Transmission ptrn pkt -> Policy -> Policy
 expandPolicy tr (PoBasic pr as) = PoBasic (expandPredicate tr pr) as
-expandPolicy tr (PoDoer doer) = undefined
+--expandPolicy tr (PoDoer doer) = undefined
 expandPolicy tr (PoUnion po1 po2) = PoUnion (expandPolicy tr po1) (expandPolicy tr po2)
 expandPolicy tr (PoIntersect po1 po2) = PoIntersect (expandPolicy tr po1) (expandPolicy tr po2)
 expandPolicy tr (PoDifference po1 po2) = PoDifference (expandPolicy tr po1) (expandPolicy tr po2)
 
-specialize :: (Show ptrn, Typeable ptrn, Transmissionable ptrn pkt, Actionable actn) =>
-              Transmission ptrn pkt -> Policy -> Skeleton ptrn actn
-specialize tr po = skelPrune (trPkt tr) $ compile (trSwitch tr) (expandPolicy tr po)
-
+{-| Reactive specialization. |-}
+specialize :: (ValidMatchEnvironment ptrn actn pkt) =>
+              Transmission ptrn pkt -> Policy -> Classifier ptrn actn
+specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) (expandPolicy tr po)
