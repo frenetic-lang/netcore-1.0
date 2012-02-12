@@ -81,6 +81,10 @@ prefixToIPAddressPrefix :: Prefix Word32 -> IPAddress.IPAddressPrefix
 prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
     (IPAddress.IPAddress x, fromIntegral $ sum [1 | i <- [0 .. 31], not $ testBit m i])
 
+ipAddressPrefixToPrefix :: IPAddress.IPAddressPrefix -> Prefix Word32
+ipAddressPrefixToPrefix = undefined
+
+
 instance Matchable IPAddress.IPAddressPrefix where
   top = IPAddress.defaultIPPrefix
   intersect = IPAddress.intersect
@@ -135,6 +139,7 @@ instance Matchable OFMatch.Match where
            srcTransportPort = srctransportport,
            dstTransportPort = dsttransportport }
 
+
 instance GPattern OFMatch.Match where
   ptrnOverapprox ptrn = top {
     srcEthAddress = fmap word48ToEth $ overapprox $ ptrnDlSrc ptrn,
@@ -178,3 +183,17 @@ instance GPattern OFMatch.Match where
       inPort = ptrnInPort ptrn
       }
 
+  ptrnInverse ptrn = Pattern {
+    ptrnDlSrc     = inverseapprox $ fmap ethToWord48 $ srcEthAddress ptrn,
+    ptrnDlDst     = inverseapprox $ fmap ethToWord48 $ dstEthAddress ptrn,
+    ptrnDlTyp     = inverseapprox $ ethFrameType ptrn,
+    ptrnDlVlan    = inverseapprox $ vLANID ptrn,
+    ptrnDlVlanPcp = inverseapprox $ vLANPriority ptrn,
+    ptrnNwSrc     = inverseapprox $ ipAddressPrefixToPrefix $ srcIPAddress ptrn,
+    ptrnNwDst     = inverseapprox $ ipAddressPrefixToPrefix $ dstIPAddress ptrn,
+    ptrnNwProto   = inverseapprox $ ipProtocol ptrn,
+    ptrnNwTos     = inverseapprox $ ipTypeOfService ptrn,
+    ptrnTpSrc     = inverseapprox $ srcTransportPort ptrn,
+    ptrnTpDst     = inverseapprox $ dstTransportPort ptrn,
+    ptrnInPort    = inPort ptrn
+    }

@@ -185,6 +185,7 @@ All instances must obey the laws!
 class Approx a where
     overapprox :: (Bits b) => Wildcard b -> a b
     underapprox :: (Bits b) => Wildcard b -> b -> Maybe (a b)
+    inverseapprox :: (Bits b) => a b -> Wildcard b
 
 -- Prefix patterns
 
@@ -217,5 +218,8 @@ instance Approx Maybe where
                               | otherwise = Nothing
     underapprox (Wildcard x m) x' | m == complement 0 && x == x' = Just (Just x)
                                   | otherwise = Nothing
+    inverseapprox (Just x) = wBitsMake x
+    inverseapprox Nothing = top
+
 
 

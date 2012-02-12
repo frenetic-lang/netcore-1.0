@@ -158,11 +158,12 @@ This class represents backend patterns.
 class (Typeable ptrn, Show ptrn, Matchable ptrn) => GPattern ptrn where
     ptrnOverapprox :: Pattern -> ptrn
     ptrnUnderapprox :: Packet -> Pattern -> Maybe ptrn
+    ptrnInverse :: ptrn -> Pattern
 
 instance GPattern Pattern where
   ptrnOverapprox = id
   ptrnUnderapprox pkt ptrn = Nothing -- We never need to underapproximate real patterns
-  
+  ptrnInverse = id
   
 {-| Something sent. See below relation -}
 data Transmission ptrn pkt = Transmission {
