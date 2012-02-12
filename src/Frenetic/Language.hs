@@ -38,7 +38,8 @@
     ExistentialQuantification,
     MultiParamTypeClasses,
     FunctionalDependencies,
-    ScopedTypeVariables
+    ScopedTypeVariables,
+DeriveDataTypeable
  #-}
 
 module Frenetic.Language where
@@ -47,113 +48,105 @@ import qualified Data.List        as List
 import           Data.Bits
 import           Data.LargeWord
 import           Data.Word
-import           Data.Set         as Set
+import qualified Data.Set         as Set
 import           Data.Typeable
 import           Data.Dynamic
 
-import           Frenetic.Pattern as P
+import Frenetic.Pattern
 
 --
 -- Basic network elements
 --
 
+type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
+
 type Switch = Word64
 type Port = Word16
 
-type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
 
-data IdealPacket = IdealPacket {
-    ipktDlSrc :: Word48
-  , ipktDlDst :: Word48
-  , ipktDlTyp :: Word16
-  , ipktDlVlan :: Word16
-  , ipktDlVlanPcp :: Word8
-  , ipktNwSrc :: Word32
-  , ipktNwDst :: Word32
-  , ipktNwProto :: Word8
-  , ipktNwTos :: Word8
-  , ipktTpSrc :: Word16
-  , ipktTpDst :: Wildcard Word16
-  , ipktInPort :: Port
-  , ipktPayload :: String
-  } deriving (Show, Eq)
+{-| Frenetic "packets" -}
+data Packet = Packet {
+    pktDlSrc :: Word48
+  , pktDlDst :: Word48
+  , pktDlTyp :: Word16
+  , pktDlVlan :: Word16
+  , pktDlVlanPcp :: Word8
+  , pktNwSrc :: Word32
+  , pktNwDst :: Word32
+  , pktNwProto :: Word8
+  , pktNwTos :: Word8
+  , pktTpSrc :: Word16
+  , pktTpDst :: Word16
+  , pktInPort :: Port
+  } deriving (Show, Eq, Typeable)
 
-data IdealPattern = IdealPattern { 
-  ipatDlSrc :: Wildcard Word48
-  , ipatDlDst :: Wildcard Word48
-  , ipatDlTyp :: Wildcard Word16
-  , ipatDlVlan :: Wildcard Word16
-  , ipatDlVlanPcp :: Wildcard Word8
-  , ipatNwSrc :: Wildcard Word32
-  , ipatNwDst :: Wildcard Word32
-  , ipatNwProto :: Wildcard Word8
-  , ipatNwTos :: Wildcard Word8
-  , ipatTpSrc :: Wildcard Word16
-  , ipatTpDst :: Wildcard Word16
-  , ipatInPort :: Maybe Port
-  } deriving (Show, Eq)
-                    
-instance P.Pattern IdealPattern where
-  top = IdealPattern {
-    ipatDlSrc = P.top
-    , ipatDlDst = P.top
-    , ipatDlTyp = P.top
-    , ipatDlVlan = P.top
-    , ipatDlVlanPcp = P.top
-    , ipatNwSrc = P.top
-    , ipatNwDst = P.top
-    , ipatNwProto = P.top
-    , ipatNwTos = P.top
-    , ipatTpSrc = P.top
-    , ipatTpDst = P.top
-    , ipatInPort = P.top
-    }
-        
-  intersect p1 p2 = do ipatDlSrc' <- intersect (ipatDlSrc p1) (ipatDlSrc p2)
-                       ipatDlDst' <- intersect (ipatDlDst p1) (ipatDlDst p2)
-                       ipatDlTyp' <- intersect (ipatDlTyp p1) (ipatDlTyp p2)
-                       ipatDlVlan' <- intersect (ipatDlVlan p1) (ipatDlVlan p2)
-                       ipatDlVlanPcp' <- intersect (ipatDlVlanPcp p1) (ipatDlVlanPcp p2)
-                       ipatNwSrc' <- intersect (ipatNwSrc p1) (ipatNwSrc p2)
-                       ipatNwDst' <- intersect (ipatNwDst p1) (ipatNwDst p2)
-                       ipatNwProto' <- intersect (ipatNwProto p1) (ipatNwProto p2)
-                       ipatNwTos' <- intersect (ipatNwTos p1) (ipatNwTos p2)
-                       ipatTpSrc' <- intersect (ipatTpSrc p1) (ipatTpSrc p2)
-                       ipatTpDst' <- intersect (ipatTpDst p1) (ipatTpDst p2)
-                       ipatInPort' <- intersect (ipatInPort p1) (ipatInPort p2)
-                       return $ IdealPattern {
-                         ipatDlSrc = ipatDlSrc'
-                         , ipatDlDst = ipatDlDst'
-                         , ipatDlTyp = ipatDlTyp'
-                         , ipatDlVlan = ipatDlVlan'
-                         , ipatDlVlanPcp = ipatDlVlanPcp'
-                         , ipatNwSrc = ipatNwSrc'
-                         , ipatNwDst = ipatNwDst'
-                         , ipatNwProto = ipatNwProto'
-                         , ipatNwTos = ipatNwTos'
-                         , ipatTpSrc = ipatTpSrc'
-                         , ipatTpDst = ipatTpDst'
-                         , ipatInPort = ipatInPort'
-                         }
-
-instance Packet IdealPacket where 
+{-| Generic packets -}
+class (Show pkt, Eq pkt) => GPacket pkt where
+  pktToIdeal :: pkt -> Packet
+  pktFromIdeal :: pkt -> Packet -> pkt
+ 
+instance GPacket Packet where 
   pktToIdeal = id
   pktFromIdeal pkt1 pkt2 = pkt2
 
-class (Show pkt, Eq pkt) => Packet pkt where
-  pktToIdeal :: pkt -> IdealPacket
-  pktFromIdeal :: pkt -> IdealPacket -> pkt
-  
-data Transmission ptrn pkt = Transmission {
-      trPattern :: ptrn,
-      trSwitch :: Switch,
-      trPort :: Port,
-      trPkt :: pkt
-    } deriving (Eq)
-
---
--- Core compilation classes
---
+{-| Frenetic "patterns" -}
+data Pattern = Pattern { 
+  ptrnDlSrc :: Wildcard Word48
+  , ptrnDlDst :: Wildcard Word48
+  , ptrnDlTyp :: Wildcard Word16
+  , ptrnDlVlan :: Wildcard Word16
+  , ptrnDlVlanPcp :: Wildcard Word8
+  , ptrnNwSrc :: Wildcard Word32
+  , ptrnNwDst :: Wildcard Word32
+  , ptrnNwProto :: Wildcard Word8
+  , ptrnNwTos :: Wildcard Word8
+  , ptrnTpSrc :: Wildcard Word16
+  , ptrnTpDst :: Wildcard Word16
+  , ptrnInPort :: Maybe Port
+  } deriving (Show, Eq, Typeable)
+                    
+instance Matchable Pattern where
+  top = Pattern {
+    ptrnDlSrc = top
+    , ptrnDlDst = top
+    , ptrnDlTyp = top
+    , ptrnDlVlan = top
+    , ptrnDlVlanPcp = top
+    , ptrnNwSrc = top
+    , ptrnNwDst = top
+    , ptrnNwProto = top
+    , ptrnNwTos = top
+    , ptrnTpSrc = top
+    , ptrnTpDst = top
+    , ptrnInPort = top
+    }
+        
+  intersect p1 p2 = do ptrnDlSrc' <- intersect (ptrnDlSrc p1) (ptrnDlSrc p2)
+                       ptrnDlDst' <- intersect (ptrnDlDst p1) (ptrnDlDst p2)
+                       ptrnDlTyp' <- intersect (ptrnDlTyp p1) (ptrnDlTyp p2)
+                       ptrnDlVlan' <- intersect (ptrnDlVlan p1) (ptrnDlVlan p2)
+                       ptrnDlVlanPcp' <- intersect (ptrnDlVlanPcp p1) (ptrnDlVlanPcp p2)
+                       ptrnNwSrc' <- intersect (ptrnNwSrc p1) (ptrnNwSrc p2)
+                       ptrnNwDst' <- intersect (ptrnNwDst p1) (ptrnNwDst p2)
+                       ptrnNwProto' <- intersect (ptrnNwProto p1) (ptrnNwProto p2)
+                       ptrnNwTos' <- intersect (ptrnNwTos p1) (ptrnNwTos p2)
+                       ptrnTpSrc' <- intersect (ptrnTpSrc p1) (ptrnTpSrc p2)
+                       ptrnTpDst' <- intersect (ptrnTpDst p1) (ptrnTpDst p2)
+                       ptrnInPort' <- intersect (ptrnInPort p1) (ptrnInPort p2)
+                       return $ Pattern {
+                         ptrnDlSrc = ptrnDlSrc'
+                         , ptrnDlDst = ptrnDlDst'
+                         , ptrnDlTyp = ptrnDlTyp'
+                         , ptrnDlVlan = ptrnDlVlan'
+                         , ptrnDlVlanPcp = ptrnDlVlanPcp'
+                         , ptrnNwSrc = ptrnNwSrc'
+                         , ptrnNwDst = ptrnNwDst'
+                         , ptrnNwProto = ptrnNwProto'
+                         , ptrnNwTos = ptrnNwTos'
+                         , ptrnTpSrc = ptrnTpSrc'
+                         , ptrnTpDst = ptrnTpDst'
+                         , ptrnInPort = ptrnInPort'
+                         }
 
 {-|
 This class represents backend patterns.
@@ -162,20 +155,46 @@ This class represents backend patterns.
   Approx class. If the pattern is not a real underapproximation,
   @patUnderapprox@ must return Nothing.
 -}
-class (Typeable ptrn, Show ptrn, P.Pattern ptrn) => Patternable ptrn where
-    patOverapprox :: IdealPattern -> ptrn
-    patUnderapprox :: IdealPacket -> IdealPattern -> Maybe ptrn
+class (Typeable ptrn, Show ptrn, Matchable ptrn) => GPattern ptrn where
+    ptrnOverapprox :: Pattern -> ptrn
+    ptrnUnderapprox :: Packet -> Pattern -> Maybe ptrn
 
-class (Patternable ptrn, Packet pkt) => Transmissionable ptrn pkt where
-    patMatch :: ptrn -> pkt -> Bool
+instance GPattern Pattern where
+  ptrnOverapprox = id
+  ptrnUnderapprox pkt ptrn = Nothing -- We never need to underapproximate real patterns
+  
+  
+{-| Something sent. See below relation -}
+data Transmission ptrn pkt = Transmission {
+      trPattern :: ptrn,
+      trSwitch :: Switch,
+      trPkt :: pkt
+    } deriving (Eq)
 
-{-|
-This class represents backend actions.
-|-}
-class (Eq actn) => Actionable actn where
-    actDefault :: actn
-    actController :: actn
-    actTranslate :: Frenetic.Language.Actions -> actn
+class (GPattern ptrn, GPacket pkt) => ValidTransmission ptrn pkt where
+     ptrnMatchPkt :: pkt -> ptrn -> Bool
+
+instance ValidTransmission Pattern Packet where
+  ptrnMatchPkt pkt ptrn = wMatch (pktDlSrc pkt) (ptrnDlSrc ptrn)
+                          && wMatch (pktDlDst pkt) (ptrnDlDst ptrn)
+                          && wMatch (pktDlTyp pkt) (ptrnDlTyp ptrn)
+                          && wMatch (pktDlVlan pkt) (ptrnDlVlan ptrn)
+                          && wMatch (pktDlVlanPcp pkt) (ptrnDlVlanPcp ptrn)
+                          && wMatch (pktNwSrc pkt) (ptrnNwSrc ptrn)
+                          && wMatch (pktNwDst pkt) (ptrnNwDst ptrn)
+                          && wMatch (pktNwProto pkt) (ptrnNwProto ptrn)
+                          && wMatch (pktNwTos pkt) (ptrnNwTos ptrn)
+                          && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
+                          && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
+                          && Just (pktInPort pkt) `match` (ptrnInPort ptrn)
+;; 
+  
+
+{-| This class represents backend actions. |-}
+class (Show actn, Eq actn) => GAction actn where
+    actnDefault :: actn
+    actnController :: actn
+    actnTranslate :: Actions -> actn
                 
 --
 -- Predicates
@@ -204,11 +223,10 @@ class (Eq actn) => Actionable actn where
 --     }
 
 
-data Predicate = PrIdealPattern IdealPattern
+data Predicate = PrPattern Pattern
                | PrSwitchPattern String Dynamic
 --               | PrInspect Inspector
-               | PrTo Switch
-               | PrInport Port
+               | PrTo Switch 
                | PrUnion Predicate Predicate
                | PrIntersect Predicate Predicate
                | PrDifference Predicate Predicate
@@ -216,11 +234,10 @@ data Predicate = PrIdealPattern IdealPattern
 
 instance Show Predicate where
 -- FIX
-  show (PrIdealPattern pat) = show pat  
+  show (PrPattern pat) = show pat  
   show (PrTo s) = "switch(" ++ show s ++ ")"
 --  show (PrInspect ins) = insDesc ins
   show (PrSwitchPattern desc _) = desc
-  show (PrInport n) = "inport(" ++ show n ++ ")"
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
   show (PrDifference pr1 pr2) = "(" ++ show pr1 ++ ") // (" ++ show pr2 ++ ")"
@@ -230,7 +247,7 @@ instance Show Predicate where
 -- Policies
 --
 
-type Actions = Set Port
+type Actions = Set.Set Port
 
 data Policy = PoBasic Predicate Actions
 --            | PoDoer Doer
@@ -249,17 +266,16 @@ instance Show Policy where
 -- Interpreter
 --
 
-interpretPredicate :: forall ptrn pkt. (Typeable ptrn, Transmissionable ptrn pkt) =>
+interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
                       Predicate
                    -> Transmission ptrn pkt
                    -> Bool
---interpretPredicate (PrHeader h w) tr = wBitsMake (pktGetHeader (trPkt tr) h) == w
+interpretPredicate (PrPattern ptrn) tr = pktToIdeal ( trPkt tr) `ptrnMatchPkt` ptrn
 interpretPredicate (PrSwitchPattern _ dyn) tr =
     case fromDynamic dyn :: Maybe ptrn of
-      Just ptrn -> patMatch ptrn (trPkt tr)
+      Just ptrn -> ptrnMatchPkt (trPkt tr) ptrn 
       Nothing -> False
 --interpretPredicate (PrInspect ins) tr = insApply ins tr
-interpretPredicate (PrInport n) tr = n == trPort tr
 interpretPredicate (PrUnion pr1 pr2) t = 
   interpretPredicate pr1 t || interpretPredicate pr2 t
 interpretPredicate (PrIntersect pr1 pr2) t = 
@@ -268,16 +284,16 @@ interpretPredicate (PrDifference pr1 pr2) t =
   interpretPredicate pr1 t && not (interpretPredicate pr2 t)
 interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
 
-interpretActions :: Transmission ptrn pkt -> Actions -> [Transmission ptrn pkt]
-interpretActions (Transmission ptrn s prt pkt) actn =
-    [Transmission ptrn s prt' pkt | prt' <- Set.toList actn] -- not totally sure of this FIX
+interpretActions :: (GPacket pkt) => pkt -> Actions -> [pkt]
+interpretActions pkt actn =
+  [pktFromIdeal pkt ((pktToIdeal pkt) { pktInPort = prt' }) | prt' <- Set.toList actn] -- not totally sure of this FIX
 
 -- FIX maybe we shouldn't use list set operations here.
-interpretPolicy :: (Typeable ptrn, Transmissionable ptrn pkt) =>
+interpretPolicy :: (ValidTransmission ptrn pkt) =>
                    Policy
                 -> Transmission ptrn pkt
-                -> [Transmission ptrn pkt]
-interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = interpretActions tr as
+                -> [pkt]
+interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = interpretActions (trPkt tr) as
                                      | otherwise = []
 --interpretPolicy (PoDoer doer) tr = doApply doer tr
 interpretPolicy (PoUnion p1 p2) tr = 

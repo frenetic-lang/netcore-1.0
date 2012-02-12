@@ -59,7 +59,7 @@ All instances must satisfy the following:
 Minimal complete definition: top and one of the following: (1) intersect or
 (2) unsafeIntersect and overlap.
 -}
-class (Eq a) => Pattern a where
+class (Eq a) => Matchable a where
     top :: a
     intersect :: a -> a -> Maybe a
     unsafeIntersect :: a -> a -> a
@@ -91,14 +91,14 @@ instance (Bits a) => Show (Wildcard a) where
               | otherwise = '0'
 
 -- "Maybe" for exact matches. Don't be confused.
-instance (Eq a) => Pattern (Maybe a) where
+instance (Eq a) => Matchable (Maybe a) where
   top = Nothing
   intersect x Nothing = Just x
   intersect Nothing x = Just x
   intersect m1 m2 | m1 == m2 = Just m1
                   | otherwise = Nothing
 
-instance (Bits a) => Pattern (Wildcard a) where
+instance (Bits a) => Matchable (Wildcard a) where
     top = Wildcard 0 (complement 0)
 
     unsafeIntersect (Wildcard x m) (Wildcard x' m') =
@@ -112,6 +112,9 @@ instance (Bits a) => Pattern (Wildcard a) where
         m .&. m' == m  &&  x .|. m' == x' .|. m' 
          
     disjoint w w' = not $ overlap w w'
+    
+wMatch :: (Bits a) => a -> Wildcard a -> Bool
+wMatch b w = wBitsMake b `match` w
 
 wBitsMake :: (Bits a) => a -> Wildcard a
 wBitsMake b = Wildcard b 0 
@@ -151,11 +154,11 @@ showAbridged = reverse . ('*' :) . dropWhile (== '?') . reverse
 
 -- Arbitrary "tuples"
 
-instance Pattern HNil where
+instance Matchable HNil where
     top = HNil
     intersect _ _ = Just HNil
 
-instance (Pattern a, Pattern b) => Pattern (HCons a b) where
+instance (Matchable a, Matchable b) => Matchable (HCons a b) where
     top = HCons top top
     intersect (HCons x y) (HCons x' y') = do x'' <- intersect x x'
                                              y'' <- intersect y y'
@@ -186,7 +189,7 @@ class Approx a where
 -- Prefix patterns
 
 newtype Prefix a = Prefix (Wildcard a)
-    deriving (Eq, Pattern)
+    deriving (Eq, Matchable)
 
 instance (Bits a) => Show (Prefix a) where
     show (Prefix w) = show w
