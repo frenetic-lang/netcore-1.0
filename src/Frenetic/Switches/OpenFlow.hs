@@ -67,10 +67,6 @@ data Rule = Rule OFMatch.Match [OFAction.Action]
 instance Show Rule where
   show (Rule p a) = "Rule(" ++ show p ++ ", " ++ show a ++ ")"
 
---
---
---
-
 classifierToRules :: Classifier OFMatch.Match OFAction.ActionSequence -> [Rule]
 classifierToRules = map (\(p, a) -> Rule p a) . unpack
                     
@@ -84,7 +80,7 @@ prefixToIPAddressPrefix :: Prefix Word32 -> IPAddress.IPAddressPrefix
 prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
     (IPAddress.IPAddress x, fromIntegral $ sum [1 | i <- [0 .. 31], not $ testBit m i])
 
-instance Pattern IPAddress.IPAddressPrefix where
+instance Matchable IPAddress.IPAddressPrefix where
   top = IPAddress.defaultIPPrefix
   intersect = IPAddress.intersect
 
@@ -96,7 +92,7 @@ instance GAction OFAction.ActionSequence where
 -- Gonna need this for embedded patterns
 deriving instance Typeable OFMatch.Match
 
-instance Pattern OFMatch.Match where
+instance Matchable OFMatch.Match where
   top = Match { 
           inPort = top,
           srcEthAddress = top,
@@ -125,53 +121,58 @@ instance Pattern OFMatch.Match where
          srctransportport <- intersect (srcTransportPort ofm1) (srcTransportPort ofm2)
          dsttransportport <- intersect (dstTransportPort ofm1) (dstTransportPort ofm2)
          return $ Match { 
-                      inPort = inport,
-                      srcEthAddress = srcethaddress,
-                      dstEthAddress = dstethaddress,
-                      vLANID = vlanid,
-                      vLANPriority = vlanpriority,
-                      ethFrameType = ethframetype,
-                      ipTypeOfService = iptypeofservice,
-                      ipProtocol = ipprotocol,
-                      srcIPAddress = srcipaddress,
-                      dstIPAddress = dstipaddress,
-                      srcTransportPort = srctransportport,
-                      dstTransportPort = dsttransportport }
+           inPort = inport,
+           srcEthAddress = srcethaddress,
+           dstEthAddress = dstethaddress,
+           vLANID = vlanid,
+           vLANPriority = vlanpriority,
+           ethFrameType = ethframetype,
+           ipTypeOfService = iptypeofservice,
+           ipProtocol = ipprotocol,
+           srcIPAddress = srcipaddress,
+           dstIPAddress = dstipaddress,
+           srcTransportPort = srctransportport,
+           dstTransportPort = dsttransportport }
 
 instance GPattern OFMatch.Match where
-    patOverapprox Dl_src w = top { srcEthAddress = fmap word48ToEth $ overapprox w }
-    patOverapprox Dl_dst w = top { dstEthAddress = fmap word48ToEth $ overapprox w }
-    patOverapprox Dl_typ w = top { ethFrameType = overapprox w }
-    patOverapprox Dl_vlan w = top { vLANID = overapprox w }
-    patOverapprox Dl_vlan_pcp w = top { vLANPriority = overapprox w }
-    patOverapprox Nw_src w = top { srcIPAddress = prefixToIPAddressPrefix $ overapprox w  }
-    patOverapprox Nw_dst w = top { dstIPAddress = prefixToIPAddressPrefix $ overapprox w  }
-    patOverapprox Nw_proto w = top { ipProtocol = overapprox w }
-    patOverapprox Nw_tos w = top { ipTypeOfService = overapprox w }
-    patOverapprox Tp_src w = top { srcTransportPort = overapprox w }
-    patOverapprox Tp_dst w = top { dstTransportPort = overapprox w }
-
-    patInport p = top { inPort = Just p }
-
-    patUnderapprox Dl_src w v = do p <- underapprox w v
-                                   return $ top { srcEthAddress = fmap word48ToEth $ p }
-    patUnderapprox Dl_dst w v = do p <- underapprox w v
-                                   return $ top { dstEthAddress = fmap word48ToEth $ p }
-    patUnderapprox Dl_typ w v = do p <- underapprox w v
-                                   return $ top { ethFrameType = p }
-    patUnderapprox Dl_vlan w v = do p <- underapprox w v
-                                    return $ top { vLANID = p }
-    patUnderapprox Dl_vlan_pcp w v = do p <- underapprox w v
-                                        return $ top { vLANPriority = p }
-    patUnderapprox Nw_src w v = do p <- underapprox w v
-                                   return $ top { srcIPAddress = prefixToIPAddressPrefix p }
-    patUnderapprox Nw_dst w v = do p <- underapprox w v
-                                   return $ top { dstIPAddress = prefixToIPAddressPrefix p }
-    patUnderapprox Nw_proto w v = do p <- underapprox w v
-                                     return $ top { ipProtocol = p }
-    patUnderapprox Nw_tos w v = do p <- underapprox w v
-                                   return $ top { ipTypeOfService = p }
-    patUnderapprox Tp_src w v = do p <- underapprox w v
-                                   return $ top { srcTransportPort = p }
-    patUnderapprox Tp_dst w v = do p <- underapprox w v 
-                                   return $ top { dstTransportPort = p }
+  ptrnOverapprox ptrn = top {
+    srcEthAddress = fmap word48ToEth $ overapprox $ ptrnDlSrc ptrn,
+    dstEthAddress = fmap word48ToEth $ overapprox $ ptrnDlDst ptrn,
+    ethFrameType = overapprox $ ptrnDlTyp ptrn,
+    vLANID = overapprox $ ptrnDlVlan ptrn,
+    vLANPriority = overapprox $ ptrnDlVlanPcp ptrn,
+    srcIPAddress = prefixToIPAddressPrefix $ overapprox $ ptrnNwSrc ptrn ,
+    dstIPAddress = prefixToIPAddressPrefix $ overapprox $ ptrnNwDst ptrn ,
+    ipProtocol = overapprox $ ptrnNwProto ptrn,
+    ipTypeOfService = overapprox $ ptrnNwTos ptrn,
+    srcTransportPort = overapprox $ ptrnTpSrc ptrn,
+    dstTransportPort = overapprox $ ptrnTpDst ptrn, 
+    inPort = ptrnInPort ptrn
+    }
+    
+  ptrnUnderapprox pkt ptrn = do 
+    ptrnDlSrc' <- underapprox (ptrnDlSrc ptrn) (pktDlSrc pkt)
+    ptrnDlDst' <- underapprox (ptrnDlDst ptrn) (pktDlDst pkt)
+    ptrnDlTyp' <- underapprox (ptrnDlTyp ptrn) (pktDlTyp pkt)
+    ptrnDlVlan' <- underapprox (ptrnDlVlan ptrn) (pktDlVlan pkt)
+    ptrnDlVlanPcp' <- underapprox (ptrnDlVlanPcp ptrn) (pktDlVlanPcp pkt)
+    ptrnNwSrc' <- underapprox (ptrnNwSrc ptrn) (pktNwSrc pkt)
+    ptrnNwDst' <- underapprox (ptrnNwDst ptrn) (pktNwDst pkt)
+    ptrnNwProto' <- underapprox (ptrnNwProto ptrn) (pktNwProto pkt)
+    ptrnNwTos' <- underapprox (ptrnNwTos ptrn) (pktNwTos pkt)
+    ptrnTpSrc' <- underapprox (ptrnTpSrc ptrn) (pktTpSrc pkt)
+    ptrnTpDst' <- underapprox (ptrnTpDst ptrn) (pktTpDst pkt)
+    return $ top {
+      srcEthAddress = fmap word48ToEth $ ptrnDlSrc',
+      dstEthAddress = fmap word48ToEth $ ptrnDlDst',
+      ethFrameType = ptrnDlTyp',
+      vLANID = ptrnDlVlan',
+      vLANPriority = ptrnDlVlanPcp',
+      srcIPAddress = prefixToIPAddressPrefix $ ptrnNwSrc' ,
+      dstIPAddress = prefixToIPAddressPrefix $ ptrnNwDst' ,
+      ipProtocol = ptrnNwProto',
+      ipTypeOfService = ptrnNwTos',
+      srcTransportPort = ptrnTpSrc',
+      dstTransportPort = ptrnTpDst',   
+      inPort = ptrnInPort ptrn
+      }

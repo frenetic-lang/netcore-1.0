@@ -250,7 +250,7 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel1 = compilePolicy s po1
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (skelActLift  Set.intersection) skel1 skel2
-act1, act2
+
 compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
 compile s po = undefined -- skelMap actnTranslate (compilePolicy s po)
 
