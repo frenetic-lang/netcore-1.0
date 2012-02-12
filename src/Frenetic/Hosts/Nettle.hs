@@ -103,59 +103,62 @@ nettleEthernetBody pkt =
   case nettleEthernetFrame pkt of
     EthernetFrame _ bdy -> bdy
 
-instance Packet Nettle.OpenFlow.Packet.PacketInfo where 
-  pktGetHeader pi h = 
-    case h of 
-      Dl_src -> 
-        ethToWord48 $ sourceMACAddress $ nettleEthernetHeaders pi
-      Dl_dst -> 
-        ethToWord48 $ destMACAddress $ nettleEthernetHeaders pi
-      Dl_typ -> 
-        typeCode $ nettleEthernetHeaders pi
-      Dl_vlan -> 
-        case nettleEthernetHeaders pi of
+instance GPacket PacketInfo where 
+  pktToIdeal pkt = 
+    Packet {
+      pktInPort = receivedOnPort pkt,
+      pktDlSrc = 
+        ethToWord48 $ sourceMACAddress $ nettleEthernetHeaders pkt,
+      pktDlDst = 
+        ethToWord48 $ destMACAddress $ nettleEthernetHeaders pkt,
+      pktDlTyp = 
+        typeCode $ nettleEthernetHeaders pkt,
+      pktDlVlan = 
+        case nettleEthernetHeaders pkt of
           EthernetHeader _ _ _ -> 0xfffff 
-          Ethernet8021Q _ _ _ _ _ vlan -> vlan
-      Dl_vlan_pcp -> 
-        case nettleEthernetHeaders pi of
+          Ethernet8021Q _ _ _ _ _ vlan -> vlan,
+      pktDlVlanPcp = 
+        case nettleEthernetHeaders pkt of
           EthernetHeader _ _ _ -> 0 
-          Ethernet8021Q _ _ _ pri _ _ -> pri
-      Nw_src -> 
-        case addr of IPAddress a -> a
-        where addr = case nettleEthernetBody pi of
-                       IPInEthernet (IPPacket hdr _) -> ipSrcAddress hdr
-                       ARPInEthernet arp -> senderIPAddress arp
-                       _ -> ipAddress 0 0 0 0
-      Nw_dst -> 
-        case addr of IPAddress a -> a
-        where addr = case nettleEthernetBody pi of
-                       IPInEthernet (IPPacket hdr _) -> ipDstAddress hdr
-                       ARPInEthernet arp -> targetIPAddress arp
-                       _ -> ipAddress 0 0 0 0
-      Nw_proto -> 
-        case nettleEthernetBody pi of
+          Ethernet8021Q _ _ _ pri _ _ -> pri,
+      pktNwSrc = 
+        stripIPAddr $ case nettleEthernetBody pkt of
+          IPInEthernet (IPPacket hdr _) -> ipSrcAddress hdr
+          ARPInEthernet arp -> senderIPAddress arp
+          _ -> ipAddress 0 0 0 0,
+      pktNwDst = 
+        stripIPAddr $ case nettleEthernetBody pkt of
+          IPInEthernet (IPPacket hdr _) -> ipDstAddress hdr
+          ARPInEthernet arp -> targetIPAddress arp
+          _ -> ipAddress 0 0 0 0,
+      pktNwProto = 
+        case nettleEthernetBody pkt of
           IPInEthernet (IPPacket hdr _) -> ipProtocol hdr
           ARPInEthernet arp -> 
             case arpOpCode arp of 
               ARPRequest -> 1
               ARPReply -> 2
-          _ -> 0
-      Nw_tos -> 
-          case nettleEthernetBody pi of
+          _ -> 0,
+      pktNwTos = 
+          case nettleEthernetBody pkt of
             IPInEthernet (IPPacket hdr _) -> dscp hdr
-            _ -> 0 
-      Tp_src -> 
-        case nettleEthernetBody pi of 
+            _ -> 0 ,
+      pktTpSrc = 
+        case nettleEthernetBody pkt of 
           IPInEthernet (IPPacket _ (TCPInIP (src,_))) -> src
           IPInEthernet (IPPacket _ (UDPInIP (src,_))) -> src
           IPInEthernet (IPPacket _ (ICMPInIP (typ,_))) -> fromIntegral typ
-          _ -> 0
-      Tp_dst ->
-        case nettleEthernetBody pi of 
+          _ -> 0,
+      pktTpDst =
+        case nettleEthernetBody pkt of 
           IPInEthernet (IPPacket _ (TCPInIP (_,dst))) -> dst
           IPInEthernet (IPPacket _ (UDPInIP (_,dst))) -> dst
           IPInEthernet (IPPacket _ (ICMPInIP (_,cod))) -> fromIntegral cod
           _ -> 0
+          }
+    where
+      stripIPAddr (IPAddress a) = a
+  pktFromIdeal = undefined
 
 instance ValidTransmission OFMatch.Match PacketInfo where
     ptrnMatchPkt = undefined
@@ -209,7 +212,7 @@ packetIn addr pkt proc =
               case Map.lookup addr addrs of
                 Just switch -> 
                     do let inport = receivedOnPort pkt 
-                       let t = Transmission (undefined :: OFMatch.Match) switch inport pkt
+                       let t = Transmission (undefined :: OFMatch.Match) switch pkt
                        installRules addr (classifierToRules $ specialize t pol) proc
                        case bufferID pkt of 
                          Nothing -> return () 
@@ -247,8 +250,8 @@ of_dispatch addr (xid, scmsg) proc =
            put (state { addrMap = Map.insert addr switch addrs })
            installRules addr (classifierToRules $ compile switch pol) proc 
     PacketIn pkt -> 
-        let src = show $ pktGetHeader pkt Dl_src in 
-        let dst = show $ pktGetHeader pkt Dl_dst in 
+        let src = show $ pktDlSrc $ pktToIdeal pkt in 
+        let dst = show $ pktDlDst $ pktToIdeal pkt  in 
         do liftIO $ hPutStrLn stderr ("PacketIn: " ++ src ++ " => " ++ dst)
            packetIn addr pkt proc
     PortStatus status -> do return ()

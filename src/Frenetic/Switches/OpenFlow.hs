@@ -49,6 +49,7 @@ import qualified Data.Set                        as Set
 import           Data.Typeable
 import           Data.Word
 
+
 import           Nettle.OpenFlow.Match           as OFMatch
 import           Nettle.OpenFlow.Action          as OFAction
 import qualified Nettle.IPv4.IPAddress           as IPAddress
@@ -176,3 +177,4 @@ instance GPattern OFMatch.Match where
       dstTransportPort = ptrnTpDst',   
       inPort = ptrnInPort ptrn
       }
+
