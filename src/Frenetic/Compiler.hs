@@ -222,7 +222,9 @@ skelMinimize = id
 compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
 compile s po = Classifier $ map f $ unpack skel
   where
-    f (Bone sptrn iptrn (actn1, actn2)) | toPattern sptrn `match` iptrn && actn1 == actn2 = (sptrn, actnTranslate actn1) 
+    f (Bone sptrn iptrn (actn1, actn2)) 
+      | toPattern sptrn `match` iptrn && actn1 == actn2 = (sptrn, actnTranslate actn1) 
+      | otherwise = (sptrn, actnController)                                        
     skel = compilePolicy s po
 
 {-| Return a supplemental classifier obtained from specializing the policy with the transmission. |-}

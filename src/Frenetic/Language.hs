@@ -44,15 +44,17 @@ DeriveDataTypeable
 
 module Frenetic.Language where
 
-import qualified Data.List        as List
+import qualified Data.List          as List
 import           Data.Bits
-import           Data.LargeWord
+
 import           Data.Word
-import qualified Data.Set         as Set
+import qualified Data.Set           as Set
 import           Data.Typeable
 import           Data.Dynamic
 
-import Frenetic.Pattern
+import           Frenetic.Pattern
+import           Frenetic.LargeWord
+
 
 --
 -- Basic network elements
