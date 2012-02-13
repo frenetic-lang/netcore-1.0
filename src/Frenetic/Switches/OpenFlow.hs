@@ -56,16 +56,13 @@ import qualified Nettle.OpenFlow.Action          as OFAction
 import qualified Nettle.IPv4.IPPacket            as IPPacket
 import qualified Nettle.IPv4.IPAddress           as IPAddress
 import           Nettle.Ethernet.EthernetFrame
-import           Nettle.Ethernet.EthernetAddress
-
-
-
-    
-
+import           Nettle.Ethernet.EthernetAddress    
 
 import           Frenetic.Pattern
 import           Frenetic.Language
 import           Frenetic.Compiler
+
+type OFClassifier = Classifier OFMatch.Match OFAction.ActionSequence
 
 
 {-| Convert an EthernetAddress to a Word48. -}    
@@ -84,7 +81,7 @@ prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
 {-| Convert an IPAddressPrefix to a pattern Prefix. -}
 ipAddressPrefixToPrefix :: IPAddress.IPAddressPrefix -> Prefix Word32
 ipAddressPrefixToPrefix (IPAddress.IPAddress x, len) = 
-  Prefix (Wildcard x (foldl (\m i -> setBit m (31 - i)) 0 [0 .. fromIntegral len - 1]))
+  Prefix (Wildcard x (foldl (\m i -> setBit m i) 0 [0 .. fromIntegral len - 1]))
 
 instance Matchable IPAddress.IPAddressPrefix where
   top = IPAddress.defaultIPPrefix
