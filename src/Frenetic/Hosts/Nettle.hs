@@ -42,33 +42,37 @@
 
 module Frenetic.Hosts.Nettle where
 
-import           Data.Set                            as Set
-import           Data.Map                            as Map
-import           Data.LargeWord
+import Data.Set                            as Set
+import Data.Map                            as Map
+import Data.LargeWord
 
-import           Control.Exception.Base
-import           Control.Concurrent
-import           Control.Monad.State
+import Control.Exception.Base
+import Control.Concurrent
+import Control.Monad.State
+import Control.Newtype
 
-import           System.IO
+import System.IO
 
-import           Nettle.Ethernet.EthernetFrame
-import           Nettle.Ethernet.EthernetAddress
-import           Nettle.IPv4.IPPacket
-import           Nettle.IPv4.IPAddress
-import           Nettle.OpenFlow.FlowTable           as FlowTable hiding (FlowRemoved)
-import qualified Nettle.OpenFlow.Match               as OFMatch
-import           Nettle.OpenFlow.MessagesBinary
-import           Nettle.OpenFlow.Messages            as Messages
-import           Nettle.OpenFlow.Packet
-import           Nettle.OpenFlow.Port
-import           Nettle.OpenFlow.Switch
-import           Nettle.Servers.TCPServer
-import           Nettle.Servers.MultiplexedTCPServer
+import Nettle.Ethernet.EthernetFrame
+import Nettle.Ethernet.EthernetAddress
+import Nettle.IPv4.IPPacket
+import Nettle.IPv4.IPAddress
+import Nettle.OpenFlow.FlowTable           as FlowTable hiding (FlowRemoved)
+import Nettle.OpenFlow.Match               as OFMatch
+import Nettle.OpenFlow.MessagesBinary
+import Nettle.OpenFlow.Messages            as Messages
+import Nettle.OpenFlow.Packet
+import Nettle.OpenFlow.Port
+import Nettle.OpenFlow.Switch
+import Nettle.OpenFlow.Action as OFAction
+import Nettle.Servers.TCPServer
+import Nettle.Servers.MultiplexedTCPServer
 
-import           Frenetic.Language
-import           Frenetic.Compiler
-import           Frenetic.Switches.OpenFlow
+import Frenetic.Language
+import Frenetic.Compiler
+import Frenetic.Switches.OpenFlow
+import Frenetic.Util
+
 
 --
 -- Data types
@@ -88,88 +92,14 @@ type OFProcess =
 
 -- Packet instances
 
-
-
-nettleEthernetFrame pkt = 
-  case runGetE getEthernetFrame $ packetData pkt of 
-    Left err -> error ("Expected an Ethernet frame: " ++ err)
-    Right ef -> ef
-
-nettleEthernetHeaders pkt = 
-  case nettleEthernetFrame pkt of
-    EthernetFrame hdr _ -> hdr
-
-nettleEthernetBody pkt = 
-  case nettleEthernetFrame pkt of
-    EthernetFrame _ bdy -> bdy
-
-instance GPacket PacketInfo where 
-  toPacket pkt = 
-    Packet {
-      pktInPort = receivedOnPort pkt,
-      pktDlSrc = 
-        ethToWord48 $ sourceMACAddress $ nettleEthernetHeaders pkt,
-      pktDlDst = 
-        ethToWord48 $ destMACAddress $ nettleEthernetHeaders pkt,
-      pktDlTyp = 
-        typeCode $ nettleEthernetHeaders pkt,
-      pktDlVlan = 
-        case nettleEthernetHeaders pkt of
-          EthernetHeader _ _ _ -> 0xfffff 
-          Ethernet8021Q _ _ _ _ _ vlan -> vlan,
-      pktDlVlanPcp = 
-        case nettleEthernetHeaders pkt of
-          EthernetHeader _ _ _ -> 0 
-          Ethernet8021Q _ _ _ pri _ _ -> pri,
-      pktNwSrc = 
-        stripIPAddr $ case nettleEthernetBody pkt of
-          IPInEthernet (IPPacket hdr _) -> ipSrcAddress hdr
-          ARPInEthernet arp -> senderIPAddress arp
-          _ -> ipAddress 0 0 0 0,
-      pktNwDst = 
-        stripIPAddr $ case nettleEthernetBody pkt of
-          IPInEthernet (IPPacket hdr _) -> ipDstAddress hdr
-          ARPInEthernet arp -> targetIPAddress arp
-          _ -> ipAddress 0 0 0 0,
-      pktNwProto = 
-        case nettleEthernetBody pkt of
-          IPInEthernet (IPPacket hdr _) -> ipProtocol hdr
-          ARPInEthernet arp -> 
-            case arpOpCode arp of 
-              ARPRequest -> 1
-              ARPReply -> 2
-          _ -> 0,
-      pktNwTos = 
-          case nettleEthernetBody pkt of
-            IPInEthernet (IPPacket hdr _) -> dscp hdr
-            _ -> 0 ,
-      pktTpSrc = 
-        case nettleEthernetBody pkt of 
-          IPInEthernet (IPPacket _ (TCPInIP (src,_))) -> src
-          IPInEthernet (IPPacket _ (UDPInIP (src,_))) -> src
-          IPInEthernet (IPPacket _ (ICMPInIP (typ,_))) -> fromIntegral typ
-          _ -> 0,
-      pktTpDst =
-        case nettleEthernetBody pkt of 
-          IPInEthernet (IPPacket _ (TCPInIP (_,dst))) -> dst
-          IPInEthernet (IPPacket _ (UDPInIP (_,dst))) -> dst
-          IPInEthernet (IPPacket _ (ICMPInIP (_,cod))) -> fromIntegral cod
-          _ -> 0
-          }
-    where
-      stripIPAddr (IPAddress a) = a
-  updatePacket = undefined
-
-instance ValidTransmission OFMatch.Match PacketInfo where
-    ptrnMatchPkt = undefined
                
 -- Nettle server
 
 
-installRules :: SockAddr -> [Rule]  -> OFProcess -> ControllerOp ()
+installRules :: SockAddr -> [(OFMatch.Match, OFAction.ActionSequence)]  -> OFProcess -> ControllerOp ()
 installRules addr rules proc = 
   liftIO $ foldM_ (\pri rule -> tellP proc (addr,(1, mk_flow rule pri)) >> return (pri - 1)) 65535 rules
-  where mk_flow (Rule pat acts) pri = 
+  where mk_flow (pat, acts) pri = 
           FlowMod $ AddFlow { match=pat, 
                               priority=pri, 
                               FlowTable.actions=acts, 
@@ -188,7 +118,7 @@ sendBufferedPacket addr mbid inport t proc =
      let msg = Messages.PacketOut $ 
                    Nettle.OpenFlow.Packet.PacketOut 
                      { bufferIDData = Left mbid, 
-                       inPort = Just inport, 
+                       Nettle.OpenFlow.Packet.inPort = Just inport, 
                        Nettle.OpenFlow.Packet.actions = ofacts }
      liftIO $ tellP proc (addr,(1, msg)) 
 
@@ -213,7 +143,7 @@ packetIn addr pkt proc =
                 Just switch -> 
                     do let inport = receivedOnPort pkt 
                        let t = Transmission (undefined :: OFMatch.Match) switch pkt
-                       installRules addr (classifierToRules $ specialize t pol) proc
+                       installRules addr (unpack $ specialize t pol) proc
                        case bufferID pkt of 
                          Nothing -> return () 
                          Just bid -> sendBufferedPacket addr bid inport t proc 
@@ -248,7 +178,7 @@ of_dispatch addr (xid, scmsg) proc =
            let pol = policy state 
            let addrs = addrMap state
            put (state { addrMap = Map.insert addr switch addrs })
-           installRules addr (classifierToRules $ compile switch pol) proc 
+           installRules addr (unpack $ compile switch pol) proc 
     PacketIn pkt -> 
         let src = show $ pktDlSrc $ toPacket pkt in 
         let dst = show $ pktDlDst $ toPacket pkt  in 
