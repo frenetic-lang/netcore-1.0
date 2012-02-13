@@ -27,3 +27,4 @@ test3_pol = (PrPattern (top { ptrnNwSrc = wMake "1?" }) `PoBasic` Set.singleton 
 
 test3_cls :: OFClassifier
 test3_cls = compile 1 test3_pol
+

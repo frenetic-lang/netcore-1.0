@@ -32,11 +32,9 @@
 
 {-# LANGUAGE
     NoMonomorphismRestriction,
-    StandaloneDeriving,
     FlexibleInstances,
     Rank2Types,
     GADTs,
-    ExistentialQuantification,
     MultiParamTypeClasses
  #-}
 
@@ -100,7 +98,7 @@ installRules :: SockAddr -> [(OFMatch.Match, OFAction.ActionSequence)]  -> OFPro
 installRules addr rules proc = 
   liftIO $ foldM_ (\pri rule -> tellP proc (addr,(1, mk_flow rule pri)) >> return (pri - 1)) 65535 rules
   where mk_flow (pat, acts) pri = 
-          FlowMod $ AddFlow { match=pat, 
+          FlowMod AddFlow { match=pat, 
                               priority=pri, 
                               FlowTable.actions=acts, 
                               cookie=0, 
@@ -115,7 +113,7 @@ sendBufferedPacket addr mbid inport t proc =
   do state <- get
      let pol = policy state 
      let ofacts = undefined -- interpretPolicy pol t
-     let msg = Messages.PacketOut $ 
+     let msg = Messages.PacketOut 
                    Nettle.OpenFlow.Packet.PacketOut 
                      { bufferIDData = Left mbid, 
                        Nettle.OpenFlow.Packet.inPort = Just inport, 
@@ -126,8 +124,8 @@ sendBufferedPacket addr mbid inport t proc =
 -- main handlers
 --
 
-frenetic_port :: ServerPortNumber
-frenetic_port = 6633 
+freneticPort :: ServerPortNumber
+freneticPort = 6633 
 
 packetIn :: SockAddr -> PacketInfo -> OFProcess -> ControllerOp ()
 packetIn addr pkt proc = 
@@ -152,7 +150,7 @@ packetIn addr pkt proc =
 keepalive :: SockAddr -> OFProcess -> IO () 
 keepalive addr proc =  
   do threadDelay 15000000
-     hPutStrLn stderr ("Echo request")
+     hPutStrLn stderr "Echo request"
      tellP proc (addr, (1, CSEchoRequest []))
      keepalive addr proc
          
@@ -162,15 +160,15 @@ switchJoin addr proc =
      liftIO $ forkIO (keepalive addr proc)
      return ()
   
-of_dispatch :: SockAddr -> FSCMessage -> OFProcess -> ControllerOp ()
-of_dispatch addr (xid, scmsg) proc =   
+ofDispatch :: SockAddr -> FSCMessage -> OFProcess -> ControllerOp ()
+ofDispatch addr (xid, scmsg) proc =   
   case scmsg of 
     SCHello -> 
         switchJoin addr proc
     SCEchoRequest n -> 
         do liftIO $ hPutStrLn stderr "Echo reply"
            liftIO $ tellP proc (addr, (1, CSEchoReply n))
-    SCEchoReply _ -> do return ()
+    SCEchoReply _ ->  return ()
     Features sf -> 
         do let switch = switchID sf 
            liftIO $ hPutStrLn stderr ("Features from " ++ show switch)
@@ -184,12 +182,12 @@ of_dispatch addr (xid, scmsg) proc =
         let dst = show $ pktDlDst $ toPacket pkt  in 
         do liftIO $ hPutStrLn stderr ("PacketIn: " ++ src ++ " => " ++ dst)
            packetIn addr pkt proc
-    PortStatus status -> do return ()
-    FlowRemoved flow -> do return ()
-    StatsReply reply -> do return ()
-    BarrierReply -> do return ()
+    PortStatus status ->  return ()
+    FlowRemoved flow ->  return ()
+    StatsReply reply ->  return ()
+    BarrierReply ->  return ()
     Error e -> 
-        do liftIO $ hPutStrLn stderr ("Error: " ++ show e)      
+        liftIO $ hPutStrLn stderr ("Error: " ++ show e)      
 
 loop :: OFProcess -> ControllerOp ()
 loop proc = do
@@ -199,14 +197,14 @@ loop proc = do
         do liftIO $ hPutStrLn stderr ("Connection to " ++ show addr ++ " established")
            liftIO $ tellP proc (addr, (1, CSHello))
     ConnectionTerminated addr ioex ->        
-        do liftIO $ hPutStrLn stderr ("Connection to " ++ show addr ++ " terminated: " ++ show ioex)
+        liftIO $ hPutStrLn stderr ("Connection to " ++ show addr ++ " terminated: " ++ show ioex)
     PeerMessage addr msg -> 
-        do of_dispatch addr msg proc
+         ofDispatch addr msg proc
   loop proc 
 
 nettleServer :: Policy -> IO ()
 nettleServer init_policy = do let init_state = ControllerState { addrMap = Map.empty,
                                                                  policy = init_policy }
-                              proc <- openFlowServer frenetic_port
+                              proc <- openFlowServer freneticPort
                               hPutStrLn stderr "--- Welcome to Frenetic ---"
                               evalStateT (loop proc) init_state 

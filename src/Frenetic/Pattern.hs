@@ -207,8 +207,8 @@ instance Approx Prefix where
                                     | otherwise = Nothing
         where
           n = bitSize m
-          m' = case elemIndex False $ map (testBit m) $ [0 .. n - 1] of
-                 Just i -> foldl' clearBit m $ [i + 1 .. n - 1]
+          m' = case elemIndex False $ map (testBit m) [0 .. n - 1] of
+                 Just i -> foldl' clearBit m [i + 1 .. n - 1]
                  Nothing -> m
  
     inverseapprox (Prefix w) = w

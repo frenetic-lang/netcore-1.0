@@ -37,8 +37,8 @@
     FlexibleInstances,
     TypeSynonymInstances, 
     GADTs,
-TemplateHaskell,
-MultiParamTypeClasses
+    TemplateHaskell,
+    MultiParamTypeClasses
  #-}
 
 module Frenetic.Compiler where
@@ -96,7 +96,7 @@ cartMap f c [] ys = (c, [], ys)
 cartMap f c (x:xs) ys = 
   let (c', xo, ys') = cartMap' c x ys in 
   let (c'', xs', ys'') = cartMap f c' xs ys' in 
-  let xs'' = case xo of { Just x' -> (x' : xs'); Nothing -> xs' } in 
+  let xs'' = case xo of { Just x' -> x' : xs'; Nothing -> xs' } in 
   (c'',xs'',ys'')
   where
     cartMap' c x [] = (c, Just x, [])
@@ -122,7 +122,7 @@ instance (GPattern ptrn, GAction actn) => ValidClassifier ptrn actn
 
 -- We can show classifiers. TODO: Make the display nicer.
 instance (Show ptrn, Show actn) => Show (Classifier ptrn actn) where
-  show = concat . List.intersperse "\n" . List.map show . unpack 
+  show = List.intercalate "\n" . List.map show . unpack 
 
 
 class (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
@@ -158,14 +158,14 @@ $(mkNewTypes [''Skeleton])
 
 -- TODO: make this nicer.
 instance (Show ptrn, Show actn) => Show (Skeleton ptrn actn) where
-  show = concat . List.intersperse "\n" . List.map show . unpack 
+  show = List.intercalate "\n" . List.map show . unpack 
 
 skelAppend :: Skeleton ptrn actn -> Skeleton ptrn actn -> Skeleton ptrn actn
 skelAppend = newLift2 (++)
 
 {-| Lift a function that operates on actions to a function that operates on bounds. -}
-skelLiftActn :: (a -> a -> a) -> ((a, a) -> (a, a) -> (a, a))
-skelLiftActn f = \(a1, a2) (a1', a2') -> (f a1 a1', f a2 a2') 
+skelLiftActn :: (a -> a -> a) -> (a, a) -> (a, a) -> (a, a)
+skelLiftActn f (a1, a2) (a1', a2') = (f a1 a1', f a2 a2') 
 
 {-| Map the actions. |-}
 skelMap :: ((a, a) -> (b, b)) -> Skeleton ptrn a -> Skeleton ptrn b 

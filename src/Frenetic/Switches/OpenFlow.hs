@@ -81,7 +81,7 @@ prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
 {-| Convert an IPAddressPrefix to a pattern Prefix. -}
 ipAddressPrefixToPrefix :: IPAddress.IPAddressPrefix -> Prefix Word32
 ipAddressPrefixToPrefix (IPAddress.IPAddress x, len) = 
-  Prefix (Wildcard x (foldl (\m i -> setBit m i) 0 [0 .. fromIntegral len - 1]))
+  Prefix (Wildcard x (foldl setBit 0 [0 .. fromIntegral len - 1]))
 
 instance Matchable IPAddress.IPAddressPrefix where
   top = IPAddress.defaultIPPrefix
@@ -122,7 +122,7 @@ instance Matchable OFMatch.Match where
          dstipaddress <- intersect (OFMatch.dstIPAddress ofm1) (OFMatch.dstIPAddress ofm2)
          srctransportport <- intersect (OFMatch.srcTransportPort ofm1) (OFMatch.srcTransportPort ofm2)
          dsttransportport <- intersect (OFMatch.dstTransportPort ofm1) (OFMatch.dstTransportPort ofm2)
-         return $ OFMatch.Match { 
+         return OFMatch.Match { 
            OFMatch.inPort = inport,
            OFMatch.srcEthAddress = srcethaddress,
            OFMatch.dstEthAddress = dstethaddress,

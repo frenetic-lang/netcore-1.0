@@ -39,7 +39,7 @@
     MultiParamTypeClasses,
     FunctionalDependencies,
     ScopedTypeVariables,
-DeriveDataTypeable
+    DeriveDataTypeable
  #-}
 
 module Frenetic.Language where
@@ -135,7 +135,7 @@ instance Matchable Pattern where
                        ptrnTpSrc' <- intersect (ptrnTpSrc p1) (ptrnTpSrc p2)
                        ptrnTpDst' <- intersect (ptrnTpDst p1) (ptrnTpDst p2)
                        ptrnInPort' <- intersect (ptrnInPort p1) (ptrnInPort p2)
-                       return $ Pattern {
+                       return Pattern {
                          ptrnDlSrc = ptrnDlSrc'
                          , ptrnDlDst = ptrnDlDst'
                          , ptrnDlTyp = ptrnDlTyp'
@@ -189,7 +189,7 @@ instance ValidTransmission Pattern Packet where
                           && wMatch (pktNwTos pkt) (ptrnNwTos ptrn)
                           && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
                           && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
-                          && Just (pktInPort pkt) `match` (ptrnInPort ptrn)
+                          && Just (pktInPort pkt) `match` ptrnInPort ptrn
 
   
 
@@ -304,4 +304,4 @@ interpretPolicy (PoUnion p1 p2) tr =
 interpretPolicy (PoIntersect p1 p2) tr = 
   interpretPolicy p1 tr `List.intersect` interpretPolicy p2 tr
 interpretPolicy (PoDifference p1 p2) tr = 
-  (interpretPolicy p1 tr) List.\\ (interpretPolicy p2 tr)
+  interpretPolicy p1 tr List.\\ interpretPolicy p2 tr
