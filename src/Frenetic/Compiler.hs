@@ -177,9 +177,10 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
              if ptrn12 == ptrn2 then Nothing else Just y)
           Nothing -> 
             (bs, Just x, Just y) 
-  
-    
-  
+      
+skelMinimize :: (ValidClassifier ptrn actn) => Skeleton ptrn actn -> Skeleton ptrn actn
+skelMinimize = id
+
 -- {-| Minimize. |-}
 -- skelMinimize :: (GPattern ptrn, GAction actn) => Skeleton ptrn actn -> Skeleton ptrn actn
 -- skelMinimize (Skeleton bones) = Skeleton bones''
@@ -205,11 +206,41 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
 -- compile
 --
           
+{-| Compile a policy to a classifier. -}
+-- This currently doesn't implement the full consistent algorithm
+{-   - [T | P | Rest] [T' | P' | Rest']
+    throw away T'
+    patInverse P, T
+    intersect Rest' with P
+    shadow removal P' | Rest' using T
+
+    - Intersect P' | Rest' with P.
+    - If we ever encounter something equal or greater, and it has the same action, stop and return yes.
+    - Then do shadow removal. 
+
+    We can also sometimes remove if iptrn == nothin -}
+compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
+compile s po = Classifier $ map f $ unpack skel
+  where
+    f (Bone sptrn iptrn (actn1, actn2)) | toPattern sptrn `match` iptrn && actn1 == actn2 = (sptrn, actnTranslate actn1) 
+    skel = compilePolicy s po
+
+{-| Return a supplemental classifier obtained from specializing the policy with the transmission. |-}
+specialize :: (ValidEnvironment ptrn actn pkt) =>
+              Transmission ptrn pkt -> Policy -> Classifier ptrn actn
+specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) (expandPolicy tr po)
+
+
+
+
+
+
 skelActLift :: (a -> a -> a) -> ((a, a) -> (a, a) -> (a, a))
 skelActLift f = \(a1, a2) (a1', a2') -> (f a1 a1', f a2 a2') 
   
+                                        
 compilePredicate :: forall ptrn. (GPattern ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
-compilePredicate s (PrPattern pat) = Skeleton [Bone (ptrnOverapprox pat) pat (True, True)]
+compilePredicate s (PrPattern pat) = Skeleton [Bone (fromPatternOverapprox pat) pat (True, True)]
 compilePredicate s (PrSwitchPattern _ dyn) =
   case fromDynamic dyn :: Maybe ptrn of
     Just ptrn -> Skeleton [Bone ptrn undefined (True, True)]
@@ -251,18 +282,11 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (skelActLift  Set.intersection) skel1 skel2
 
-compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
-compile s po = undefined -- skelMap actnTranslate (compilePolicy s po)
-
---
--- specialization
---
-              
 
 expandPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
                    Transmission ptrn pkt -> Predicate -> Predicate
 expandPredicate tr (PrPattern ptrn) =
-  case (ptrnUnderapprox  (pktToIdeal $ trPkt tr)  ptrn :: Maybe ptrn) of
+  case (fromPatternUnderapprox  (toPacket $ trPkt tr)  ptrn :: Maybe ptrn) of
       Just pat -> PrUnion (PrPattern ptrn) (PrSwitchPattern (show pat) (toDyn pat))
       Nothing -> PrPattern ptrn
 --expandPredicate tr (PrInspect ins) = undefined
@@ -276,6 +300,7 @@ expandPredicate tr (PrDifference pr1 pr2) =
     PrDifference (expandPredicate tr pr1) (expandPredicate tr pr2)
 expandPredicate tr (PrNegate pr) = PrNegate (expandPredicate tr pr)
 
+
 expandPolicy :: (ValidTransmission ptrn pkt) =>
                 Transmission ptrn pkt -> Policy -> Policy
 expandPolicy tr (PoBasic pr as) = PoBasic (expandPredicate tr pr) as
@@ -283,8 +308,3 @@ expandPolicy tr (PoBasic pr as) = PoBasic (expandPredicate tr pr) as
 expandPolicy tr (PoUnion po1 po2) = PoUnion (expandPolicy tr po1) (expandPolicy tr po2)
 expandPolicy tr (PoIntersect po1 po2) = PoIntersect (expandPolicy tr po1) (expandPolicy tr po2)
 expandPolicy tr (PoDifference po1 po2) = PoDifference (expandPolicy tr po1) (expandPolicy tr po2)
-
-{-| Reactive specialization. |-}
-specialize :: (ValidEnvironment ptrn actn pkt) =>
-              Transmission ptrn pkt -> Policy -> Classifier ptrn actn
-specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) (expandPolicy tr po)

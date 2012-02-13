@@ -82,12 +82,12 @@ data Packet = Packet {
 
 {-| Generic packets -}
 class (Show pkt, Eq pkt) => GPacket pkt where
-  pktToIdeal :: pkt -> Packet
-  pktFromIdeal :: pkt -> Packet -> pkt
+  toPacket :: pkt -> Packet
+  updatePacket :: pkt -> Packet -> pkt
  
 instance GPacket Packet where 
-  pktToIdeal = id
-  pktFromIdeal pkt1 pkt2 = pkt2
+  toPacket = id
+  updatePacket pkt1 pkt2 = pkt2
 
 {-| Frenetic "patterns" -}
 data Pattern = Pattern { 
@@ -156,14 +156,14 @@ This class represents backend patterns.
   @patUnderapprox@ must return Nothing.
 -}
 class (Typeable ptrn, Show ptrn, Matchable ptrn) => GPattern ptrn where
-    ptrnOverapprox :: Pattern -> ptrn
-    ptrnUnderapprox :: Packet -> Pattern -> Maybe ptrn
-    ptrnInverse :: ptrn -> Pattern
+    fromPatternOverapprox :: Pattern -> ptrn
+    fromPatternUnderapprox :: Packet -> Pattern -> Maybe ptrn
+    toPattern :: ptrn -> Pattern
 
 instance GPattern Pattern where
-  ptrnOverapprox = id
-  ptrnUnderapprox pkt ptrn = Nothing -- We never need to underapproximate real patterns
-  ptrnInverse = id
+  fromPatternOverapprox = id
+  fromPatternUnderapprox pkt ptrn = Nothing -- We never need to underapproximate real patterns
+  toPattern = id
   
 {-| Something sent. See below relation -}
 data Transmission ptrn pkt = Transmission {
@@ -188,7 +188,7 @@ instance ValidTransmission Pattern Packet where
                           && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
                           && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
                           && Just (pktInPort pkt) `match` (ptrnInPort ptrn)
-;; 
+
   
 
 {-| This class represents backend actions. |-}
@@ -271,7 +271,7 @@ interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
                       Predicate
                    -> Transmission ptrn pkt
                    -> Bool
-interpretPredicate (PrPattern ptrn) tr = pktToIdeal ( trPkt tr) `ptrnMatchPkt` ptrn
+interpretPredicate (PrPattern ptrn) tr = toPacket ( trPkt tr) `ptrnMatchPkt` ptrn
 interpretPredicate (PrSwitchPattern _ dyn) tr =
     case fromDynamic dyn :: Maybe ptrn of
       Just ptrn -> ptrnMatchPkt (trPkt tr) ptrn 
@@ -287,7 +287,7 @@ interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
 
 interpretActions :: (GPacket pkt) => pkt -> Actions -> [pkt]
 interpretActions pkt actn =
-  [pktFromIdeal pkt ((pktToIdeal pkt) { pktInPort = prt' }) | prt' <- Set.toList actn] -- not totally sure of this FIX
+  [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) | prt' <- Set.toList actn] -- not totally sure of this FIX
 
 -- FIX maybe we shouldn't use list set operations here.
 interpretPolicy :: (ValidTransmission ptrn pkt) =>

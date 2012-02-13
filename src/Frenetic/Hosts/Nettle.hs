@@ -104,7 +104,7 @@ nettleEthernetBody pkt =
     EthernetFrame _ bdy -> bdy
 
 instance GPacket PacketInfo where 
-  pktToIdeal pkt = 
+  toPacket pkt = 
     Packet {
       pktInPort = receivedOnPort pkt,
       pktDlSrc = 
@@ -158,7 +158,7 @@ instance GPacket PacketInfo where
           }
     where
       stripIPAddr (IPAddress a) = a
-  pktFromIdeal = undefined
+  updatePacket = undefined
 
 instance ValidTransmission OFMatch.Match PacketInfo where
     ptrnMatchPkt = undefined
@@ -250,8 +250,8 @@ of_dispatch addr (xid, scmsg) proc =
            put (state { addrMap = Map.insert addr switch addrs })
            installRules addr (classifierToRules $ compile switch pol) proc 
     PacketIn pkt -> 
-        let src = show $ pktDlSrc $ pktToIdeal pkt in 
-        let dst = show $ pktDlDst $ pktToIdeal pkt  in 
+        let src = show $ pktDlSrc $ toPacket pkt in 
+        let dst = show $ pktDlDst $ toPacket pkt  in 
         do liftIO $ hPutStrLn stderr ("PacketIn: " ++ src ++ " => " ++ dst)
            packetIn addr pkt proc
     PortStatus status -> do return ()

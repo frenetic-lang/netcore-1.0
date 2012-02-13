@@ -141,7 +141,7 @@ instance Matchable OFMatch.Match where
 
 
 instance GPattern OFMatch.Match where
-  ptrnOverapprox ptrn = top {
+  fromPatternOverapprox ptrn = top {
     srcEthAddress = fmap word48ToEth $ overapprox $ ptrnDlSrc ptrn,
     dstEthAddress = fmap word48ToEth $ overapprox $ ptrnDlDst ptrn,
     ethFrameType = overapprox $ ptrnDlTyp ptrn,
@@ -156,7 +156,7 @@ instance GPattern OFMatch.Match where
     inPort = ptrnInPort ptrn
     }
     
-  ptrnUnderapprox pkt ptrn = do 
+  fromPatternUnderapprox pkt ptrn = do 
     ptrnDlSrc' <- underapprox (ptrnDlSrc ptrn) (pktDlSrc pkt)
     ptrnDlDst' <- underapprox (ptrnDlDst ptrn) (pktDlDst pkt)
     ptrnDlTyp' <- underapprox (ptrnDlTyp ptrn) (pktDlTyp pkt)
@@ -183,7 +183,7 @@ instance GPattern OFMatch.Match where
       inPort = ptrnInPort ptrn
       }
 
-  ptrnInverse ptrn = Pattern {
+  toPattern ptrn = Pattern {
     ptrnDlSrc     = inverseapprox $ fmap ethToWord48 $ srcEthAddress ptrn,
     ptrnDlDst     = inverseapprox $ fmap ethToWord48 $ dstEthAddress ptrn,
     ptrnDlTyp     = inverseapprox $ ethFrameType ptrn,

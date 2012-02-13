@@ -210,6 +210,8 @@ instance Approx Prefix where
           m' = case elemIndex False $ map (testBit m) $ [0 .. n - 1] of
                  Just i -> foldl' clearBit m $ [i + 1 .. n - 1]
                  Nothing -> m
+ 
+    inverseapprox (Prefix w) = w
                             
 -- Exact patterns
 
