@@ -151,6 +151,10 @@ instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
    Num (LargeKey a b) where
       (+) = largeWordPlus
       fromInteger = integerToLargeWord 
+      abs = undefined
+      (*) = undefined
+      signum = undefined
+            
 
 -- Larger keys are instances of Bits provided their constituents are keys.
 
@@ -162,6 +166,7 @@ instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
       shift = largeWordShift
       bitSize = largeBitSize
       complement = largeWordComplement
+      isSigned = undefined 
 
 instance (Ord a, Bits a, Bounded a, Integral a, LargeWord a, 
                  Bits b, Bounded b, Integral b, LargeWord b) => 
@@ -182,11 +187,15 @@ boflk = undefined
 instance (Ord a, Bits a, LargeWord a, Ord b, Bits b, LargeWord b) =>
    Integral (LargeKey a b) where
       toInteger = largeWordToInteger
+      quotRem = undefined
 
 instance (Ord a, Bits a, LargeWord a, Ord b, Bits b, LargeWord b) =>
-   Real (LargeKey a b)
+   Real (LargeKey a b) where
+   toRational = undefined
 
-instance Enum (LargeKey a b)
+instance Enum (LargeKey a b) where
+  toEnum = undefined
+  fromEnum = undefined
 
 type Word96  = LargeKey Word32 Word64
 type Word128 = LargeKey Word64 Word64

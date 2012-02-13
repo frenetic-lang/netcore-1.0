@@ -44,7 +44,7 @@ module Frenetic.Switches.OpenFlow where
 import           Control.Newtype
 
 import           Data.Bits
-import           Data.LargeWord
+import           Frenetic.LargeWord
 import qualified Data.Set                        as Set
 import           Data.Typeable
 import           Data.Word
