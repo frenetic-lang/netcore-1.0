@@ -59,31 +59,24 @@ import           Frenetic.Pattern
 import           Frenetic.Language
 import           Frenetic.Compiler
 
---
---
---
-    
-data Rule = Rule OFMatch.Match [OFAction.Action]
 
-instance Show Rule where
-  show (Rule p a) = "Rule(" ++ show p ++ ", " ++ show a ++ ")"
-
-classifierToRules :: Classifier OFMatch.Match OFAction.ActionSequence -> [Rule]
-classifierToRules = map (\(p, a) -> Rule p a) . unpack
-                    
+{-| Convert an EthernetAddress to a Word48. -}    
 ethToWord48 (EthernetAddress a b c d e f) =
     LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
              
+{-| Convert a Word48 to an EthernetAddress. -}    
 word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
     EthernetAddress a b c d e f
 
+{-| Convert a pattern Prefix to an IPAddressPrefix. -}
 prefixToIPAddressPrefix :: Prefix Word32 -> IPAddress.IPAddressPrefix
 prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
-    (IPAddress.IPAddress x, fromIntegral $ sum [1 | i <- [0 .. 31], not $ testBit m i])
+    (IPAddress.IPAddress x, fromIntegral $ length $ filter (testBit m) [0 .. 31])
 
+{-| Convert an IPAddressPrefix to a pattern Prefix. -}
 ipAddressPrefixToPrefix :: IPAddress.IPAddressPrefix -> Prefix Word32
-ipAddressPrefixToPrefix = undefined
-
+ipAddressPrefixToPrefix (IPAddress.IPAddress x, len) = 
+  Prefix (Wildcard x (foldl (\m i -> setBit m (31 - i)) 0 [0 .. fromIntegral len - 1]))
 
 instance Matchable IPAddress.IPAddressPrefix where
   top = IPAddress.defaultIPPrefix
@@ -94,8 +87,8 @@ instance GAction OFAction.ActionSequence where
     actnDefault = sendToController 0
     actnTranslate s = map (SendOutPort . PhysicalPort) $ Set.toList s
 
--- Gonna need this for embedded patterns
 deriving instance Typeable OFMatch.Match
+
 
 instance Matchable OFMatch.Match where
   top = Match { 
@@ -169,13 +162,13 @@ instance GPattern OFMatch.Match where
     ptrnTpSrc' <- underapprox (ptrnTpSrc ptrn) (pktTpSrc pkt)
     ptrnTpDst' <- underapprox (ptrnTpDst ptrn) (pktTpDst pkt)
     return $ top {
-      srcEthAddress = fmap word48ToEth $ ptrnDlSrc',
-      dstEthAddress = fmap word48ToEth $ ptrnDlDst',
+      srcEthAddress = fmap word48ToEth ptrnDlSrc',
+      dstEthAddress = fmap word48ToEth ptrnDlDst',
       ethFrameType = ptrnDlTyp',
       vLANID = ptrnDlVlan',
       vLANPriority = ptrnDlVlanPcp',
-      srcIPAddress = prefixToIPAddressPrefix $ ptrnNwSrc' ,
-      dstIPAddress = prefixToIPAddressPrefix $ ptrnNwDst' ,
+      srcIPAddress = prefixToIPAddressPrefix ptrnNwSrc' ,
+      dstIPAddress = prefixToIPAddressPrefix ptrnNwDst' ,
       ipProtocol = ptrnNwProto',
       ipTypeOfService = ptrnNwTos',
       srcTransportPort = ptrnTpSrc',
