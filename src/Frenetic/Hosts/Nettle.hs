@@ -111,7 +111,7 @@ installRules addr rules proc =
 sendBufferedPacket :: SockAddr -> BufferID -> PortID -> Transmission OFMatch.Match PacketInfo -> OFProcess -> ControllerOp ()
 sendBufferedPacket addr mbid inport t proc = 
   do state <- get
-     let pkts = interpretPolicy (policy state) t 
+     let pkts = Set.toList $ interpretPolicy (policy state) t 
      let ofacts = Prelude.map ((SendOutPort . PhysicalPort) . receivedOnPort) pkts
      let msg = Messages.PacketOut 
                    Nettle.OpenFlow.Packet.PacketOut 

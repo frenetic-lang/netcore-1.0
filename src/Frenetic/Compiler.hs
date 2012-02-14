@@ -58,20 +58,7 @@ import           Frenetic.Pattern
 import           Frenetic.Language
     
 
-
-
-
---
--- strange n^2 list algorithms
---
-
-
-
-
-
--- f is your self map function
--- ctxt is everything we've seen before
--- c is a user value: takes the ctxt, user value, and the two list items we are considering. Then it returns the new user value, and whether we should keep any of the other values.
+{-| Input: a function, a context, a value, and a lists. Apply the function to each pair from the list and the context and current value; we may modify the list and current value. The context is the list of items we have already processed. -}
 selfMap :: ([a] -> c -> a -> a -> (c, Maybe a, Maybe a)) -> [a] -> c -> [a] -> [a]
 selfMap f ctxt c [] = []
 selfMap f ctxt c (x : xs) =
@@ -91,6 +78,7 @@ selfMap f ctxt c (x : xs) =
           (c', Just x', Nothing) -> selfMap' c' x' ys
           (c', Nothing, Nothing) -> (Nothing, ys)
 
+{-| Input: a function, a value, and two lists. Apply the function to each pair from the two lists and the current value. The function may modify the two lists and modify the current value. -}
 cartMap :: (c -> a -> b -> (c, Maybe a, Maybe b)) -> c -> [a] -> [b] -> (c, [a], [b])
 cartMap f c [] ys = (c, [], ys)
 cartMap f c (x:xs) ys = 
@@ -109,10 +97,7 @@ cartMap f c (x:xs) ys =
         (c', Just x', Nothing) -> cartMap' c' x' ys
         (c', Nothing, Nothing) -> (c', Nothing, ys)        
 
-
-{-| Classifiers:
-
-Classifiers are the target of compilation. -}
+{-| Classifiers are the target of compilation. -}
 newtype Classifier ptrn a = Classifier [(ptrn, a)]
 $(mkNewTypes [''Classifier])
 
@@ -124,19 +109,18 @@ instance (GPattern ptrn, GAction actn) => ValidClassifier ptrn actn
 instance (Show ptrn, Show actn) => Show (Classifier ptrn actn) where
   show = List.intercalate "\n" . List.map show . unpack 
 
-
+{-| A valid environment involves a valid classifier and valid transmission. -}
 class (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
 instance (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
-
 
 {-| Attempt to reduce the number of rules in the classifier. |-}
 minimize :: (ValidClassifier ptrn actn) => Classifier ptrn actn -> Classifier ptrn actn
 minimize = undefined
 
 {-| Remove any rules that 
-(1) have controller actions, 
-(2) don't match the packet, or
-(3) overlap with rules previously removed. -}
+    (1) have controller actions, 
+    (2) don't match the packet, or
+    (3) overlap with rules previously removed. -}
 prune :: (ValidEnvironment ptrn actn pkt) =>
          pkt -> Classifier ptrn actn -> Classifier ptrn actn
 prune pkt = newLift $ removeControllers []
@@ -148,18 +132,20 @@ prune pkt = newLift $ removeControllers []
           | any (overlap ptrn) prefix = removeControllers (ptrn : prefix) rules
           | otherwise = (ptrn, actn) : removeControllers prefix rules
 
-
-{-| Skeletons are the intermediate form.  -} 
-newtype Skeleton ptrn actn = Skeleton [Bone ptrn actn]
-                           deriving (Eq)
+{-| Each rule of the intermediate form is called a Bone. -}
 data Bone ptrn actn = Bone ptrn Pattern (actn, actn)
                     deriving (Show, Eq)
-$(mkNewTypes [''Skeleton])
+
+{-| Skeletons are the intermediate form. -} 
+newtype Skeleton ptrn actn = Skeleton [Bone ptrn actn]
+                           deriving (Eq)
+$(mkNewTypes [''Skeleton])                                    
 
 -- TODO: make this nicer.
 instance (Show ptrn, Show actn) => Show (Skeleton ptrn actn) where
   show = List.intercalate "\n" . List.map show . unpack 
 
+{-| Concatenate two intermediate forms. -}
 skelAppend :: Skeleton ptrn actn -> Skeleton ptrn actn -> Skeleton ptrn actn
 skelAppend = newLift2 (++)
 
@@ -197,19 +183,6 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
 skelMinimize :: (ValidClassifier ptrn actn) => Skeleton ptrn actn -> Skeleton ptrn actn
 skelMinimize = id
 
-
--- This currently doesn't implement the full consistent algorithm
-{-   - [T | P | Rest] [T' | P' | Rest']
-    throw away T'
-    patInverse P, T
-    intersect Rest' with P
-    shadow removal P' | Rest' using T
-
-    - Intersect P' | Rest' with P.
-    - If we ever encounter something equal or greater, and it has the same action, stop and return yes.
-    - Then do shadow removal. 
-
-    We can also sometimes remove if iptrn == nothin -}
 {-| Compile a policy to a classifier. -}
 compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
 compile s po = Classifier $ map f $ unpack skel
@@ -222,16 +195,16 @@ compile s po = Classifier $ map f $ unpack skel
 {-| Return a supplemental classifier obtained from specializing the policy with the transmission. |-}
 specialize :: (ValidEnvironment ptrn actn pkt) =>
               Transmission ptrn pkt -> Policy -> Classifier ptrn actn
-specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) (expandPolicy tr po)
+specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) (refinePolicy tr po)
 
-
-                                          
+{-| Compile a predicate to intermediate form. -}                                          
 compilePredicate :: forall ptrn. (GPattern ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
 compilePredicate s (PrPattern pat) = Skeleton [Bone (fromPatternOverapprox pat) pat (True, True)]
 compilePredicate s (PrSwitchPattern _ dyn) =
   case fromDynamic dyn :: Maybe ptrn of
     Just ptrn -> Skeleton [Bone ptrn undefined (True, True)]
     Nothing -> Skeleton []
+compilePredicate s (PrHint (Tag i)) = Skeleton [Bone top top (False, True)]
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top (True, True)]
                              | otherwise = Skeleton []
 compilePredicate s (PrIntersect pr1 pr2) = skel12'
@@ -247,7 +220,7 @@ compilePredicate s (PrUnion pr1 pr2) = skel12' `skelAppend` skel1' `skelAppend` 
 compilePredicate s (PrNegate pr) = skelMap (\(a1, a2) -> (not a2, not a1)) (compilePredicate s pr) `skelAppend`
                                    Skeleton [Bone top top (True, True)]
 
-
+{-| Compile a policy to intermediate form -}
 compilePolicy :: (GPattern ptrn) => Switch -> Policy -> Skeleton ptrn Actions
 compilePolicy s (PoBasic po as) = 
     skelMap f $ compilePredicate s po
@@ -255,6 +228,7 @@ compilePolicy s (PoBasic po as) =
     f (True, True) = (as,  as)
     f (False, True ) = (Set.empty, as)
     f (False, False) = (Set.empty,  Set.empty)
+compilePredicate s (PoHint (Tag i)) = Skeleton [Bone top top (S.empty, undefined)] -- FIX we need some symbol for "top". Maybe cosets *were* a good idea?
 compilePolicy s (PoUnion po1 po2) = skel12' `skelAppend` skel1' `skelAppend` skel2' 
     where
       skel1 = compilePolicy s po1
@@ -266,27 +240,29 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (skelLiftActn  Set.intersection) skel1 skel2
 
-
-expandPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
+{-| Add additional structural information to a predicate. -}
+refinePredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
                    Transmission ptrn pkt -> Predicate -> Predicate
-expandPredicate tr (PrPattern ptrn) =
+refinePredicate tr (PrPattern ptrn) =
   case (fromPatternUnderapprox  (toPacket $ trPkt tr)  ptrn :: Maybe ptrn) of
       Just pat -> PrUnion (PrPattern ptrn) (PrSwitchPattern (show pat) (toDyn pat))
       Nothing -> PrPattern ptrn
-expandPredicate tr (PrSwitchPattern s dyn) = PrSwitchPattern s dyn
-expandPredicate tr (PrTo s) = PrTo s
-expandPredicate tr (PrUnion pr1 pr2) =
-    PrUnion (expandPredicate tr pr1) (expandPredicate tr pr2)
-expandPredicate tr (PrIntersect pr1 pr2) =
-    PrIntersect (expandPredicate tr pr1) (expandPredicate tr pr2)
-expandPredicate tr (PrDifference pr1 pr2) =
-    PrDifference (expandPredicate tr pr1) (expandPredicate tr pr2)
-expandPredicate tr (PrNegate pr) = PrNegate (expandPredicate tr pr)
+refinePredicate tr (PrSwitchPattern s dyn) = PrSwitchPattern s dyn
+refinePredicate tr (PrHint (Tag i)) = undefined -- FIX need more info
+refinePredicate tr (PrTo s) = PrTo s
+refinePredicate tr (PrUnion pr1 pr2) =
+    PrUnion (refinePredicate tr pr1) (refinePredicate tr pr2)
+refinePredicate tr (PrIntersect pr1 pr2) =
+    PrIntersect (refinePredicate tr pr1) (refinePredicate tr pr2)
+refinePredicate tr (PrDifference pr1 pr2) =
+    PrDifference (refinePredicate tr pr1) (refinePredicate tr pr2)
+refinePredicate tr (PrNegate pr) = PrNegate (refinePredicate tr pr)
 
-
-expandPolicy :: (ValidTransmission ptrn pkt) =>
+{-| Add additioanl structural information to a policy. -}
+refinePolicy :: (ValidTransmission ptrn pkt) =>
                 Transmission ptrn pkt -> Policy -> Policy
-expandPolicy tr (PoBasic pr as) = PoBasic (expandPredicate tr pr) as
-expandPolicy tr (PoUnion po1 po2) = PoUnion (expandPolicy tr po1) (expandPolicy tr po2)
-expandPolicy tr (PoIntersect po1 po2) = PoIntersect (expandPolicy tr po1) (expandPolicy tr po2)
-expandPolicy tr (PoDifference po1 po2) = PoDifference (expandPolicy tr po1) (expandPolicy tr po2)
+refinePolicy tr (PoBasic pr as) = PoBasic (refinePredicate tr pr) as
+refinePolicy tr (PrHint (Tag i)) = undefined -- FIX need more info
+refinePolicy tr (PoUnion po1 po2) = PoUnion (refinePolicy tr po1) (refinePolicy tr po2)
+refinePolicy tr (PoIntersect po1 po2) = PoIntersect (refinePolicy tr po1) (refinePolicy tr po2)
+refinePolicy tr (PoDifference po1 po2) = PoDifference (refinePolicy tr po1) (refinePolicy tr po2)
