@@ -5,3 +5,7 @@ Install containers
         iproute
         network
         nettle-openflow
+
+        hlist
+        newtype-th
+        largeword
