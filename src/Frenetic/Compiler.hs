@@ -197,7 +197,6 @@ specialize :: (ValidEnvironment ptrn actn pkt) =>
               Transmission ptrn pkt -> Policy -> Classifier ptrn actn
 specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) (refinePolicy tr po)
 
-
 {-| Compile a predicate to intermediate form. -}                                          
 compilePredicate :: forall ptrn. (GPattern ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
 compilePredicate s (PrPattern pat) = Skeleton [Bone (fromPatternOverapprox pat) pat (True, True)]
@@ -205,6 +204,7 @@ compilePredicate s (PrSwitchPattern _ dyn) =
   case fromDynamic dyn :: Maybe ptrn of
     Just ptrn -> Skeleton [Bone ptrn undefined (True, True)]
     Nothing -> Skeleton []
+compilePredicate s (PrHint (Tag i)) = Skeleton [Bone top top (False, True)]
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top (True, True)]
                              | otherwise = Skeleton []
 compilePredicate s (PrIntersect pr1 pr2) = skel12'
@@ -228,6 +228,7 @@ compilePolicy s (PoBasic po as) =
     f (True, True) = (as,  as)
     f (False, True ) = (Set.empty, as)
     f (False, False) = (Set.empty,  Set.empty)
+compilePredicate s (PoHint (Tag i)) = Skeleton [Bone top top (S.empty, undefined)] -- FIX we need some symbol for "top". Maybe cosets *were* a good idea?
 compilePolicy s (PoUnion po1 po2) = skel12' `skelAppend` skel1' `skelAppend` skel2' 
     where
       skel1 = compilePolicy s po1
@@ -247,6 +248,7 @@ refinePredicate tr (PrPattern ptrn) =
       Just pat -> PrUnion (PrPattern ptrn) (PrSwitchPattern (show pat) (toDyn pat))
       Nothing -> PrPattern ptrn
 refinePredicate tr (PrSwitchPattern s dyn) = PrSwitchPattern s dyn
+refinePredicate tr (PrHint (Tag i)) = undefined -- FIX need more info
 refinePredicate tr (PrTo s) = PrTo s
 refinePredicate tr (PrUnion pr1 pr2) =
     PrUnion (refinePredicate tr pr1) (refinePredicate tr pr2)
@@ -260,6 +262,7 @@ refinePredicate tr (PrNegate pr) = PrNegate (refinePredicate tr pr)
 refinePolicy :: (ValidTransmission ptrn pkt) =>
                 Transmission ptrn pkt -> Policy -> Policy
 refinePolicy tr (PoBasic pr as) = PoBasic (refinePredicate tr pr) as
+refinePolicy tr (PrHint (Tag i)) = undefined -- FIX need more info
 refinePolicy tr (PoUnion po1 po2) = PoUnion (refinePolicy tr po1) (refinePolicy tr po2)
 refinePolicy tr (PoIntersect po1 po2) = PoIntersect (refinePolicy tr po1) (refinePolicy tr po2)
 refinePolicy tr (PoDifference po1 po2) = PoDifference (refinePolicy tr po1) (refinePolicy tr po2)
