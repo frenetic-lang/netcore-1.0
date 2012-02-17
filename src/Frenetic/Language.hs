@@ -55,16 +55,14 @@ import           Data.Dynamic
 import           Frenetic.Pattern
 import           Frenetic.LargeWord
 
-
---
--- Basic network elements
---
-
-type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
-
+{-| The type of switches in the network. -}
 type Switch = Word64
+
+{-| The type of switch ports. -}
 type Port = Word16
 
+{-| Auxillary value for ethernet addresses.  -}
+type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
 
 {-| Frenetic "packets" -}
 data Packet = Packet {
@@ -80,13 +78,13 @@ data Packet = Packet {
   , pktTpSrc :: Word16
   , pktTpDst :: Word16
   , pktInPort :: Port
-  } deriving (Show, Eq, Typeable)
+  } deriving (Show, Eq, Ord, Typeable)
 
 {-| Generic packets -}
-class (Show pkt, Eq pkt) => GPacket pkt where
+class (Show pkt, Ord pkt, Eq pkt) => GPacket pkt where
   toPacket :: pkt -> Packet
   updatePacket :: pkt -> Packet -> pkt
- 
+
 instance GPacket Packet where 
   toPacket = id
   updatePacket pkt1 pkt2 = pkt2
@@ -174,6 +172,7 @@ data Transmission ptrn pkt = Transmission {
       trPkt :: pkt
     } deriving (Eq)
 
+{-| A valid transmission has a matching relationship between the pattern and packet -}
 class (GPattern ptrn, GPacket pkt) => ValidTransmission ptrn pkt where
      ptrnMatchPkt :: pkt -> ptrn -> Bool
 
@@ -189,46 +188,17 @@ instance ValidTransmission Pattern Packet where
                           && wMatch (pktNwTos pkt) (ptrnNwTos ptrn)
                           && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
                           && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
-                          && Just (pktInPort pkt) `match` ptrnInPort ptrn
-
-  
+                          && Just (pktInPort pkt) `match` ptrnInPort ptrn  
 
 {-| This class represents backend actions. |-}
 class (Show actn, Eq actn) => GAction actn where
     actnDefault :: actn
     actnController :: actn
     actnTranslate :: Actions -> actn
-                
---
--- Predicates
---
 
--- data HeaderW = forall r. (Show r, Bits r) => HeaderW (Header r)
-
--- -- Can't derive these.
--- instance Show HeaderW where
---     show (HeaderW h) = show h
-                       
--- type Headers = [HeaderW]
-
--- data Inspector = Inspector {
---       insDesc :: String,
---       insApply :: (forall ptrn pkt. ValidTransmission ptrn pkt => Transmission ptrn pkt -> Bool),
---       insInv :: (forall ptrn pkt. ValidTransmission ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
---     }
-
--- data Doer = Doer {
---       doDesc :: String,
---       doApply :: (forall ptrn pkt. ValidTransmission ptrn pkt =>
---                   Transmission ptrn pkt ->
---                   [Transmission ptrn pkt]),
---       doInv :: (forall ptrn pkt. ValidTransmission ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
---     }
-
-
+{-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern
                | PrSwitchPattern String Dynamic
---               | PrInspect Inspector
                | PrTo Switch 
                | PrUnion Predicate Predicate
                | PrIntersect Predicate Predicate
@@ -236,39 +206,31 @@ data Predicate = PrPattern Pattern
                | PrNegate Predicate
 
 instance Show Predicate where
--- FIX
   show (PrPattern pat) = show pat  
   show (PrTo s) = "switch(" ++ show s ++ ")"
---  show (PrInspect ins) = insDesc ins
   show (PrSwitchPattern desc _) = desc
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
   show (PrDifference pr1 pr2) = "(" ++ show pr1 ++ ") // (" ++ show pr2 ++ ")"
   show (PrNegate pr) = "~(" ++ show pr ++ ")"
 
--- 
--- Policies
---
-
+{-| Actions DO things!!! -}
 type Actions = Set.Set Port
 
+{-| Policies denote functions from (switch, packet) to packets. -}
 data Policy = PoBasic Predicate Actions
---            | PoDoer Doer
             | PoUnion Policy Policy
             | PoIntersect Policy Policy
             | PoDifference Policy Policy
                   
 instance Show Policy where
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
---  show (PoDoer doer) = doDesc doer 
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
   show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
 
---
--- Interpreter
---
 
+{-| Implements the denotation function for predicates. -}
 interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
                       Predicate
                    -> Transmission ptrn pkt
@@ -287,21 +249,21 @@ interpretPredicate (PrDifference pr1 pr2) t =
   interpretPredicate pr1 t && not (interpretPredicate pr2 t)
 interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
 
-interpretActions :: (GPacket pkt) => pkt -> Actions -> [pkt]
-interpretActions pkt actn =
-  [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) | prt' <- Set.toList actn] -- not totally sure of this FIX
+{-| Implements the denotation function for actions. -}
+interpretActions :: (GPacket pkt) => pkt -> Actions -> Set.Set pkt
+interpretActions pkt actn = Set.fromList [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) 
+                                         | prt' <- Set.toList actn] 
 
--- FIX maybe we shouldn't use list set operations here.
+{-| Implements the denotation function for policies. -}
 interpretPolicy :: (ValidTransmission ptrn pkt) =>
                    Policy
                 -> Transmission ptrn pkt
-                -> [pkt]
+                -> Set.Set pkt
 interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = interpretActions (trPkt tr) as
-                                     | otherwise = []
---interpretPolicy (PoDoer doer) tr = doApply doer tr
+                                     | otherwise = Set.empty
 interpretPolicy (PoUnion p1 p2) tr = 
-  interpretPolicy p1 tr `List.union` interpretPolicy p2 tr
+  interpretPolicy p1 tr `Set.union` interpretPolicy p2 tr
 interpretPolicy (PoIntersect p1 p2) tr = 
-  interpretPolicy p1 tr `List.intersect` interpretPolicy p2 tr
+  interpretPolicy p1 tr `Set.intersection` interpretPolicy p2 tr
 interpretPolicy (PoDifference p1 p2) tr = 
-  interpretPolicy p1 tr List.\\ interpretPolicy p2 tr
+  interpretPolicy p1 tr Set.\\ interpretPolicy p2 tr
