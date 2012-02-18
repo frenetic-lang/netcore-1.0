@@ -43,7 +43,7 @@
  #-}
 
 
-module Frenetic.Language where
+module Frenetic.NetCore.API where
 
 import           Frenetic.Compat
 

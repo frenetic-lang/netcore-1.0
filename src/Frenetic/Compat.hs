@@ -29,6 +29,19 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
+{-# LANGUAGE
+    NoMonomorphismRestriction,
+    StandaloneDeriving,
+    FlexibleInstances,
+    Rank2Types,
+    GADTs,
+    ExistentialQuantification,
+    MultiParamTypeClasses,
+    FunctionalDependencies,
+    ScopedTypeVariables,
+    DeriveDataTypeable
+ #-}
+
 module Frenetic.Compat where
 
 import qualified Data.List          as List
@@ -36,9 +49,11 @@ import           Data.Bits
 
 import           Data.Word
 import qualified Data.Set           as Set
+import           Data.Typeable
 
 import           Frenetic.Pattern
 import           Frenetic.LargeWord
+
 
 {-| The type of switches in the network. -}
 type Switch = Word64
@@ -64,16 +79,7 @@ data Packet = Packet {
   , pktTpDst :: Word16
   , pktInPort :: Port
   } deriving (Show, Eq, Ord, Typeable)
-
-{-| Generic packets -}
-class (Show pkt, Ord pkt, Eq pkt) => GPacket pkt where
-  toPacket :: pkt -> Packet
-  updatePacket :: pkt -> Packet -> pkt
-
-instance GPacket Packet where 
-  toPacket = id
-  updatePacket pkt1 pkt2 = pkt2
-
+             
 {-| Frenetic "patterns" -}
 data Pattern = Pattern { 
   ptrnDlSrc :: Wildcard Word48
@@ -90,6 +96,51 @@ data Pattern = Pattern {
   , ptrnInPort :: Maybe Port
   } deriving (Show, Eq, Typeable)
                     
+{-| Frenetic "actions" -}
+type Actions = Set.Set Port
+
+{-| Data that was sent. -}
+data Transmission ptrn pkt = Transmission {
+      trPattern :: ptrn,
+      trSwitch :: Switch,
+      trPkt :: pkt
+    } deriving (Eq)
+
+
+
+{-| Generic packets -}
+class (Show pkt, Ord pkt, Eq pkt) => GPacket pkt where
+  toPacket :: pkt -> Packet
+  updatePacket :: pkt -> Packet -> pkt
+
+{-|
+This class represents backend patterns.
+
+* @patOverapprox@ and @patUnderapprox@ must follow the laws in the
+  Approx class. If the pattern is not a real underapproximation,
+  @patUnderapprox@ must return Nothing.
+-}
+class (Typeable ptrn, Show ptrn, Matchable ptrn) => GPattern ptrn where
+    fromPatternOverapprox :: Pattern -> ptrn
+    fromPatternUnderapprox :: Packet -> Pattern -> Maybe ptrn
+    toPattern :: ptrn -> Pattern
+  
+{-| A valid transmission has a matching relationship between the pattern and packet -}
+class (GPattern ptrn, GPacket pkt) => ValidTransmission ptrn pkt where
+     ptrnMatchPkt :: pkt -> ptrn -> Bool
+
+{-| This class represents backend actions. |-}
+class (Show actn, Eq actn) => GAction actn where
+    actnDefault :: actn
+    actnController :: actn
+    actnTranslate :: Actions -> actn
+
+
+
+instance GPacket Packet where 
+  toPacket = id
+  updatePacket pkt1 pkt2 = pkt2
+
 instance Matchable Pattern where
   top = Pattern {
     ptrnDlSrc = top
@@ -132,34 +183,11 @@ instance Matchable Pattern where
                          , ptrnTpDst = ptrnTpDst'
                          , ptrnInPort = ptrnInPort'
                          }
-
-{-|
-This class represents backend patterns.
-
-* @patOverapprox@ and @patUnderapprox@ must follow the laws in the
-  Approx class. If the pattern is not a real underapproximation,
-  @patUnderapprox@ must return Nothing.
--}
-class (Typeable ptrn, Show ptrn, Matchable ptrn) => GPattern ptrn where
-    fromPatternOverapprox :: Pattern -> ptrn
-    fromPatternUnderapprox :: Packet -> Pattern -> Maybe ptrn
-    toPattern :: ptrn -> Pattern
-
+                         
 instance GPattern Pattern where
   fromPatternOverapprox = id
   fromPatternUnderapprox pkt ptrn = Nothing -- We never need to underapproximate real patterns
   toPattern = id
-  
-{-| Something sent. See below relation -}
-data Transmission ptrn pkt = Transmission {
-      trPattern :: ptrn,
-      trSwitch :: Switch,
-      trPkt :: pkt
-    } deriving (Eq)
-
-{-| A valid transmission has a matching relationship between the pattern and packet -}
-class (GPattern ptrn, GPacket pkt) => ValidTransmission ptrn pkt where
-     ptrnMatchPkt :: pkt -> ptrn -> Bool
 
 instance ValidTransmission Pattern Packet where
   ptrnMatchPkt pkt ptrn = wMatch (pktDlSrc pkt) (ptrnDlSrc ptrn)
@@ -174,9 +202,3 @@ instance ValidTransmission Pattern Packet where
                           && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
                           && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
                           && Just (pktInPort pkt) `match` ptrnInPort ptrn  
-
-{-| This class represents backend actions. |-}
-class (Show actn, Eq actn) => GAction actn where
-    actnDefault :: actn
-    actnController :: actn
-    actnTranslate :: Actions -> actn

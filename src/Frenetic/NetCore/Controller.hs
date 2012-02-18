@@ -36,30 +36,46 @@ import Control.Monad.State.Lazy
 import Frenetic.NetCore.API
 import Frenetic.NetCore.Compiler
 
-type Hook = IO ()
+type Hook = ControllerM ()
 
 -- FIX this should maybe be an interval of rules? rule ids?
+{-| Identifies a partial policy -}
 type PolicyID = Int
 
+{-| Identifies a NetCore controller -}
+type ControllerID = Int
+
+{-| Controller state -}
 data Controller = Controller {
   ctrlPacketIn :: [Hook],
   ctrlSwitchJoin :: [Hook],
   ctrlSwitchLeave :: [Hook]
-     }
+  }
                        
-type ControllerM a = StateT Controller IO a 
+{-| Controller monad -}
+newtype ControllerM a = ControllerM (StateT Controller IO a) 
 
-mkController :: ControllerM ()  -> IO () 
-mkController m = runStateT m >> return () 
+instance Monad ControllerM where
+  return = newLift return
+  (>>=) = newLift2 (>>=)
 
+{-| Make a controller -}
+mkController :: IO ControllerID 
+mkController m = runStateT m >> undefined
+
+{-| Send a sequence of commands to a controller -}
 withController :: ControllerID -> ControllerM () -> IO ()
+withController = undefined
 
+{-| Install a new policy on the controller -}
 installPolicy :: Policy -> ControllerM ()
 installPolicy = undefined
 
+{-| Install part of a policy on the controller: this policy should be an expansion of the base installed policy. -}
 installPartialPolicy :: Policy -> ControllerM PolicyID
 installPartialPolicy = undefined
 
+{-| Remove part of a policy -}
 deletePartialPolicy :: PolicyID -> ControllerM ()
 deletePartialPolicy = undefined
 
