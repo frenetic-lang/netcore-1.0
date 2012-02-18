@@ -29,12 +29,15 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
+{-# LANGUAGE TemplateHaskell #-}
+
+
 module Frenetic.NetCore.Controller where
 
 import Control.Monad.State.Lazy
 
 import Frenetic.NetCore.API
-import Frenetic.NetCore.Compiler
+--import Frenetic.NetCore.Compiler
 
 type Hook = ControllerM ()
 
@@ -56,12 +59,12 @@ data Controller = Controller {
 newtype ControllerM a = ControllerM (StateT Controller IO a) 
 
 instance Monad ControllerM where
-  return = newLift return
-  (>>=) = newLift2 (>>=)
+  --return = newLift return
+  --(>>=) = newLift2 (>>=)
 
 {-| Make a controller -}
 mkController :: IO ControllerID 
-mkController m = runStateT m >> undefined
+mkController = undefined -- runStateT
 
 {-| Send a sequence of commands to a controller -}
 withController :: ControllerID -> ControllerM () -> IO ()

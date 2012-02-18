@@ -56,10 +56,6 @@ import           Data.Typeable
 import           Data.Dynamic
 
 
-
-{-| Unknown information -}
-data Tag = Tag Int
-
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern
                | PrUnknown
@@ -70,6 +66,14 @@ data Predicate = PrPattern Pattern
                | PrDifference Predicate Predicate
                | PrNegate Predicate
 
+{-| Policies denote functions from (switch, packet) to packets. -}
+data Policy = PoBasic Predicate Actions
+            | PoUnknown 
+            | PoUnion Policy Policy
+            | PoIntersect Policy Policy
+            | PoDifference Policy Policy
+              
+              
 instance Show Predicate where
   show (PrPattern pat) = show pat  
   show (PrUnknown) = "???"
@@ -79,58 +83,51 @@ instance Show Predicate where
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
   show (PrDifference pr1 pr2) = "(" ++ show pr1 ++ ") // (" ++ show pr2 ++ ")"
   show (PrNegate pr) = "~(" ++ show pr ++ ")"
-
-{-| Actions DO things!!! -}
-type Actions = Set.Set Port
-
-{-| Policies denote functions from (switch, packet) to packets. -}
-data Policy = PoBasic Predicate Actions
-            | PoUnknown 
-            | PoUnion Policy Policy
-            | PoIntersect Policy Policy
-            | PoDifference Policy Policy
-                  
+              
 instance Show Policy where
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
-  show (PoUnknown)
+  show (PoUnknown) = "???"
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
   show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
 
-{-| Implements the denotation function for predicates. -}
-interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
-                      Predicate
-                   -> Transmission ptrn pkt
-                   -> (Bool, Bool)
-interpretPredicate (PrPattern ptrn) tr = toPacket (trPkt tr) `ptrnMatchPkt` ptrn
-interpretPredicate (PrSwitchPattern _ dyn) tr =
-    case fromDynamic dyn :: Maybe ptrn of
-      Just ptrn -> let k = ptrnMatchPkt (trPkt tr) ptrn in (k, k)
-      Nothing -> (False, False)
-interpretPredicate (PrUnknown) = (False, True) 
-interpretPredicate (PrUnion pr1 pr2) t = 
-  interpretPredicate pr1 t || interpretPredicate pr2 t
-interpretPredicate (PrIntersect pr1 pr2) t = 
-  interpretPredicate pr1 t && interpretPredicate pr2 t
-interpretPredicate (PrDifference pr1 pr2) t = 
-  interpretPredicate pr1 t && not (interpretPredicate pr2 t)
-interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
 
-{-| Implements the denotation function for actions. -}
-interpretActions :: (GPacket pkt) => pkt -> Actions -> Set.Set pkt
-interpretActions pkt actn = Set.fromList [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) 
-                                         | prt' <- Set.toList actn] 
+-- TODO: do we need these?
 
-{-| Implements the denotation function for policies. -}
-interpretPolicy :: (ValidTransmission ptrn pkt) =>
-                   Policy
-                -> Transmission ptrn pkt
-                -> (Set.Set pkt, Set.Set pkt)
-interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = interpretActions (trPkt tr) as
-                                     | otherwise = Set.empty
-interpretPolicy (PoUnion p1 p2) tr = 
-  interpretPolicy p1 tr `Set.union` interpretPolicy p2 tr
-interpretPolicy (PoIntersect p1 p2) tr = 
-  interpretPolicy p1 tr `Set.intersection` interpretPolicy p2 tr
-interpretPolicy (PoDifference p1 p2) tr = 
-  interpretPolicy p1 tr Set.\\ interpretPolicy p2 tr
+-- {-| Implements the denotation function for predicates. -}
+-- interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
+--                       Predicate
+--                    -> Transmission ptrn pkt
+--                    -> (Bool, Bool)
+-- interpretPredicate (PrPattern ptrn) tr = toPacket (trPkt tr) `ptrnMatchPkt` ptrn
+-- interpretPredicate (PrSwitchPattern _ dyn) tr =
+--     case fromDynamic dyn :: Maybe ptrn of
+--       Just ptrn -> let k = ptrnMatchPkt (trPkt tr) ptrn in (k, k)
+--       Nothing -> (False, False)
+-- interpretPredicate (PrUnknown) = (False, True) 
+-- interpretPredicate (PrUnion pr1 pr2) t = 
+--   interpretPredicate pr1 t || interpretPredicate pr2 t
+-- interpretPredicate (PrIntersect pr1 pr2) t = 
+--   interpretPredicate pr1 t && interpretPredicate pr2 t
+-- interpretPredicate (PrDifference pr1 pr2) t = 
+--   interpretPredicate pr1 t && not (interpretPredicate pr2 t)
+-- interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
+
+-- {-| Implements the denotation function for actions. -}
+-- interpretActions :: (GPacket pkt) => pkt -> Actions -> Set.Set pkt
+-- interpretActions pkt actn = Set.fromList [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) 
+--                                          | prt' <- Set.toList actn] 
+
+-- {-| Implements the denotation function for policies. -}
+-- interpretPolicy :: (ValidTransmission ptrn pkt) =>
+--                    Policy
+--                 -> Transmission ptrn pkt
+--                 -> (Set.Set pkt, Set.Set pkt)
+-- interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = interpretActions (trPkt tr) as
+--                                      | otherwise = Set.empty
+-- interpretPolicy (PoUnion p1 p2) tr = 
+--   interpretPolicy p1 tr `Set.union` interpretPolicy p2 tr
+-- interpretPolicy (PoIntersect p1 p2) tr = 
+--   interpretPolicy p1 tr `Set.intersection` interpretPolicy p2 tr
+-- interpretPolicy (PoDifference p1 p2) tr = 
+--   interpretPolicy p1 tr Set.\\ interpretPolicy p2 tr
