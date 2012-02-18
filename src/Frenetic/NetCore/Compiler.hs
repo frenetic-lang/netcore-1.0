@@ -43,21 +43,21 @@
 
 module Frenetic.NetCore.Compiler where
 
+import           Frenetic.Compat
 import           Frenetic.Pattern
 import           Frenetic.Util
-import Frenetic.NetCore.API
+import           Frenetic.NetCore.API
 
 import           Control.Newtype.TH
 import           Control.Newtype
 
 import           Data.Dynamic
-import qualified Data.List          as List
+import qualified Data.List            as List
 import           Data.Maybe
-import qualified Data.Set           as Set
-import qualified Data.Map           as Map
+import qualified Data.Set             as Set
+import qualified Data.Map             as Map
 import           Data.Typeable
   
-    
 
 {-| Input: a function, a context, a value, and a lists. Apply the function to each pair from the list and the context and current value; we may modify the list and current value. The context is the list of items we have already processed. -}
 selfMap :: ([a] -> c -> a -> a -> (c, Maybe a, Maybe a)) -> [a] -> c -> [a] -> [a]
@@ -184,19 +184,6 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
 skelMinimize :: (ValidClassifier ptrn actn) => Skeleton ptrn actn -> Skeleton ptrn actn
 skelMinimize = id
 
-{-| Compile a policy to a classifier. -}
-compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
-compile s po = Classifier $ map f $ unpack skel
-  where
-    f (Bone sptrn iptrn (actn1, actn2)) 
-      | toPattern sptrn `match` iptrn && actn1 == actn2 = (sptrn, actnTranslate actn1) 
-      | otherwise = (sptrn, actnController)                                        
-    skel = compilePolicy s po
-
-{-| Return a supplemental classifier obtained from specializing the policy with the transmission. |-}
-specialize :: (ValidEnvironment ptrn actn pkt) =>
-              Transmission ptrn pkt -> Policy -> Classifier ptrn actn
-specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) (refinePolicy tr po)
 
 {-| Compile a predicate to intermediate form. -}                                          
 compilePredicate :: forall ptrn. (GPattern ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
@@ -205,7 +192,7 @@ compilePredicate s (PrSwitchPattern _ dyn) =
   case fromDynamic dyn :: Maybe ptrn of
     Just ptrn -> Skeleton [Bone ptrn undefined (True, True)]
     Nothing -> Skeleton []
-compilePredicate s (PrHint (Tag i)) = Skeleton [Bone top top (False, True)]
+compilePredicate s (PrUnknown) = Skeleton [Bone top top (False, True)]
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top (True, True)]
                              | otherwise = Skeleton []
 compilePredicate s (PrIntersect pr1 pr2) = skel12'
@@ -229,7 +216,7 @@ compilePolicy s (PoBasic po as) =
     f (True, True) = (as,  as)
     f (False, True ) = (Set.empty, as)
     f (False, False) = (Set.empty,  Set.empty)
-compilePredicate s (PoHint (Tag i)) = Skeleton [Bone top top (S.empty, undefined)] -- FIX we need some symbol for "top". Maybe cosets *were* a good idea?
+compilePolicy s (PoUnknown) = Skeleton [Bone top top (Set.empty, undefined)] -- FIX we need some symbol for "top". Maybe cosets *were* a good idea?
 compilePolicy s (PoUnion po1 po2) = skel12' `skelAppend` skel1' `skelAppend` skel2' 
     where
       skel1 = compilePolicy s po1
@@ -241,3 +228,16 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (skelLiftActn  Set.intersection) skel1 skel2
 
+{-| Compile a policy to a classifier. -}
+compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
+compile s po = Classifier $ map f $ unpack skel
+  where
+    f (Bone sptrn iptrn (actn1, actn2)) 
+      | toPattern sptrn `match` iptrn && actn1 == actn2 = (sptrn, actnTranslate actn1) 
+      | otherwise = (sptrn, actnController)                                        
+    skel = compilePolicy s po
+    
+{-| Return a supplemental classifier obtained from specializing the policy with the transmission. |-}
+specialize :: (ValidEnvironment ptrn actn pkt) =>
+              Transmission ptrn pkt -> Policy -> Classifier ptrn actn
+specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) po
