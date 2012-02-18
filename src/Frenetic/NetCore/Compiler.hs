@@ -41,9 +41,12 @@
     MultiParamTypeClasses
  #-}
 
-module Frenetic.Compiler where
+module Frenetic.NetCore.Compiler where
 
+import           Frenetic.Pattern
 import           Frenetic.Util
+import Frenetic.NetCore.API
+
 import           Control.Newtype.TH
 import           Control.Newtype
 
@@ -54,8 +57,6 @@ import qualified Data.Set           as Set
 import qualified Data.Map           as Map
 import           Data.Typeable
   
-import           Frenetic.Pattern
-import           Frenetic.Language
     
 
 {-| Input: a function, a context, a value, and a lists. Apply the function to each pair from the list and the context and current value; we may modify the list and current value. The context is the list of items we have already processed. -}
@@ -240,29 +241,3 @@ compilePolicy s (PoIntersect po1 po2) = skel12'
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (skelLiftActn  Set.intersection) skel1 skel2
 
-{-| Add additional structural information to a predicate. -}
-refinePredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
-                   Transmission ptrn pkt -> Predicate -> Predicate
-refinePredicate tr (PrPattern ptrn) =
-  case (fromPatternUnderapprox  (toPacket $ trPkt tr)  ptrn :: Maybe ptrn) of
-      Just pat -> PrUnion (PrPattern ptrn) (PrSwitchPattern (show pat) (toDyn pat))
-      Nothing -> PrPattern ptrn
-refinePredicate tr (PrSwitchPattern s dyn) = PrSwitchPattern s dyn
-refinePredicate tr (PrHint (Tag i)) = undefined -- FIX need more info
-refinePredicate tr (PrTo s) = PrTo s
-refinePredicate tr (PrUnion pr1 pr2) =
-    PrUnion (refinePredicate tr pr1) (refinePredicate tr pr2)
-refinePredicate tr (PrIntersect pr1 pr2) =
-    PrIntersect (refinePredicate tr pr1) (refinePredicate tr pr2)
-refinePredicate tr (PrDifference pr1 pr2) =
-    PrDifference (refinePredicate tr pr1) (refinePredicate tr pr2)
-refinePredicate tr (PrNegate pr) = PrNegate (refinePredicate tr pr)
-
-{-| Add additioanl structural information to a policy. -}
-refinePolicy :: (ValidTransmission ptrn pkt) =>
-                Transmission ptrn pkt -> Policy -> Policy
-refinePolicy tr (PoBasic pr as) = PoBasic (refinePredicate tr pr) as
-refinePolicy tr (PrHint (Tag i)) = undefined -- FIX need more info
-refinePolicy tr (PoUnion po1 po2) = PoUnion (refinePolicy tr po1) (refinePolicy tr po2)
-refinePolicy tr (PoIntersect po1 po2) = PoIntersect (refinePolicy tr po1) (refinePolicy tr po2)
-refinePolicy tr (PoDifference po1 po2) = PoDifference (refinePolicy tr po1) (refinePolicy tr po2)
