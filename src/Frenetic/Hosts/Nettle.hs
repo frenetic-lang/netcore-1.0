@@ -25,8 +25,8 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- src/Frenetic/Hosts/Nettle.hs                                                            --
--- Nettle Host                                                   --
+-- src/Frenetic/Hosts/Nettle.hs                                               --
+-- Nettle Host                                                                --
 -- $Id$ --
 --------------------------------------------------------------------------------
 
@@ -72,6 +72,7 @@ import Frenetic.Switches.OpenFlow
 import Frenetic.Util
 
 
+
 --
 -- Data types
 --
@@ -111,8 +112,8 @@ installRules addr rules proc =
 sendBufferedPacket :: SockAddr -> BufferID -> PortID -> Transmission OFMatch.Match PacketInfo -> OFProcess -> ControllerOp ()
 sendBufferedPacket addr mbid inport t proc = 
   do state <- get
-     let pol = policy state 
-     let ofacts = undefined -- interpretPolicy pol t
+     let pkts = Set.toList $ interpretPolicy (policy state) t 
+     let ofacts = Prelude.map ((SendOutPort . PhysicalPort) . receivedOnPort) pkts
      let msg = Messages.PacketOut 
                    Nettle.OpenFlow.Packet.PacketOut 
                      { bufferIDData = Left mbid, 

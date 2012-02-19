@@ -24,8 +24,8 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /src/Language.hs                                                           --
--- Frenetic Language stuff                                                    --
+-- /src/Frenetic/Compat.hs                                                    --
+--                                                                            --
 -- $Id$ --
 --------------------------------------------------------------------------------
 
@@ -42,7 +42,7 @@
     DeriveDataTypeable
  #-}
 
-module Frenetic.Language where
+module Frenetic.Compat where
 
 import qualified Data.List          as List
 import           Data.Bits
@@ -50,21 +50,19 @@ import           Data.Bits
 import           Data.Word
 import qualified Data.Set           as Set
 import           Data.Typeable
-import           Data.Dynamic
 
 import           Frenetic.Pattern
 import           Frenetic.LargeWord
 
 
---
--- Basic network elements
---
-
-type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
-
+{-| The type of switches in the network. -}
 type Switch = Word64
+
+{-| The type of switch ports. -}
 type Port = Word16
 
+{-| Auxillary value for ethernet addresses.  -}
+type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
 
 {-| Frenetic "packets" -}
 data Packet = Packet {
@@ -80,17 +78,8 @@ data Packet = Packet {
   , pktTpSrc :: Word16
   , pktTpDst :: Word16
   , pktInPort :: Port
-  } deriving (Show, Eq, Typeable)
-
-{-| Generic packets -}
-class (Show pkt, Eq pkt) => GPacket pkt where
-  toPacket :: pkt -> Packet
-  updatePacket :: pkt -> Packet -> pkt
- 
-instance GPacket Packet where 
-  toPacket = id
-  updatePacket pkt1 pkt2 = pkt2
-
+  } deriving (Show, Eq, Ord, Typeable)
+             
 {-| Frenetic "patterns" -}
 data Pattern = Pattern { 
   ptrnDlSrc :: Wildcard Word48
@@ -107,6 +96,51 @@ data Pattern = Pattern {
   , ptrnInPort :: Maybe Port
   } deriving (Show, Eq, Typeable)
                     
+{-| Frenetic "actions" -}
+type Actions = Set.Set Port
+
+{-| Data that was sent. -}
+data Transmission ptrn pkt = Transmission {
+      trPattern :: ptrn,
+      trSwitch :: Switch,
+      trPkt :: pkt
+    } deriving (Eq)
+
+
+
+{-| Generic packets -}
+class (Show pkt, Ord pkt, Eq pkt) => GPacket pkt where
+  toPacket :: pkt -> Packet
+  updatePacket :: pkt -> Packet -> pkt
+
+{-|
+This class represents backend patterns.
+
+* @patOverapprox@ and @patUnderapprox@ must follow the laws in the
+  Approx class. If the pattern is not a real underapproximation,
+  @patUnderapprox@ must return Nothing.
+-}
+class (Typeable ptrn, Show ptrn, Matchable ptrn) => GPattern ptrn where
+    fromPatternOverapprox :: Pattern -> ptrn
+    fromPatternUnderapprox :: Packet -> Pattern -> Maybe ptrn
+    toPattern :: ptrn -> Pattern
+  
+{-| A valid transmission has a matching relationship between the pattern and packet -}
+class (GPattern ptrn, GPacket pkt) => ValidTransmission ptrn pkt where
+     ptrnMatchPkt :: pkt -> ptrn -> Bool
+
+{-| This class represents backend actions. |-}
+class (Show actn, Eq actn) => GAction actn where
+    actnDefault :: actn
+    actnController :: actn
+    actnTranslate :: Actions -> actn
+
+
+
+instance GPacket Packet where 
+  toPacket = id
+  updatePacket pkt1 pkt2 = pkt2
+
 instance Matchable Pattern where
   top = Pattern {
     ptrnDlSrc = top
@@ -149,33 +183,11 @@ instance Matchable Pattern where
                          , ptrnTpDst = ptrnTpDst'
                          , ptrnInPort = ptrnInPort'
                          }
-
-{-|
-This class represents backend patterns.
-
-* @patOverapprox@ and @patUnderapprox@ must follow the laws in the
-  Approx class. If the pattern is not a real underapproximation,
-  @patUnderapprox@ must return Nothing.
--}
-class (Typeable ptrn, Show ptrn, Matchable ptrn) => GPattern ptrn where
-    fromPatternOverapprox :: Pattern -> ptrn
-    fromPatternUnderapprox :: Packet -> Pattern -> Maybe ptrn
-    toPattern :: ptrn -> Pattern
-
+                         
 instance GPattern Pattern where
   fromPatternOverapprox = id
   fromPatternUnderapprox pkt ptrn = Nothing -- We never need to underapproximate real patterns
   toPattern = id
-  
-{-| Something sent. See below relation -}
-data Transmission ptrn pkt = Transmission {
-      trPattern :: ptrn,
-      trSwitch :: Switch,
-      trPkt :: pkt
-    } deriving (Eq)
-
-class (GPattern ptrn, GPacket pkt) => ValidTransmission ptrn pkt where
-     ptrnMatchPkt :: pkt -> ptrn -> Bool
 
 instance ValidTransmission Pattern Packet where
   ptrnMatchPkt pkt ptrn = wMatch (pktDlSrc pkt) (ptrnDlSrc ptrn)
@@ -189,119 +201,4 @@ instance ValidTransmission Pattern Packet where
                           && wMatch (pktNwTos pkt) (ptrnNwTos ptrn)
                           && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
                           && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
-                          && Just (pktInPort pkt) `match` ptrnInPort ptrn
-
-  
-
-{-| This class represents backend actions. |-}
-class (Show actn, Eq actn) => GAction actn where
-    actnDefault :: actn
-    actnController :: actn
-    actnTranslate :: Actions -> actn
-                
---
--- Predicates
---
-
--- data HeaderW = forall r. (Show r, Bits r) => HeaderW (Header r)
-
--- -- Can't derive these.
--- instance Show HeaderW where
---     show (HeaderW h) = show h
-                       
--- type Headers = [HeaderW]
-
--- data Inspector = Inspector {
---       insDesc :: String,
---       insApply :: (forall ptrn pkt. ValidTransmission ptrn pkt => Transmission ptrn pkt -> Bool),
---       insInv :: (forall ptrn pkt. ValidTransmission ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
---     }
-
--- data Doer = Doer {
---       doDesc :: String,
---       doApply :: (forall ptrn pkt. ValidTransmission ptrn pkt =>
---                   Transmission ptrn pkt ->
---                   [Transmission ptrn pkt]),
---       doInv :: (forall ptrn pkt. ValidTransmission ptrn pkt => Transmission ptrn pkt -> Maybe Headers)
---     }
-
-
-data Predicate = PrPattern Pattern
-               | PrSwitchPattern String Dynamic
---               | PrInspect Inspector
-               | PrTo Switch 
-               | PrUnion Predicate Predicate
-               | PrIntersect Predicate Predicate
-               | PrDifference Predicate Predicate
-               | PrNegate Predicate
-
-instance Show Predicate where
--- FIX
-  show (PrPattern pat) = show pat  
-  show (PrTo s) = "switch(" ++ show s ++ ")"
---  show (PrInspect ins) = insDesc ins
-  show (PrSwitchPattern desc _) = desc
-  show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
-  show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
-  show (PrDifference pr1 pr2) = "(" ++ show pr1 ++ ") // (" ++ show pr2 ++ ")"
-  show (PrNegate pr) = "~(" ++ show pr ++ ")"
-
--- 
--- Policies
---
-
-type Actions = Set.Set Port
-
-data Policy = PoBasic Predicate Actions
---            | PoDoer Doer
-            | PoUnion Policy Policy
-            | PoIntersect Policy Policy
-            | PoDifference Policy Policy
-                  
-instance Show Policy where
-  show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
---  show (PoDoer doer) = doDesc doer 
-  show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
-  show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
-  show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
-
---
--- Interpreter
---
-
-interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
-                      Predicate
-                   -> Transmission ptrn pkt
-                   -> Bool
-interpretPredicate (PrPattern ptrn) tr = toPacket ( trPkt tr) `ptrnMatchPkt` ptrn
-interpretPredicate (PrSwitchPattern _ dyn) tr =
-    case fromDynamic dyn :: Maybe ptrn of
-      Just ptrn -> ptrnMatchPkt (trPkt tr) ptrn 
-      Nothing -> False
---interpretPredicate (PrInspect ins) tr = insApply ins tr
-interpretPredicate (PrUnion pr1 pr2) t = 
-  interpretPredicate pr1 t || interpretPredicate pr2 t
-interpretPredicate (PrIntersect pr1 pr2) t = 
-  interpretPredicate pr1 t && interpretPredicate pr2 t
-interpretPredicate (PrDifference pr1 pr2) t = 
-  interpretPredicate pr1 t && not (interpretPredicate pr2 t)
-interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
-
-interpretActions :: (GPacket pkt) => pkt -> Actions -> [pkt]
-interpretActions pkt actn =
-  [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) | prt' <- Set.toList actn] -- not totally sure of this FIX
-
--- FIX maybe we shouldn't use list set operations here.
-interpretPolicy :: (ValidTransmission ptrn pkt) =>
-                   Policy
-                -> Transmission ptrn pkt
-                -> [pkt]
-interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = interpretActions (trPkt tr) as
-                                     | otherwise = []
---interpretPolicy (PoDoer doer) tr = doApply doer tr
-interpretPolicy (PoUnion p1 p2) tr = 
-  interpretPolicy p1 tr `List.union` interpretPolicy p2 tr
-interpretPolicy (PoIntersect p1 p2) tr = 
-  interpretPolicy p1 tr `List.intersect` interpretPolicy p2 tr
-interpretPolicy (PoDifference p1 p2) tr = 
-  interpretPolicy p1 tr List.\\ interpretPolicy p2 tr
+                          && Just (pktInPort pkt) `match` ptrnInPort ptrn  
