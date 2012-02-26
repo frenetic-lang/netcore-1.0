@@ -59,10 +59,9 @@ import           Nettle.Ethernet.EthernetFrame
 import           Nettle.Ethernet.EthernetAddress    
 
 import           Frenetic.Pattern
-import           Frenetic.Language
-import           Frenetic.Compiler
+import           Frenetic.Compat
 
-type OFClassifier = Classifier OFMatch.Match OFAction.ActionSequence
+--type OFClassifier = Classifier OFMatch.Match OFAction.ActionSequence
 
 
 {-| Convert an EthernetAddress to a Word48. -}    
