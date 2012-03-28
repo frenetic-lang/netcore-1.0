@@ -24,34 +24,26 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /testsuite/Frenetic/TestCompat                                             --
+-- /testsuite/Frenetic/ArbitraryPattern                                       --
 --                                                                            --
 -- $Id$ --
 --------------------------------------------------------------------------------
 
 {-# LANGUAGE
-    TemplateHaskell
+    TypeSynonymInstances
  #-}
 
-import Data.Word
-import Test.Framework
-import Test.Framework.TH
-import Test.Framework.Providers.QuickCheck2
+module Tests.Frenetic.ArbitraryPattern where
+import Frenetic.Pattern
+import Test.QuickCheck
 
-import Frenetic.Compat
-import Tests.Frenetic.ArbitraryCompat
+instance (Arbitrary a) => Arbitrary (Wildcard a) where
+  arbitrary = do
+    x <- arbitrary
+    m <- arbitrary
+    return $ Wildcard x m
 
-main = $(defaultMainGenerator)
-
-prop_reflWord48 :: Word48 -> Bool
-prop_reflWord48 i = i == i
-
-prop_reflPacket :: Packet -> Bool
-prop_reflPacket i = i == i
-
-prop_reflPattern :: Pattern -> Bool
-prop_reflPattern i = i == i
-
-prop_reflActions :: Actions -> Bool
-prop_reflActions i = i == i
+  shrink (Wildcard x m) = 
+    [Wildcard x' m | x' <- shrink x] ++
+    [Wildcard x m' | m' <- shrink m]
 

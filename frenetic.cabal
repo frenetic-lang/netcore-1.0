@@ -39,8 +39,10 @@ Test-Suite frenetic-compat
     type:             exitcode-stdio-1.0
     main-is:          Tests/Frenetic/TestCompat.hs
     build-depends:    base, 
+                      containers,
                       QuickCheck >= 2,
                       test-framework,
+                      test-framework-th,
                       test-framework-quickcheck2,
                       Frenetic
     hs-source-dirs:   testsuite

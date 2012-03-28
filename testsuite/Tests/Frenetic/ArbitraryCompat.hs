@@ -34,9 +34,11 @@
  #-}
 
 module Tests.Frenetic.ArbitraryCompat where
+import Data.Set                                 as Set
 import Frenetic.Compat
 import Frenetic.LargeWord
 import Test.QuickCheck
+import Tests.Frenetic.ArbitraryPattern
 
 buildWord48 w1 w2 w3 w4 w5 w6 = 
   LargeKey 
@@ -95,4 +97,62 @@ instance Arbitrary Packet where
     [p {pktTpSrc = s}       | s <- shrink (pktTpSrc p)] ++
     [p {pktTpDst = s}       | s <- shrink (pktTpDst p)] ++
     [p {pktInPort = s}      | s <- shrink (pktInPort p)]
+
+
+instance Arbitrary Pattern where
+  arbitrary = do
+    ptrnDlSrc       <- arbitrary
+    ptrnDlDst       <- arbitrary
+    ptrnDlTyp       <- arbitrary
+    ptrnDlVlan      <- arbitrary
+    ptrnDlVlanPcp   <- arbitrary
+    ptrnNwSrc       <- arbitrary
+    ptrnNwDst       <- arbitrary
+    ptrnNwProto     <- arbitrary
+    ptrnNwTos       <- arbitrary
+    ptrnTpSrc       <- arbitrary
+    ptrnTpDst       <- arbitrary
+    ptrnInPort      <- arbitrary
+    return $ Pattern ptrnDlSrc ptrnDlDst ptrnDlTyp ptrnDlVlan ptrnDlVlanPcp 
+                     ptrnNwSrc ptrnNwDst ptrnNwProto ptrnNwTos ptrnTpSrc 
+                     ptrnTpDst ptrnInPort
+
+  shrink p =
+    [p {ptrnDlSrc = s}	    | s <- shrink (ptrnDlSrc p)] ++
+    [p {ptrnDlDst = s}	    | s <- shrink (ptrnDlDst p)] ++
+    [p {ptrnDlTyp = s}	    | s <- shrink (ptrnDlTyp p)] ++
+    [p {ptrnDlVlan = s}	    | s <- shrink (ptrnDlVlan p)] ++
+    [p {ptrnDlVlanPcp = s}	| s <- shrink (ptrnDlVlanPcp p)] ++
+    [p {ptrnNwSrc = s}	    | s <- shrink (ptrnNwSrc p)] ++
+    [p {ptrnNwDst = s}	    | s <- shrink (ptrnNwDst p)] ++
+    [p {ptrnNwProto = s}	| s <- shrink (ptrnNwProto p)] ++
+    [p {ptrnNwTos = s}	    | s <- shrink (ptrnNwTos p)] ++
+    [p {ptrnTpSrc = s}	    | s <- shrink (ptrnTpSrc p)] ++
+    [p {ptrnTpDst = s}	    | s <- shrink (ptrnTpDst p)] ++
+    [p {ptrnInPort = s}	    | s <- shrink (ptrnInPort p)]
+
+
+instance (Arbitrary a, Ord a) => Arbitrary (Set.Set a) where
+  arbitrary = do
+    l <- listOf arbitrary
+    return $ Set.fromList l
+
+  shrink s = 
+    let f a b = let shrunkElems = shrink a 
+                in case shrunkElems of
+                     [] -> b
+                     _  -> union (Set.fromList shrunkElems) b 
+    in [Set.fold f Set.empty s]
+
+instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) where
+  arbitrary = do
+    pt <- arbitrary
+    sw <- arbitrary
+    pk <- arbitrary
+    return $ Transmission pt sw pk
+
+  shrink t = 
+    [t {trPattern = s} | s <- shrink (trPattern t)] ++
+    [t {trSwitch = s} | s <- shrink (trSwitch t)] ++
+    [t {trPkt = s} | s <- shrink (trPkt t)]
 
