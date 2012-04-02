@@ -92,8 +92,6 @@ instance Show Policy where
   show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
 
 
--- TODO: do we need these?
-
 -- {-| Implements the denotation function for predicates. -}
 -- interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
 --                       Predicate

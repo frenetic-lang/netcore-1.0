@@ -42,7 +42,7 @@ module Frenetic.Hosts.Nettle where
 
 import Data.Set                            as Set
 import Data.Map                            as Map
-import Data.LargeWord
+import Frenetic.LargeWord
 
 import Control.Exception.Base
 import Control.Concurrent
@@ -66,12 +66,11 @@ import Nettle.OpenFlow.Action as OFAction
 import Nettle.Servers.TCPServer
 import Nettle.Servers.MultiplexedTCPServer
 
-import Frenetic.Language
-import Frenetic.Compiler
+import Frenetic.NetCore.API
+import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
-import Frenetic.Util
-
-
+import Frenetic.Compat
+--import Frenetic.Util
 
 --
 -- Data types
@@ -112,7 +111,7 @@ installRules addr rules proc =
 sendBufferedPacket :: SockAddr -> BufferID -> PortID -> Transmission OFMatch.Match PacketInfo -> OFProcess -> ControllerOp ()
 sendBufferedPacket addr mbid inport t proc = 
   do state <- get
-     let pkts = Set.toList $ interpretPolicy (policy state) t 
+     let pkts = undefined --Set.toList $ interpretPolicy (policy state) t 
      let ofacts = Prelude.map ((SendOutPort . PhysicalPort) . receivedOnPort) pkts
      let msg = Messages.PacketOut 
                    Nettle.OpenFlow.Packet.PacketOut 

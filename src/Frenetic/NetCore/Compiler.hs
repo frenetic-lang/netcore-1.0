@@ -184,7 +184,6 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
 skelMinimize :: (ValidClassifier ptrn actn) => Skeleton ptrn actn -> Skeleton ptrn actn
 skelMinimize = id
 
-
 {-| Compile a predicate to intermediate form. -}                                          
 compilePredicate :: forall ptrn. (GPattern ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
 compilePredicate s (PrPattern pat) = Skeleton [Bone (fromPatternOverapprox pat) pat (True, True)]

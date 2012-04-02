@@ -21,16 +21,16 @@ Library
     other-modules:      Frenetic.Util,
                         Frenetic.Switches.OpenFlow,
                         Frenetic.NetCore.Controller,
-                        Frenetic.NetCore.Compiler
+                        Frenetic.NetCore.Compiler,
 
     -- TODO: get the following to build:
     --                  Frenetic.NetStream.API,
     --                  Frenetic.NetStream.FRP,
     --                  Frenetic.NetStream.Compiler,
 
-    --                  Frenetic.Hosts.Nettle,
-    --                  Frenetic.Server,
-    --                  Frenetic.Playground,
+                        Frenetic.Hosts.Nettle,
+                        Frenetic.Server
+--                        Frenetic.Playground
 
     hs-source-dirs:     src
 

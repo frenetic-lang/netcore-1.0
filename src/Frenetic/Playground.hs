@@ -6,8 +6,9 @@ module Frenetic.Playground where
 import Frenetic.Switches.OpenFlow
 
 import Frenetic.Pattern
-import Frenetic.Language
-import Frenetic.Compiler
+import Frenetic.NetCore.API
+import Frenetic.NetCore.Compiler
+import Frenetic.Compat
 
 import qualified Data.Set as Set
 
