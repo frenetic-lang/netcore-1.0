@@ -30,9 +30,7 @@
 --------------------------------------------------------------------------------
 
 
-{-# LANGUAGE
-Arrows
- #-}
+{-# LANGUAGE Arrows #-}
 
 module Frenetic.NetStream.FRP where
 
