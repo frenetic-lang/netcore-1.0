@@ -89,7 +89,9 @@ instance Matchable IPAddress.IPAddressPrefix where
 instance GAction OFAction.ActionSequence where
     actnController = OFAction.sendToController 0
     actnDefault = OFAction.sendToController 0
-    actnTranslate s = map (OFAction.SendOutPort . OFAction.PhysicalPort) $ Set.toList s
+    actnTranslate s = map atrans $ Set.toList s where
+        atrans Flood = OFAction.SendOutPort OFAction.Flood
+        atrans (Forward p) = OFAction.SendOutPort . OFAction.PhysicalPort $ p
 
 deriving instance Typeable OFMatch.Match
 

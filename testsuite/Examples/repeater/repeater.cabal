@@ -1,0 +1,12 @@
+Name:             repeater
+Version:          0.1
+License:          OtherLicense
+Cabal-Version:    >= 1.9.2
+Build-Type:       Simple
+
+
+Executable repeater_controller
+    main-is:            repeater.hs
+    build-depends:      base,
+                        frenetic
+

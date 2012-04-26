@@ -97,7 +97,27 @@ data Pattern = Pattern {
   } deriving (Show, Eq, Typeable)
                     
 {-| Frenetic "actions" -}
-type Actions = Set.Set Port
+type Actions = Set.Set Action
+
+{-| Frenetic "action" -}
+data Action = 
+      Flood
+    | Forward Port
+
+instance Show (Action) where
+  show Flood = "Flood"
+  show (Forward p) = show p
+
+instance Eq (Action) where
+    Flood == Flood = True
+    (Forward p) == (Forward p') = 
+        p == p'
+
+instance Ord (Action) where
+    compare Flood Flood = EQ
+    compare _ Flood = LT
+    compare Flood _ = GT
+    compare (Forward p) (Forward p') = compare p p'
 
 {-| Data that was sent. -}
 data Transmission ptrn pkt = Transmission {

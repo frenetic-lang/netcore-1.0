@@ -1,4 +1,4 @@
-Name:             Frenetic
+Name:             frenetic
 Version:          0.2.0
 License:          OtherLicense
 Cabal-Version:    >= 1.9.2
@@ -17,7 +17,8 @@ Library
     exposed-modules:    Frenetic.Compat,
                         Frenetic.LargeWord,
                         Frenetic.Pattern,
-                        Frenetic.NetCore.API
+                        Frenetic.NetCore.API,
+                        Frenetic.Server
     other-modules:      Frenetic.Util,
                         Frenetic.Switches.OpenFlow,
                         Frenetic.NetCore.Controller,
@@ -28,8 +29,7 @@ Library
     --                  Frenetic.NetStream.FRP,
     --                  Frenetic.NetStream.Compiler,
 
-                        Frenetic.Hosts.Nettle,
-                        Frenetic.Server
+                        Frenetic.Hosts.Nettle
 --                        Frenetic.Playground
 
     hs-source-dirs:     src
@@ -44,7 +44,7 @@ Test-Suite frenetic-compat
                       test-framework,
                       test-framework-th,
                       test-framework-quickcheck2,
-                      Frenetic
+                      frenetic
     hs-source-dirs:   testsuite
 
 Test-Suite frenetic-netcore
@@ -54,7 +54,7 @@ Test-Suite frenetic-netcore
                       QuickCheck >= 2,
                       test-framework,
                       test-framework-quickcheck2,
-                      Frenetic
+                      frenetic
     hs-source-dirs:   testsuite
 
 Test-Suite frenetic-netstream
@@ -64,7 +64,7 @@ Test-Suite frenetic-netstream
                       QuickCheck >= 2,
                       test-framework,
                       test-framework-quickcheck2,
-                      Frenetic
+                      frenetic
     hs-source-dirs:   testsuite
 
 Test-Suite frenetic-hosts
@@ -74,7 +74,7 @@ Test-Suite frenetic-hosts
                       QuickCheck >= 2,
                       test-framework,
                       test-framework-quickcheck2,
-                      Frenetic
+                      frenetic
     hs-source-dirs:   testsuite
 
 Test-Suite frenetic-switches
@@ -84,6 +84,6 @@ Test-Suite frenetic-switches
                       QuickCheck >= 2,
                       test-framework,
                       test-framework-quickcheck2,
-                      Frenetic
+                      frenetic
     hs-source-dirs:   testsuite
 

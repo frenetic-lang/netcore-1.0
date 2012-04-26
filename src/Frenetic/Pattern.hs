@@ -81,6 +81,9 @@ instance (Bits a) => Eq (Wildcard a) where
     (Wildcard x m) == (Wildcard x' m') =
         m == m' && x .|. m == x' .|. m
 
+star :: Bits a => () -> Wildcard a
+star () = Wildcard 0 (complement 0)
+
 instance (Bits a) => Show (Wildcard a) where
     show (Wildcard x m) = [f i | i <- reverse [0 .. n-1]] 
         where

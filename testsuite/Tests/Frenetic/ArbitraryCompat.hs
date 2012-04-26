@@ -156,3 +156,8 @@ instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) wh
     [t {trSwitch = s} | s <- shrink (trSwitch t)] ++
     [t {trPkt = s} | s <- shrink (trPkt t)]
 
+instance Arbitrary (Action) where
+  arbitrary = do
+    port <- arbitrary
+    oneof [ return Flood, return $ Forward port ]
+
