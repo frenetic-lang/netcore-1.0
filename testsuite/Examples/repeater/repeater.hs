@@ -34,11 +34,19 @@ import Frenetic.Server
 import Frenetic.NetCore.API
 import Frenetic.Compat
 import Frenetic.Pattern
+import Data.Set
 
 main = freneticServer policy
 
 policy :: Policy
-policy = PoBasic (PrPattern star_pat) [Flood]
+policy = PoUnion 
+           (PoBasic (PrPattern star_pat{ptrnInPort = (Just 1)})
+                    (singleton $ Forward 2))
+           (PoBasic (PrPattern star_pat{ptrnInPort = (Just 2)})
+                    (singleton $ Forward 1))
+
+flood_policy :: Policy
+flood_policy = PoBasic (PrPattern star_pat) (singleton Flood)
 
 star_pat :: Pattern
 star_pat = Pattern {

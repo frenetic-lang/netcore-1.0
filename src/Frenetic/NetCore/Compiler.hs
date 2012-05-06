@@ -111,8 +111,15 @@ instance (Show ptrn, Show actn) => Show (Classifier ptrn actn) where
   show = List.intercalate "\n" . List.map show . unpack 
 
 {-| A valid environment involves a valid classifier and valid transmission. -}
-class (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
-instance (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
+class (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt where
+    classify :: Switch -> pkt -> Classifier ptrn actn -> Maybe actn
+
+instance (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt where
+    classify switch pkt (Classifier rules) = foldl f Nothing rules where 
+        f (Just a) (ptrn, actn) = Just a
+        f Nothing (ptrn, actn) = if ptrnMatchPkt pkt ptrn
+                                 then Just actn
+                                 else Nothing
 
 {-| Attempt to reduce the number of rules in the classifier. |-}
 minimize :: (ValidClassifier ptrn actn) => Classifier ptrn actn -> Classifier ptrn actn
@@ -214,7 +221,7 @@ compilePolicy s (PoBasic po as) =
   where
     f (True, True) = (as,  as)
     f (False, True ) = (Set.empty, as)
-    f (False, False) = (Set.empty,  Set.empty)
+    f (False, False) = (Set.empty, Set.empty)
 compilePolicy s (PoUnknown) = Skeleton [Bone top top (Set.empty, undefined)] -- FIX we need some symbol for "top". Maybe cosets *were* a good idea?
 compilePolicy s (PoUnion po1 po2) = skel12' `skelAppend` skel1' `skelAppend` skel2' 
     where

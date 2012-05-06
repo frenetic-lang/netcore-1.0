@@ -163,7 +163,7 @@ switchJoin addr proc =
 ofDispatch :: SockAddr -> FSCMessage -> OFProcess -> ControllerOp ()
 ofDispatch addr (xid, scmsg) proc =   
   case scmsg of 
-    SCHello -> 
+    SCHello ->
         switchJoin addr proc
     SCEchoRequest n -> 
         do liftIO $ hPutStrLn stderr "Echo reply"

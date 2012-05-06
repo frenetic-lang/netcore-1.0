@@ -95,7 +95,8 @@ data Pattern = Pattern {
   , ptrnTpDst :: Wildcard Word16
   , ptrnInPort :: Maybe Port
   } deriving (Show, Eq, Typeable)
-                    
+
+                   
 {-| Frenetic "actions" -}
 type Actions = Set.Set Action
 
@@ -154,8 +155,6 @@ class (Show actn, Eq actn) => GAction actn where
     actnDefault :: actn
     actnController :: actn
     actnTranslate :: Actions -> actn
-
-
 
 instance GPacket Packet where 
   toPacket = id

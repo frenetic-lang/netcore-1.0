@@ -8,5 +8,6 @@ Build-Type:       Simple
 Executable repeater_controller
     main-is:            repeater.hs
     build-depends:      base,
+                        containers,
                         frenetic
 
