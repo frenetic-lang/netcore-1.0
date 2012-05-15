@@ -4,7 +4,8 @@
 ################################################################################
 # Licensed to the Frenetic Project by one or more contributors. See the        #
 # NOTICE file distributed with this work for additional information            #
-# regarding copyright and ownership. The Frenetic Project licenses this        # # file to you under the following license.                                     #
+# regarding copyright and ownership. The Frenetic Project licenses this        #
+# file to you under the following license.                                     #
 #                                                                              #
 # Redistribution and use in source and binary forms, with or without           #
 # modification, are permitted provided the following conditions are met:       #

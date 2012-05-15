@@ -67,9 +67,19 @@ instance Arbitrary Predicate where
             -- TODO: PrSwitchPattern,
             return $ PrTo sw ]
 
+  shrink (PrPattern p)         = [PrPattern p' | p' <- shrink p]
+  shrink (PrUnknown)           = []
+  shrink (PrSwitchPattern s d) = []
+  shrink (PrTo s)              = []
+  shrink (PrUnion p1 p2)       = [p1, p2]
+  shrink (PrIntersect p1 p2)   = [p1, p2]
+  shrink (PrDifference p1 p2)  = [p1, p2]
+  shrink (PrNegate p)          = [PrNegate p' | p' <- shrink p]
+
+
 instance Arbitrary Policy where
   -- Bound the size of the policy
-  arbitrary = sized $ \s -> let depth = 30 in
+  arbitrary = sized $ \s -> let depth = 10 in
     if s > depth
       then resize depth arbitrary
       else if s > 0
@@ -92,4 +102,10 @@ instance Arbitrary Policy where
                   -- TODO: NYI: 
                   -- , return PoUnknown 
                   ]
-  
+
+  shrink (PoBasic pr as)        = [PoBasic pr' as | pr' <- shrink pr]
+  shrink (PoUnknown)            = []
+  shrink (PoUnion p1 p2)        = [p1, p2]
+  shrink (PoIntersect p1 p2)    = [p1, p2]
+  shrink (PoDifference p1 p2)   = [p1, p2]
+

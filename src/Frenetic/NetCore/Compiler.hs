@@ -57,7 +57,7 @@ import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Map             as Map
 import           Data.Typeable
-  
+
 
 {-| Input: a function, a context, a value, and a lists. Apply the function to each pair from the list and the context and current value; we may modify the list and current value. The context is the list of items we have already processed. -}
 selfMap :: ([a] -> c -> a -> a -> (c, Maybe a, Maybe a)) -> [a] -> c -> [a] -> [a]
@@ -111,19 +111,39 @@ instance (Show ptrn, Show actn) => Show (Classifier ptrn actn) where
   show = List.intercalate "\n" . List.map show . unpack 
 
 {-| A valid environment involves a valid classifier and valid transmission. -}
-class (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt where
-    classify :: Switch -> pkt -> Classifier ptrn actn -> Maybe actn
+class (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
 
-instance (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt where
-    classify switch pkt (Classifier rules) = foldl f Nothing rules where 
-        f (Just a) (ptrn, actn) = Just a
-        f Nothing (ptrn, actn) = if ptrnMatchPkt pkt ptrn
-                                 then Just actn
-                                 else Nothing
+instance (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
 
-{-| Attempt to reduce the number of rules in the classifier. |-}
-minimize :: (ValidClassifier ptrn actn) => Classifier ptrn actn -> Classifier ptrn actn
-minimize = undefined
+classify :: (ValidTransmission ptrn pkt) => Switch -> pkt -> Classifier ptrn actn -> Maybe actn
+classify switch pkt (Classifier rules) = foldl f Nothing rules where 
+    f (Just a) (ptrn, actn) = Just a
+    f Nothing (ptrn, actn) = if ptrnMatchPkt pkt ptrn
+                             then Just actn
+                             else Nothing
+
+{-| Attempt to reduce the number of rules in the classifier. 
+    
+      1. Remove a rule if it is a subset of a higher-priority rule: O(n^2).
+      2. NYI
+
+|-}
+minimizeShadowing :: (GPattern ptrn) => (a -> ptrn) -> [a] -> [a]
+minimizeShadowing getPat rules = reverse $ f $ reverse rules
+  where f []     = []
+        f (x:xs) = if any (shadows x) xs
+                   then f xs
+                   else x:(f xs)
+        shadows a1 a2 = 
+          let p1 = getPat a1
+              p2 = getPat a2
+          in case intersect p1 p2 of
+            Nothing -> False
+            Just p3 -> match p1 p3
+
+minimizeClassifier :: (ValidClassifier ptrn actn) => Classifier ptrn actn -> Classifier ptrn actn
+minimizeClassifier (Classifier rules) = Classifier $ minimizeShadowing fst rules
+
 
 {-| Remove any rules that 
     (1) have controller actions, 
@@ -180,16 +200,19 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
     h bs x@(Bone ptrn1 iptrn1 actns1) y@(Bone ptrn2 iptrn2 actns2) = 
         case intersect ptrn1 ptrn2 of 
           Just ptrn12 -> 
-            -- FIX. No unsafe!
-            (bs ++ [Bone ptrn12 (unsafeIntersect iptrn1 iptrn2) (f actns1 actns2)],
-             if ptrn12 == ptrn1 then Nothing else Just x,
-             if ptrn12 == ptrn2 then Nothing else Just y)
+            case intersect iptrn1 iptrn2 of
+              Just iptrn12 -> 
+                (bs ++ [Bone ptrn12 iptrn12 (f actns1 actns2)],
+                 if ptrn12 == ptrn1 then Nothing else Just x,
+                 if ptrn12 == ptrn2 then Nothing else Just y)
+              Nothing -> error "skelCart: i-pattern intersection failed."
           Nothing -> 
             (bs, Just x, Just y) 
       
 {-| Attempt to reduce the number of rules in a Skeleton. -}
-skelMinimize :: (ValidClassifier ptrn actn) => Skeleton ptrn actn -> Skeleton ptrn actn
-skelMinimize = id
+skelMinimize :: (GPattern ptrn) => Skeleton ptrn actn -> Skeleton ptrn actn
+skelMinimize (Skeleton bones) = Skeleton $ minimizeShadowing getPat bones
+  where getPat (Bone p1 p2 as) = p2
 
 {-| Compile a predicate to intermediate form. -}                                          
 compilePredicate :: forall ptrn. (GPattern ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
@@ -201,12 +224,12 @@ compilePredicate s (PrSwitchPattern _ dyn) =
 compilePredicate s (PrUnknown) = Skeleton [Bone top top (False, True)]
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top (True, True)]
                              | otherwise = Skeleton []
-compilePredicate s (PrIntersect pr1 pr2) = skel12'
+compilePredicate s (PrIntersect pr1 pr2) = skelMinimize skel12'
     where
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
       (skel12', skel1', skel2') = skelCart (skelLiftActn ( &&)) skel1 skel2
-compilePredicate s (PrUnion pr1 pr2) = skel12' `skelAppend` skel1' `skelAppend` skel2'
+compilePredicate s (PrUnion pr1 pr2) = skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2'
     where
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
@@ -223,12 +246,12 @@ compilePolicy s (PoBasic po as) =
     f (False, True ) = (Set.empty, as)
     f (False, False) = (Set.empty, Set.empty)
 compilePolicy s (PoUnknown) = Skeleton [Bone top top (Set.empty, undefined)] -- FIX we need some symbol for "top". Maybe cosets *were* a good idea?
-compilePolicy s (PoUnion po1 po2) = skel12' `skelAppend` skel1' `skelAppend` skel2' 
+compilePolicy s (PoUnion po1 po2) = skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2' 
     where
       skel1 = compilePolicy s po1
       skel2 = compilePolicy s po2
       (skel12', skel1', skel2') = skelCart (skelLiftActn Set.union) skel1 skel2
-compilePolicy s (PoIntersect po1 po2) = skel12'
+compilePolicy s (PoIntersect po1 po2) = skelMinimize skel12'
     where
       skel1 = compilePolicy s po1
       skel2 = compilePolicy s po2

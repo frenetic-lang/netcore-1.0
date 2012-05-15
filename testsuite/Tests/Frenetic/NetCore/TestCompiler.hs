@@ -41,6 +41,8 @@ import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
 import Test.QuickCheck.Property (Property, morallyDubiousIOProperty)
 import Test.QuickCheck.Text
+import Test.HUnit
+import Test.Framework.Providers.HUnit
 
 import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
@@ -51,83 +53,233 @@ import Tests.Frenetic.NetCore.ArbitraryAPI
 
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
+import Tests.Frenetic.Switches.ArbitraryOpenFlow
 
 import qualified Nettle.OpenFlow.Action as OFAction
+import qualified Nettle.OpenFlow.Match as OFMatch
 
--- main = $(defaultMainGenerator)
+import System.IO
 
--- prop_semanticEquivalence :: Switch -> Policy -> Packet -> Bool
--- prop_semanticEquivalence sw po pk = case (polActs,classActs) of
---   ((s1, s2), Just [])
---     | s1 == Set.empty && s2 == Set.empty    -> True
---   ((s1, s2), Just as)
---     | as == actnController                  -> True -- TODO
---     | as /= actnController && s1 /= s2      -> False
---     | otherwise                             -> as == actnTranslate s1
---   _                                         -> False
---   where polActs = interpretPolicy po $ Transmission {trPattern=pTop, trSwitch=sw, trPkt=pk}
---         classifier :: Classifier Pattern OFAction.ActionSequence
---         classifier = compile sw po
---         classActs :: Maybe OFAction.ActionSequence
---         classActs = classify sw pk classifier
+main = $(defaultMainGenerator)
 
-main = defaultMain tests
+-- Invariant: given an arbitrary classifier c, minimze c yields an
+--            equivalent classifier.
+-- Test with OpenFlow patterns and actions.
+prop_semantic_Equivalence_minimize :: Switch -> Packet -> Classifier Pattern OFAction.ActionSequence -> Bool
+prop_semantic_Equivalence_minimize sw pk classifier = res == minimizedRes
+  where
+    res = classify sw pk classifier
+    minimizedRes = classify sw pk minimizedClassifier
+    minimizedClassifier = minimizeClassifier classifier
 
-tests = [
-          testGroup "NetCore Compiler" [
-            testProperty "semantic equivalence" prop_semanticEquivalenceIO
-          ]
-        ]
 
-prop_semanticEquivalenceIO :: Switch -> Policy -> Packet -> Property
-prop_semanticEquivalenceIO sw po pk = morallyDubiousIOProperty $ semanticEquivalenceIO sw po pk
-
-semanticEquivalenceIO :: Switch -> Policy -> Packet -> IO Bool
-semanticEquivalenceIO sw po pk = case (polActs,classActs) of
+-- Invariant: a policy and the classifier resulting from its compilation
+--            should yield an equivalent action for all switches and
+--            packets, modulo reactive specialization.
+prop_semanticEquivalence_compile_pattern :: Switch -> Policy -> Packet -> Bool
+prop_semanticEquivalence_compile_pattern sw po pk = case (polActs,classActs) of
   ((s1, s2), Nothing)
-    | s1 == Set.empty && s2 == Set.empty    -> return True
+    | s1 == Set.empty && s2 == Set.empty    -> True
   ((s1, s2), Just [])
-    | s1 == Set.empty && s2 == Set.empty    -> return True
+    | s1 == Set.empty && s2 == Set.empty    -> True
   ((s1, s2), Just as)
-    | as == actnController                  -> return True -- TODO
-    | as /= actnController && s1 /= s2      -> do
-        term <- newStdioTerminal
-        putLine term ("fail (1): " ++ show s1 ++ " /= " ++ show s2)
-        return False
+    | as == actnController                  -> True -- TODO
+    | as /= actnController && s1 /= s2      -> False
     | otherwise                             -> 
         let rv = as == actnTranslate s1 in
           if rv
-            then return True
-          else do
-            term <- newStdioTerminal
-            putLine term ("fail (2): " ++ show s1 ++ " /= " ++ show as)
-            putLine term ("classifier: " ++ ruleStrings)
-            return False
-  _                                         -> 
-      do
-        term <- newStdioTerminal
-        putLine term "other fail"
-        return False
-  where polActs = interpretPolicy po $ Transmission {trPattern=pTop, trSwitch=sw, trPkt=pk}
+            then True
+          else False
+  _                                         -> False
+  where topP :: Pattern
+        topP = top
+        polActs = interpretPolicy po $ Transmission {trPattern=topP, trSwitch=sw, trPkt=pk}
         classifier :: Classifier Pattern OFAction.ActionSequence
         classifier = compile sw po
-        ruleStrings = show classifier
         classActs :: Maybe OFAction.ActionSequence
         classActs = classify sw pk classifier
 
-{- Pattern that matches anything. -}
-pTop :: Pattern
-pTop = Pattern {
-  ptrnDlSrc=star ()
-  , ptrnDlDst=star ()
-  , ptrnDlTyp=star ()
-  , ptrnDlVlan=star ()
-  , ptrnDlVlanPcp=star ()
-  , ptrnNwSrc=star ()
-  , ptrnNwDst=star ()
-  , ptrnNwProto=star ()
-  , ptrnNwTos=star ()
-  , ptrnTpSrc=star ()
-  , ptrnTpDst=star ()
-  , ptrnInPort=Nothing }
+-- Invariant: a policy and the classifier resulting from its compilation
+--            should yield an equivalent action for all switches and
+--            packets, modulo reactive specialization.
+prop_semanticEquivalence_compile_OFpattern :: Switch -> Policy -> Packet -> Bool
+prop_semanticEquivalence_compile_OFpattern sw po pk = case (polActs,classActs) of
+  ((s1, s2), Nothing)
+    | s1 == Set.empty && s2 == Set.empty    -> True
+  ((s1, s2), Just [])
+    | s1 == Set.empty && s2 == Set.empty    -> True
+  ((s1, s2), Just as)
+    | as == actnController                  -> True -- TODO
+    | as /= actnController && s1 /= s2      -> False
+    | otherwise                             -> 
+        let rv = as == actnTranslate s1 in
+          if rv
+            then True
+          else False
+  _                                         -> False
+  where topP :: Pattern
+        topP = top
+        polActs = interpretPolicy po $ Transmission {trPattern=topP, trSwitch=sw, trPkt=pk}
+        classifier :: Classifier OFMatch.Match OFAction.ActionSequence
+        classifier = compile sw po
+        classActs :: Maybe OFAction.ActionSequence
+        classActs = classify sw pk classifier
+
+
+case_quiescence_bug_1 = do
+  assertEqual "policy -> flood" polActs (Set.singleton Flood, Set.singleton Flood)
+  assertEqual "classifier -> flood" (Just [OFAction.SendOutPort OFAction.Flood]) classActs
+  where
+    topP :: Pattern
+    topP = top
+    polActs = interpretPolicy policy $ Transmission {trPattern=topP, trSwitch=0, trPkt=packet}
+    classifier :: Classifier OFMatch.Match OFAction.ActionSequence
+    classifier = compile 0 policy
+    classActs :: Maybe OFAction.ActionSequence
+    classActs = classify 0 packet classifier
+    policy = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) $ Set.singleton Flood
+    packet = Packet {
+        pktDlSrc = 0
+      , pktDlDst = 0
+      , pktDlTyp = 0
+      , pktDlVlan = 0
+      , pktDlVlanPcp = 0
+      , pktNwSrc = 0x5000001
+      , pktNwDst = 0
+      , pktNwProto = 0
+      , pktNwTos = 0
+      , pktTpSrc = 0
+      , pktTpDst = 0
+      , pktInPort = 0
+      }
  
+case_quiescence_bug_2 = do
+  assertEqual "policy -> flood" polActs (Set.singleton Flood, Set.singleton Flood)
+  assertEqual "classifier -> flood" (Just [OFAction.SendOutPort OFAction.Flood]) classActs
+  where
+    topP :: Pattern
+    topP = top
+    polActs = interpretPolicy policy $ Transmission {trPattern=topP, trSwitch=0, trPkt=packet}
+    classifier :: Classifier OFMatch.Match OFAction.ActionSequence
+    classifier = compile 0 policy
+    classActs :: Maybe OFAction.ActionSequence
+    classActs = classify 0 packet classifier
+    policy = PoUnion p1 p2
+    p1 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) $ Set.singleton Flood
+    p2 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000002 0}) $ Set.singleton Flood
+    packet = Packet {
+        pktDlSrc = 0
+      , pktDlDst = 0
+      , pktDlTyp = 0
+      , pktDlVlan = 0
+      , pktDlVlanPcp = 0
+      , pktNwSrc = 0x5000001
+      , pktNwDst = 0
+      , pktNwProto = 0
+      , pktNwTos = 0
+      , pktTpSrc = 0
+      , pktTpDst = 0
+      , pktInPort = 0
+      }
+    
+case_quiescence_bug_3 = do
+  assertEqual "policy -> flood" polActs (Set.singleton Flood, Set.singleton Flood)
+  assertEqual "classifier -> flood" (Just [OFAction.SendOutPort OFAction.Flood]) classActs
+  where
+    topP :: Pattern
+    topP = top
+    polActs = interpretPolicy policy $ Transmission {trPattern=topP, trSwitch=0, trPkt=packet}
+    classifier :: Classifier Pattern OFAction.ActionSequence
+    classifier = compile 0 policy
+    classActs :: Maybe OFAction.ActionSequence
+    classActs = classify 0 packet classifier
+    policy = PoUnion p1 p2
+    p1 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) $ Set.singleton Flood
+    p2 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000002 0}) $ Set.singleton Flood
+    packet = Packet {
+        pktDlSrc = 0
+      , pktDlDst = 0
+      , pktDlTyp = 0
+      , pktDlVlan = 0
+      , pktDlVlanPcp = 0
+      , pktNwSrc = 0x5000001
+      , pktNwDst = 0
+      , pktNwProto = 0
+      , pktNwTos = 0
+      , pktTpSrc = 0
+      , pktTpDst = 0
+      , pktInPort = 0
+      }
+
+case_quiescence_bug_4 = do
+  assertEqual "policy -> flood" polActs (Set.fromList [Forward 2, Flood], Set.fromList [Forward 2, Flood])
+  assertEqual "classifier -> flood" (Just [OFAction.SendOutPort $ OFAction.PhysicalPort 2, OFAction.SendOutPort OFAction.Flood]) classActs
+  where
+    topP :: Pattern
+    topP = top
+    polActs = interpretPolicy policy $ Transmission {trPattern=topP, trSwitch=0, trPkt=packet}
+    classifier :: Classifier OFMatch.Match OFAction.ActionSequence
+    classifier = compile 0 policy
+    classActs :: Maybe OFAction.ActionSequence
+    classActs = classify 0 packet classifier
+    policy = PoBasic (PrUnion (PrPattern pattern) (PrTo switch)) $ Set.fromList [Forward 2, Flood]
+    switch = 0
+    pattern = Pattern {
+        ptrnDlSrc = Wildcard 0 0
+      , ptrnDlDst = Wildcard 0 0
+      , ptrnDlTyp = Wildcard 0 0
+      , ptrnDlVlan = Wildcard 0 0
+      , ptrnDlVlanPcp = Wildcard 0 0
+      , ptrnNwSrc = Wildcard 0 0
+      , ptrnNwDst = Wildcard 0 0
+      , ptrnNwProto = Wildcard 0 0
+      , ptrnNwTos = Wildcard 0 0
+      , ptrnTpSrc = Wildcard 0 0
+      , ptrnTpDst = Wildcard 0 0
+      , ptrnInPort = Nothing
+      }
+    packet = Packet {
+        pktDlSrc = 0
+      , pktDlDst = 0
+      , pktDlTyp = 0
+      , pktDlVlan = 0
+      , pktDlVlanPcp = 0
+      , pktNwSrc = 0
+      , pktNwDst = 0
+      , pktNwProto = 0
+      , pktNwTos = 0
+      , pktTpSrc = 0
+      , pktTpDst = 0
+      , pktInPort = 0
+      }
+
+case_quiescence_bug_5 = do
+  hPutStrLn stderr ("bug_5: policy: " ++ show policy)
+  hPutStrLn stderr ("bug_5: classifier: " ++ show classifier)
+  assertEqual "policy -> flood" polActs (Set.fromList [Forward 1], Set.fromList [Forward 1])
+  assertEqual "classifier -> flood" (Just [OFAction.SendOutPort $ OFAction.PhysicalPort 1]) classActs
+  where
+    topP :: Pattern
+    topP = top
+    polActs = interpretPolicy policy $ Transmission {trPattern=topP, trSwitch=0, trPkt=packet}
+    classifier :: Classifier OFMatch.Match OFAction.ActionSequence
+    classifier = compile switch policy
+    classActs :: Maybe OFAction.ActionSequence
+    classActs = classify switch packet classifier
+    policy = PoBasic (PrTo switch) $ Set.fromList [Forward 1]
+    switch = 0
+    packet = Packet {
+        pktDlSrc = 1
+      , pktDlDst = 1
+      , pktDlTyp = 1
+      , pktDlVlan = 1
+      , pktDlVlanPcp = 1
+      , pktNwSrc = 1
+      , pktNwDst = 0
+      , pktNwProto = 1
+      , pktNwTos = 1
+      , pktTpSrc = 1
+      , pktTpDst = 1
+      , pktInPort = 1
+      }
+

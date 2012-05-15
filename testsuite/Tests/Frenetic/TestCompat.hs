@@ -34,24 +34,44 @@
  #-}
 
 import Data.Word
+import Data.Bits
 import Test.Framework
 import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
 
+import Control.Newtype.TH
+import Control.Newtype
+
 import Frenetic.Compat
+import Frenetic.Pattern
 import Tests.Frenetic.ArbitraryCompat
+import Tests.Frenetic.ArbitraryPattern
+import Frenetic.LargeWord
 
 main = $(defaultMainGenerator)
 
-prop_reflWord48 :: Word48 -> Bool
-prop_reflWord48 i = i == i
+prop_ExactishWildcard_is_exactish :: ExactishWildcard Word8 -> Bool
+prop_ExactishWildcard_is_exactish w_in = let w@(Wildcard x m) = unW w_in in
+    w == top || m == (complement 0)
 
-prop_reflPacket :: Packet -> Bool
-prop_reflPacket i = i == i
-
-prop_reflPattern :: Pattern -> Bool
-prop_reflPattern i = i == i
-
-prop_reflActions :: Actions -> Bool
-prop_reflActions i = i == i
+prop_ExactishPattern_is_exactish :: ExactishPattern -> Bool
+prop_ExactishPattern_is_exactish p_in = 
+  let p = unpack p_in
+      fields = [
+          f $ ptrnDlSrc p
+        , f $ ptrnDlDst p
+        , f $ ptrnDlTyp p
+        , f $ ptrnDlVlan p
+        , f $ ptrnDlVlanPcp p
+        , f $ ptrnNwSrc p
+        , f $ ptrnNwDst p
+        , f $ ptrnNwProto p
+        , f $ ptrnNwTos p
+        , f $ ptrnTpSrc p
+        , f $ ptrnTpDst p
+        ]
+  in foldl (&&) True fields
+    where
+      f :: (Eq a, Bits a, Num a) => Wildcard a -> Bool
+      f w@(Wildcard x m) = (w == top || m == (complement 0))
 

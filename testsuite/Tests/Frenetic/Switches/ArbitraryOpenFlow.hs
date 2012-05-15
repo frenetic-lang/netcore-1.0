@@ -24,42 +24,92 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /testsuite/Frenetic/ArbitraryPattern                                       --
+-- /testsuite/Frenetic/ArbitraryAPI                                           --
 --                                                                            --
 -- $Id$ --
 --------------------------------------------------------------------------------
 
 {-# LANGUAGE
-    TypeSynonymInstances,
-    TemplateHaskell,
-    MultiParamTypeClasses
+    TypeSynonymInstances
  #-}
 
-module Tests.Frenetic.ArbitraryPattern where
-import Data.Bits
-import Frenetic.Pattern
+module Tests.Frenetic.Switches.ArbitraryOpenFlow where
 import Test.QuickCheck
-import Control.Newtype.TH
-import Control.Newtype
+import Nettle.OpenFlow.Match
+import Nettle.Ethernet.EthernetAddress
+import Nettle.IPv4.IPAddress
+import Nettle.OpenFlow.Action
+import Frenetic.NetCore.Compiler
 
-instance (Arbitrary a) => Arbitrary (Wildcard a) where
+instance Arbitrary Match where
   arbitrary = do
-    x <- arbitrary
-    m <- arbitrary
-    return $ Wildcard x m
+    inPort_v <- arbitrary
+    srcEthAddress_v <- arbitrary
+    dstEthAddress_v <- arbitrary
+    vLANID_v <- arbitrary
+    vLANPriority_v <- arbitrary
+    ethFrameType_v <- arbitrary
+    ipTypeOfService_v <- arbitrary
+    ipProtocol_v <- arbitrary
+    srcIPAddress_v <- srcIP
+    dstIPAddress_v <- dstIP
+    srcTransportPort_v <- arbitrary
+    dstTransportPort_v <- arbitrary
+    return $ Match {
+        inPort = inPort_v
+      , srcEthAddress = srcEthAddress_v
+      , dstEthAddress = dstEthAddress_v
+      , vLANID = vLANID_v
+      , vLANPriority = vLANPriority_v
+      , ethFrameType = ethFrameType_v
+      , ipTypeOfService = ipTypeOfService_v
+      , ipProtocol = ipProtocol_v
+      , srcIPAddress = srcIPAddress_v
+      , dstIPAddress = dstIPAddress_v
+      , srcTransportPort = srcTransportPort_v
+      , dstTransportPort = dstTransportPort_v
+      }
+      where srcIP = suchThat arbitrary f
+            dstIP = suchThat arbitrary f
+            f (addr, prefixLength) = prefixLength <= 32
 
-  shrink (Wildcard x m) = 
-    [Wildcard x' m | x' <- shrink x] ++
-    [Wildcard x m' | m' <- shrink m]
-
-newtype ExactishWildcard a = ExactishWildcard { unW :: Wildcard a }
-    deriving (Show, Eq)
-
-instance (Arbitrary a, Num a, Bits a) => Arbitrary (ExactishWildcard a) where
+instance Arbitrary EthernetAddress where
   arbitrary = do
-    let m = complement 0
-    x <- arbitrary
-    oneof [ return $ ExactishWildcard $ Wildcard x m
-          , return $ ExactishWildcard top
+    w1 <- arbitrary
+    w2 <- arbitrary
+    w3 <- arbitrary
+    w4 <- arbitrary
+    w5 <- arbitrary
+    w6 <- arbitrary
+    return $ EthernetAddress w1 w2 w3 w4 w5 w6
+
+instance Arbitrary IPAddress where
+  arbitrary = do
+    addr <- arbitrary
+    return $ IPAddress addr
+
+instance Arbitrary Action where
+-- TODO: generate modification actions
+  arbitrary = do
+    p <- arbitrary
+    return $ SendOutPort p
+
+instance Arbitrary PseudoPort where
+  arbitrary = do 
+    let maxLenToSendController = 65535
+    p <- arbitrary
+    oneof [ return $ PhysicalPort p
+          , return Flood
+-- TODO: add other kinds of forwarding
+--           , return InPort
+--           , return AllPhysicalPorts
+--           , return $ ToController maxLenToSendController
+--           , return NormalSwitching
+--           , return WithTable
           ]
+
+instance (Arbitrary ptrn, Arbitrary actn) => Arbitrary (Classifier ptrn actn) where
+  arbitrary = do 
+    l <- listOf arbitrary
+    return $ Classifier l
 

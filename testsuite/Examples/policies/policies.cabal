@@ -1,15 +1,16 @@
-Name:             repeater
+Name:             policies
 Version:          0.1
 License:          OtherLicense
 Cabal-Version:    >= 1.9.2
 Build-Type:       Simple
 
 
-Executable repeater_controller
-    main-is:            repeater.hs
+Library
     build-depends:      base,
                         containers,
+                        fgl,
                         frenetic,
-                        topologies,
-                        policies
+                        topologies
+    exposed-modules:    Policies.ShortestPath
+    hs-source-dirs:     .
 

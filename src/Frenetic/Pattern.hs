@@ -48,28 +48,19 @@ A class for types that compose similar to wildcards.
 All instances must satisfy the following:
 
 * @match@ defines a partial order; @top@ is the top element of this order
-  and @unsafeIntersect@ is a meet.
+  and @intersect@ is a meet.
 
 * Meets are exact: if @match x y@ and @match x z@, then
-  @match x (unsafeIntersect y z)@.
+  @match x (fromJust (intersect y z))@, if such a meet exists.
 
-* If there exists an @x@ such that @match x y@ and @match x z@, then
-  @intersect y z = Just (unsafeIntersect y z)@
-
-Minimal complete definition: top and one of the following: (1) intersect or
-(2) unsafeIntersect and overlap.
+Minimal complete definition: top and intersect.
 -}
 class (Eq a) => Matchable a where
     top :: a
     intersect :: a -> a -> Maybe a
-    unsafeIntersect :: a -> a -> a
     match :: a -> a -> Bool
     overlap :: a -> a -> Bool
     disjoint :: a -> a -> Bool
-
-    intersect x y | overlap x y = Just $ unsafeIntersect x y
-                  | otherwise = Nothing
-    unsafeIntersect x y = fromJust $ intersect x y
     match x y = intersect x y == Just x
     overlap x y = isJust $ intersect x y
     disjoint x y = isNothing $ intersect x y
@@ -81,12 +72,15 @@ instance (Bits a) => Eq (Wildcard a) where
     (Wildcard x m) == (Wildcard x' m') =
         m == m' && x .|. m == x' .|. m
 
-star :: Bits a => () -> Wildcard a
-star () = Wildcard 0 (complement 0)
-
 instance (Bits a) => Show (Wildcard a) where
-    show (Wildcard x m) = [f i | i <- reverse [0 .. n-1]] 
+    show (Wildcard x m) | m == (complement 0) = "*"
+                        | otherwise = if any (\c -> c == '?') s
+                                      then s
+                                      else let sNum :: Int
+                                               sNum = read s
+                                           in show sNum
         where
+          s = [f i | i <- reverse [0 .. n-1]] 
           n = bitSize x
 
           f i | testBit m i = '?'
@@ -101,11 +95,14 @@ instance (Eq a) => Matchable (Maybe a) where
   intersect m1 m2 | m1 == m2 = Just m1
                   | otherwise = Nothing
 
+intersectWildcard :: (Bits a) => Wildcard a -> Wildcard a -> Wildcard a
+intersectWildcard (Wildcard x m) (Wildcard x' m') =
+    Wildcard ((x .|. m) .&. (x' .|. m')) (m .&. m')
+
 instance (Bits a) => Matchable (Wildcard a) where
     top = Wildcard 0 (complement 0)
 
-    unsafeIntersect (Wildcard x m) (Wildcard x' m') =
-        Wildcard ((x .|. m) .&. (x' .|. m')) (m .&. m')
+    intersect a b = Just $ intersectWildcard a b
 
     overlap (Wildcard x m) (Wildcard x' m') = x .|. m'' == x' .|. m''
         where
@@ -123,7 +120,7 @@ wBitsMake :: (Bits a) => a -> Wildcard a
 wBitsMake b = Wildcard b 0 
                     
 wMake :: forall a. (Bits a) => String -> Wildcard a
-wMake s = foldl' unsafeIntersect top mds
+wMake s = foldl' intersectWildcard top mds
     where
       n = bitSize (undefined :: a)
 

@@ -36,31 +36,23 @@ import Frenetic.Compat
 import Frenetic.Pattern
 import Data.Set
 
+import Topologies
+import qualified Topologies.Repeater as T
+import qualified Policies.ShortestPath as SP
+
 main = freneticServer policy
 
 policy :: Policy
-policy = PoUnion 
-           (PoBasic (PrPattern star_pat{ptrnInPort = (Just 1)})
+policy = SP.mkPolicy topo
+topo :: T.Topology
+topo = mkTopo 2 1
+
+policy2 = PoUnion 
+           (PoBasic (PrPattern top{ptrnInPort = (Just 1)})
                     (singleton $ Forward 2))
-           (PoBasic (PrPattern star_pat{ptrnInPort = (Just 2)})
+           (PoBasic (PrPattern top{ptrnInPort = (Just 2)})
                     (singleton $ Forward 1))
 
 flood_policy :: Policy
-flood_policy = PoBasic (PrPattern star_pat) (singleton Flood)
-
-star_pat :: Pattern
-star_pat = Pattern {
-  ptrnDlSrc = star ()
-  , ptrnDlDst = star ()
-  , ptrnDlTyp = star ()
-  , ptrnDlVlan = star ()
-  , ptrnDlVlanPcp = star ()
-  , ptrnNwSrc = star ()
-  , ptrnNwDst = star ()
-  , ptrnNwProto = star ()
-  , ptrnNwTos = star ()
-  , ptrnTpSrc = star ()
-  , ptrnTpDst = star ()
-  , ptrnInPort = Nothing
-  }
+flood_policy = PoBasic (PrPattern top) (singleton Flood)
 
