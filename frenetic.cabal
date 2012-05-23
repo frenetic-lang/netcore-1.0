@@ -1,4 +1,4 @@
-Name:             Frenetic
+Name:             frenetic
 Version:          0.2.0
 License:          OtherLicense
 Cabal-Version:    >= 1.9.2
@@ -17,7 +17,8 @@ Library
     exposed-modules:    Frenetic.Compat,
                         Frenetic.LargeWord,
                         Frenetic.Pattern,
-                        Frenetic.NetCore.API
+                        Frenetic.NetCore.API,
+                        Frenetic.Server
     other-modules:      Frenetic.Util,
                         Frenetic.Switches.OpenFlow,
                         Frenetic.NetCore.Controller,
@@ -28,62 +29,96 @@ Library
     --                  Frenetic.NetStream.FRP,
     --                  Frenetic.NetStream.Compiler,
 
-                        Frenetic.Hosts.Nettle,
-                        Frenetic.Server
+                        Frenetic.Hosts.Nettle
 --                        Frenetic.Playground
 
     hs-source-dirs:     src
-
+    
 
 Test-Suite frenetic-compat
     type:             exitcode-stdio-1.0
     main-is:          Tests/Frenetic/TestCompat.hs
     build-depends:    base, 
                       containers,
+                      newtype,
+                      newtype-th,
+                      HList,
                       QuickCheck >= 2,
                       test-framework,
                       test-framework-th,
                       test-framework-quickcheck2,
-                      Frenetic
+                      frenetic
     hs-source-dirs:   testsuite
+-- 
+-- Test-Suite frenetic-netcore
+--     type:             exitcode-stdio-1.0
+--     main-is:          Tests/Frenetic/NetCore/TestNetCore.hs
+--     build-depends:    base, 
+--                       QuickCheck >= 2,
+--                       test-framework,
+--                       test-framework-quickcheck2,
+--                       frenetic
+--     hs-source-dirs:   testsuite
 
-Test-Suite frenetic-netcore
+Test-Suite frenetic-netcore-compiler
     type:             exitcode-stdio-1.0
-    main-is:          Tests/Frenetic/NetCore/TestNetCore.hs
+    main-is:          Tests/Frenetic/NetCore/TestCompiler.hs
     build-depends:    base, 
+                      containers,
+                      HList,
+                      newtype,
+                      newtype-th,
+                      Animas,
+                      nettle-openflow == 0.1,
+                      mtl,
                       QuickCheck >= 2,
+                      HUnit,
                       test-framework,
+                      test-framework-th,
+                      test-framework-hunit,
                       test-framework-quickcheck2,
-                      Frenetic
-    hs-source-dirs:   testsuite
-
-Test-Suite frenetic-netstream
-    type:             exitcode-stdio-1.0
-    main-is:          Tests/Frenetic/NetStream/TestNetStream.hs
-    build-depends:    base, 
-                      QuickCheck >= 2,
-                      test-framework,
-                      test-framework-quickcheck2,
-                      Frenetic
-    hs-source-dirs:   testsuite
-
-Test-Suite frenetic-hosts
-    type:             exitcode-stdio-1.0
-    main-is:          Tests/Frenetic/Hosts/TestHosts.hs
-    build-depends:    base, 
-                      QuickCheck >= 2,
-                      test-framework,
-                      test-framework-quickcheck2,
-                      Frenetic
-    hs-source-dirs:   testsuite
+                      frenetic
+    other-modules:    Frenetic.NetCore.Compiler
+    hs-source-dirs:   testsuite,
+                      src
 
 Test-Suite frenetic-switches
     type:             exitcode-stdio-1.0
     main-is:          Tests/Frenetic/Switches/TestSwitches.hs
     build-depends:    base, 
+                      HUnit,
                       QuickCheck >= 2,
                       test-framework,
+                      test-framework-th,
                       test-framework-quickcheck2,
-                      Frenetic
-    hs-source-dirs:   testsuite
+                      test-framework-hunit,
+                      containers,
+                      HList,
+                      newtype,
+                      newtype-th,
+                      Animas,
+                      nettle-openflow == 0.1,
+                      frenetic
+    hs-source-dirs:   testsuite,
+                      src
 
+-- Test-Suite frenetic-netstream
+--     type:             exitcode-stdio-1.0
+--     main-is:          Tests/Frenetic/NetStream/TestNetStream.hs
+--     build-depends:    base, 
+--                       QuickCheck >= 2,
+--                       test-framework,
+--                       test-framework-quickcheck2,
+--                       frenetic
+--     hs-source-dirs:   testsuite
+-- 
+-- Test-Suite frenetic-hosts
+--     type:             exitcode-stdio-1.0
+--     main-is:          Tests/Frenetic/Hosts/TestHosts.hs
+--     build-depends:    base, 
+--                       QuickCheck >= 2,
+--                       test-framework,
+--                       test-framework-quickcheck2,
+--                       frenetic
+--     hs-source-dirs:   testsuite
+-- 

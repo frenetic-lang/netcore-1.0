@@ -75,12 +75,18 @@ word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
 {-| Convert a pattern Prefix to an IPAddressPrefix. -}
 prefixToIPAddressPrefix :: Prefix Word32 -> IPAddress.IPAddressPrefix
 prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
-    (IPAddress.IPAddress x, fromIntegral $ length $ filter (testBit m) [0 .. 31])
+    (IPAddress.IPAddress x, prefLen)
+    where
+      prefLen = wordLen - measuredLen
+      wordLen = 32
+      measuredLen = fromIntegral $ length $ filter (testBit m) [0 .. 31]
 
 {-| Convert an IPAddressPrefix to a pattern Prefix. -}
 ipAddressPrefixToPrefix :: IPAddress.IPAddressPrefix -> Prefix Word32
 ipAddressPrefixToPrefix (IPAddress.IPAddress x, len) = 
-  Prefix (Wildcard x (foldl setBit 0 [0 .. fromIntegral len - 1]))
+  Prefix (Wildcard x (foldl setBit 0 [0 .. tailLen - 1]))
+  where tailLen = wordLen - (fromIntegral len)
+        wordLen = 32
 
 instance Matchable IPAddress.IPAddressPrefix where
   top = IPAddress.defaultIPPrefix
@@ -89,7 +95,9 @@ instance Matchable IPAddress.IPAddressPrefix where
 instance GAction OFAction.ActionSequence where
     actnController = OFAction.sendToController 0
     actnDefault = OFAction.sendToController 0
-    actnTranslate s = map (OFAction.SendOutPort . OFAction.PhysicalPort) $ Set.toList s
+    actnTranslate s = map atrans $ Set.toList s where
+        atrans Flood = OFAction.SendOutPort OFAction.Flood
+        atrans (Forward p) = OFAction.SendOutPort . OFAction.PhysicalPort $ p
 
 deriving instance Typeable OFMatch.Match
 
@@ -267,4 +275,12 @@ instance GPacket PacketInfo where
   updatePacket = undefined
 
 instance ValidTransmission OFMatch.Match PacketInfo where
-    ptrnMatchPkt = undefined
+    ptrnMatchPkt pkt ptrn = OFMatch.matches (receivedOnPort pkt, ethFrame) ptrn
+      where
+        ethFrame = case runGetE getEthernetFrame (packetData pkt) of
+          Left err -> error err
+          Right eth -> eth
+
+instance ValidTransmission OFMatch.Match Packet where
+    ptrnMatchPkt pkt ptrn = ptrnMatchPkt pkt $ toPattern ptrn
+

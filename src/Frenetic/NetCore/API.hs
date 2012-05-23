@@ -92,40 +92,62 @@ instance Show Policy where
   show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
 
 
--- {-| Implements the denotation function for predicates. -}
--- interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
---                       Predicate
---                    -> Transmission ptrn pkt
---                    -> (Bool, Bool)
--- interpretPredicate (PrPattern ptrn) tr = toPacket (trPkt tr) `ptrnMatchPkt` ptrn
--- interpretPredicate (PrSwitchPattern _ dyn) tr =
---     case fromDynamic dyn :: Maybe ptrn of
---       Just ptrn -> let k = ptrnMatchPkt (trPkt tr) ptrn in (k, k)
---       Nothing -> (False, False)
--- interpretPredicate (PrUnknown) = (False, True) 
--- interpretPredicate (PrUnion pr1 pr2) t = 
---   interpretPredicate pr1 t || interpretPredicate pr2 t
--- interpretPredicate (PrIntersect pr1 pr2) t = 
---   interpretPredicate pr1 t && interpretPredicate pr2 t
--- interpretPredicate (PrDifference pr1 pr2) t = 
---   interpretPredicate pr1 t && not (interpretPredicate pr2 t)
--- interpretPredicate (PrNegate pr) t = not (interpretPredicate pr t)
+{-| Implements the denotation function for predicates. -}
+interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
+                      Predicate
+                   -> Transmission ptrn pkt
+                   -> (Bool, Bool)
+interpretPredicate (PrPattern ptrn) tr = 
+    let rv = toPacket (trPkt tr) `ptrnMatchPkt` ptrn in 
+      (rv, rv)
+interpretPredicate (PrSwitchPattern _ dyn) tr =
+    case fromDynamic dyn :: Maybe ptrn of
+      Just ptrn -> let k = ptrnMatchPkt (trPkt tr) ptrn in (k, k)
+      Nothing -> (False, False)
+interpretPredicate (PrUnknown) tr = (False, True) 
+interpretPredicate (PrTo sw) tr = 
+    let rv = sw == trSwitch tr in
+      (rv, rv)
+interpretPredicate (PrUnion pr1 pr2) t = 
+    let (b1, b1') = interpretPredicate pr1 t in
+    let (b2, b2') = interpretPredicate pr2 t in
+      (b1 || b2, b1' || b2)
+interpretPredicate (PrIntersect pr1 pr2) t = 
+    let (b1, b1') = interpretPredicate pr1 t in
+    let (b2, b2') = interpretPredicate pr2 t in
+      (b1 && b2, b1' && b2)
+interpretPredicate (PrDifference pr1 pr2) t = 
+    let (b1, b1') = interpretPredicate pr1 t in
+    let (b2, b2') = interpretPredicate pr2 t in
+      (b1 && not b2, b1' && not b2)
+interpretPredicate (PrNegate pr) t =
+    let (b1, b1') = interpretPredicate pr t in
+      (not b1, not b1')
+interpretPredicate p t = (False, False)
 
 -- {-| Implements the denotation function for actions. -}
 -- interpretActions :: (GPacket pkt) => pkt -> Actions -> Set.Set pkt
 -- interpretActions pkt actn = Set.fromList [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) 
 --                                          | prt' <- Set.toList actn] 
 
--- {-| Implements the denotation function for policies. -}
--- interpretPolicy :: (ValidTransmission ptrn pkt) =>
---                    Policy
---                 -> Transmission ptrn pkt
---                 -> (Set.Set pkt, Set.Set pkt)
--- interpretPolicy (PoBasic pred as) tr | interpretPredicate pred tr = interpretActions (trPkt tr) as
---                                      | otherwise = Set.empty
--- interpretPolicy (PoUnion p1 p2) tr = 
---   interpretPolicy p1 tr `Set.union` interpretPolicy p2 tr
--- interpretPolicy (PoIntersect p1 p2) tr = 
---   interpretPolicy p1 tr `Set.intersection` interpretPolicy p2 tr
--- interpretPolicy (PoDifference p1 p2) tr = 
---   interpretPolicy p1 tr Set.\\ interpretPolicy p2 tr
+{-| Implements the denotation function for policies. -}
+interpretPolicy :: (ValidTransmission ptrn pkt) =>
+                   Policy
+                -> Transmission ptrn pkt
+                -> (Actions, Actions)
+interpretPolicy (PoBasic pred as) tr = case interpretPredicate pred tr of
+    (True, True) -> (as, as)
+    (True, False) -> (as, Set.empty)
+    (False, True) -> (Set.empty, as)
+    (False, False) -> (Set.empty, Set.empty)
+-- TODO: NYI
+-- interpretPolicy PoUnknown tr = (Set.empty, undefined)
+interpretPolicy (PoUnion p1 p2) tr = 
+  pairLift Set.union (interpretPolicy p1 tr) (interpretPolicy p2 tr)
+interpretPolicy (PoIntersect p1 p2) tr = 
+  pairLift Set.intersection (interpretPolicy p1 tr) (interpretPolicy p2 tr)
+interpretPolicy (PoDifference p1 p2) tr = 
+  pairLift Set.difference (interpretPolicy p1 tr) (interpretPolicy p2 tr)
+
+pairLift :: (a -> a -> a) -> (a, a) -> (a, a) -> (a, a)
+pairLift f (a1, a1') (a2, a2') = (f a1 a2, f a1' a2')

@@ -14,8 +14,7 @@
 -- * Redistributions of binaries must reproduce the above copyright           --
 --   notice, this list of conditions and the following disclaimer in          --
 --   the documentation or other materials provided with the distribution.     --
--- * The names of the copyright holds and contributors may not be used to     --
---   endorse or promote products derived from this work without specific      --
+-- * The names of the copyright holds and contributors may not be used to     -- --   endorse or promote products derived from this work without specific      --
 --   prior written permission.                                                --
 --                                                                            --
 -- Unless required by applicable law or agreed to in writing, software        --
@@ -24,54 +23,36 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /testsuite/Frenetic/TestCompat                                             --
---                                                                            --
+-- /testsuite/examples/repeater.hs                                            --
+-- Single-switch repeater example                                             --
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE
-    TemplateHaskell
- #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
-import Data.Word
-import Data.Bits
-import Test.Framework
-import Test.Framework.TH
-import Test.Framework.Providers.QuickCheck2
-
-import Control.Newtype.TH
-import Control.Newtype
-
+import Frenetic.Server
+import Frenetic.NetCore.API
 import Frenetic.Compat
 import Frenetic.Pattern
-import Tests.Frenetic.ArbitraryCompat
-import Tests.Frenetic.ArbitraryPattern
-import Frenetic.LargeWord
+import Data.Set
 
-main = $(defaultMainGenerator)
+import Topologies
+import qualified Topologies.Repeater as T
+import qualified Policies.ShortestPath as SP
 
-prop_ExactishWildcard_is_exactish :: ExactishWildcard Word8 -> Bool
-prop_ExactishWildcard_is_exactish w_in = let w@(Wildcard x m) = unW w_in in
-    w == top || m == (complement 0)
+main = freneticServer policy
 
-prop_ExactishPattern_is_exactish :: ExactishPattern -> Bool
-prop_ExactishPattern_is_exactish p_in = 
-  let p = unpack p_in
-      fields = [
-          f $ ptrnDlSrc p
-        , f $ ptrnDlDst p
-        , f $ ptrnDlTyp p
-        , f $ ptrnDlVlan p
-        , f $ ptrnDlVlanPcp p
-        , f $ ptrnNwSrc p
-        , f $ ptrnNwDst p
-        , f $ ptrnNwProto p
-        , f $ ptrnNwTos p
-        , f $ ptrnTpSrc p
-        , f $ ptrnTpDst p
-        ]
-  in foldl (&&) True fields
-    where
-      f :: (Eq a, Bits a, Num a) => Wildcard a -> Bool
-      f w@(Wildcard x m) = (w == top || m == (complement 0))
+policy :: Policy
+policy = SP.mkPolicy topo
+topo :: T.Topology
+topo = mkTopo 2 1
+
+policy2 = PoUnion 
+           (PoBasic (PrPattern top{ptrnInPort = (Just 1)})
+                    (singleton $ Forward 2))
+           (PoBasic (PrPattern top{ptrnInPort = (Just 2)})
+                    (singleton $ Forward 1))
+
+flood_policy :: Policy
+flood_policy = PoBasic (PrPattern top) (singleton Flood)
 

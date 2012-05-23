@@ -1,0 +1,16 @@
+Name:             policies
+Version:          0.1
+License:          OtherLicense
+Cabal-Version:    >= 1.9.2
+Build-Type:       Simple
+
+
+Library
+    build-depends:      base,
+                        containers,
+                        fgl,
+                        frenetic,
+                        topologies
+    exposed-modules:    Policies.ShortestPath
+    hs-source-dirs:     .
+

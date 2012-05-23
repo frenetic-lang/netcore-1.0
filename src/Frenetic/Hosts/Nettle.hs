@@ -72,6 +72,7 @@ import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
 --import Frenetic.Util
 
+
 --
 -- Data types
 --
@@ -95,7 +96,7 @@ type OFProcess =
 
 
 installRules :: SockAddr -> [(OFMatch.Match, OFAction.ActionSequence)]  -> OFProcess -> ControllerOp ()
-installRules addr rules proc = 
+installRules addr rules proc =
   liftIO $ foldM_ (\pri rule -> tellP proc (addr,(1, mk_flow rule pri)) >> return (pri - 1)) 65535 rules
   where mk_flow (pat, acts) pri = 
           FlowMod AddFlow { match=pat, 
@@ -163,7 +164,7 @@ switchJoin addr proc =
 ofDispatch :: SockAddr -> FSCMessage -> OFProcess -> ControllerOp ()
 ofDispatch addr (xid, scmsg) proc =   
   case scmsg of 
-    SCHello -> 
+    SCHello ->
         switchJoin addr proc
     SCEchoRequest n -> 
         do liftIO $ hPutStrLn stderr "Echo reply"
@@ -176,10 +177,13 @@ ofDispatch addr (xid, scmsg) proc =
            let pol = policy state 
            let addrs = addrMap state
            put (state { addrMap = Map.insert addr switch addrs })
-           installRules addr (unpack $ compile switch pol) proc 
+           let rules = unpack $ compile switch pol
+           installRules addr rules proc 
     PacketIn pkt -> 
-        let src = show $ pktDlSrc $ toPacket pkt in 
-        let dst = show $ pktDlDst $ toPacket pkt  in 
+--         let src = show $ pktDlSrc $ toPacket pkt in 
+--         let dst = show $ pktDlDst $ toPacket pkt  in 
+        let src = show $ toPacket pkt in 
+        let dst = show $ toPacket pkt  in 
         do liftIO $ hPutStrLn stderr ("PacketIn: " ++ src ++ " => " ++ dst)
            packetIn addr pkt proc
     PortStatus status ->  return ()
@@ -203,8 +207,9 @@ loop proc = do
   loop proc 
 
 nettleServer :: Policy -> IO ()
-nettleServer init_policy = do let init_state = ControllerState { addrMap = Map.empty,
-                                                                 policy = init_policy }
-                              proc <- openFlowServer freneticPort
-                              hPutStrLn stderr "--- Welcome to Frenetic ---"
-                              evalStateT (loop proc) init_state 
+nettleServer init_policy = do 
+  let init_state = ControllerState { addrMap = Map.empty,
+                                     policy = init_policy }
+  proc <- openFlowServer freneticPort
+  hPutStrLn stderr "--- Welcome to Frenetic ---"
+  evalStateT (loop proc) init_state 
