@@ -2,7 +2,7 @@
 
 
 ### Set up some environment-related variables.
-target=repeater
+target=routing
 
 controller=${target}_controller
 topo=${target}_topo
@@ -44,11 +44,14 @@ fi
 }
 
 ### Generate the topology
+function generate_topology {
+echo "Generating the topology ..."
 $topologies/print_topology.py $topologies/$topo.py
 if [ $? -ne 0 ]; then
     echo "ERROR: couldn't generate topology."
     exit 1
 fi
+}
 
 ### Start the controller in the background.
 function start_controller {
@@ -95,7 +98,7 @@ build_controller
 if [ $justBuild -eq 1 ]; then 
     exit; 
 fi
-
+generate_topology
 start_controller
 start_mininet $tst
 kill_controller

@@ -30,7 +30,7 @@
 
 from mininet.topo import Topo, Node
 
-class RepeaterTopo( Topo ):
+class Topology( Topo ):
     '''
     Topology for a single repeater switch connecting two hosts.
 
@@ -40,7 +40,7 @@ class RepeaterTopo( Topo ):
 
     def __init__(self, enable_all = True):
         "Create a repeater topology."
-        super(RepeaterTopo, self).__init__()
+        super(Topology, self).__init__()
 
         numHosts = 2
 
@@ -59,5 +59,5 @@ class RepeaterTopo( Topo ):
         self.enable_all()
 
 
-topos = { 'repeater_topo' : (lambda: RepeaterTopo()) }
+topos = { 'repeater_topo' : (lambda: Topology()) }
 

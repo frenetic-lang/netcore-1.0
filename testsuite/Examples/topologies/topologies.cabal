@@ -9,8 +9,8 @@ Library
     build-depends:      base,
                         containers,
                         fgl,
+                        parsec,
                         frenetic
-    exposed-modules:    Topologies,
-                        Topologies.Repeater
+    exposed-modules:    Topologies
     hs-source-dirs:     .
 
