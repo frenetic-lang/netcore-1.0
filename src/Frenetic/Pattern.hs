@@ -41,6 +41,7 @@ import Data.Bits
 import Data.Word
 import Data.Maybe
 import Data.HList
+import Numeric (showHex)
     
 {-|
 A class for types that compose similar to wildcards.
@@ -72,13 +73,11 @@ instance (Bits a) => Eq (Wildcard a) where
     (Wildcard x m) == (Wildcard x' m') =
         m == m' && x .|. m == x' .|. m
 
-instance (Bits a) => Show (Wildcard a) where
+instance (Bits a, Integral a) => Show (Wildcard a) where
     show (Wildcard x m) | m == (complement 0) = "*"
                         | otherwise = if any (\c -> c == '?') s
                                       then s
-                                      else let sNum :: Int
-                                               sNum = read s
-                                           in show sNum
+                                      else ("0x" ++ showHex x "")
         where
           s = [f i | i <- reverse [0 .. n-1]] 
           n = bitSize x
@@ -192,7 +191,7 @@ class Approx a where
 newtype Prefix a = Prefix (Wildcard a)
     deriving (Eq, Matchable)
 
-instance (Bits a) => Show (Prefix a) where
+instance (Bits a, Integral a) => Show (Prefix a) where
     show (Prefix w) = show w
 
 instance Approx Prefix where
