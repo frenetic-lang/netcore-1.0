@@ -1,0 +1,15 @@
+Name:             routing
+Version:          0.1
+License:          OtherLicense
+Cabal-Version:    >= 1.9.2
+Build-Type:       Simple
+
+
+Executable routing_controller
+    main-is:            routing.hs
+    build-depends:      base,
+                        containers,
+                        frenetic,
+                        topologies,
+                        policies
+

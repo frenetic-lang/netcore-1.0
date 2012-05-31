@@ -23,8 +23,8 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /testsuite/examples/repeater.hs                                            --
--- Single-switch repeater example                                             --
+-- /testsuite/examples/routing.hs                                             --
+-- Shortest-path routing over a clique                                        --
 -- $Id$ --
 --------------------------------------------------------------------------------
 
@@ -39,13 +39,15 @@ import Data.Set
 import Topologies
 import qualified Policies.ShortestPath as SP
 
-import System.IO (readFile)
+import System.IO
+import Debug.Trace (trace)
 
 main = do
-  topoInput <- readFile "../topologies/repeater_topo.top"
+  topoInput <- readFile "../topologies/routing_topo.top"
   let topo :: Topology
       topo = parseTopo topoInput
   let policy = SP.mkPolicy topo
+  hPutStrLn stderr ("COLE: " ++ show policy)
   freneticServer policy
 
 policy2 = PoUnion 

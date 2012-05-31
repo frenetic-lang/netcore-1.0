@@ -29,7 +29,7 @@
 
 from mininet.topo import Topo, Node
 
-class CliqueTopo( Topo ):
+class Topology( Topo ):
     '''
     Topology for a fully-connected set of switches with hosts evenly assigned
     to switches.
@@ -48,7 +48,7 @@ class CliqueTopo( Topo ):
         Create a clique topology, evenly distributing the number of hosts
         connected to each switch.
         '''
-        super(CliqueTopo, self).__init__()
+        super(Topology, self).__init__()
 
         # Node IDs
         hosts = [h for h in xrange(1, numHosts + 1)]
@@ -72,5 +72,5 @@ class CliqueTopo( Topo ):
             print "%s, %s : %s" % (x, y, self.port(x,y))
 
 
-topos = { 'clique_topo' : (lambda: CliqueTopo()) }
+topos = { 'routing_topo' : (lambda: Topology()) }
 

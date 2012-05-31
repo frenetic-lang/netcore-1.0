@@ -3,8 +3,7 @@
 -- frenetic@frenetic-lang.org                                                 -
 -------------------------------------------------------------------------------
 -- Licensed to the Frenetic Project by one or more contributors. See the      -
--- NOTICE file distributed with this work for additional information          -
--- regarding copyright and ownership. The Frenetic Project licenses this      -
+-- NOTICE file distributed with this work for additional information          - -- regarding copyright and ownership. The Frenetic Project licenses this      -
 -- file to you under the following license.                                   -
 --                                                                            -
 -- Redistribution and use in source and binary forms, with or without         -
@@ -42,7 +41,7 @@ import Data.Graph.Inductive.PatriciaTree
 import qualified Data.Graph.Inductive.Query.SP as SP
 import qualified Data.Set as Set
 
-mkPolicy :: (Graph gr, Topology (gr a b)) => gr a b -> Policy
+mkPolicy :: Topology -> Policy
 mkPolicy topo = combine paths
   where 
     combine [] = PoBasic (PrPattern top) Set.empty
@@ -58,22 +57,24 @@ mkPolicy topo = combine paths
     stripped_topo = mkGraph (map (\n -> (n,1)) (nodes topo)) 
                      $ map (\(n1,n2) -> (n1,n2,1)) $ edges topo
 
-mkPathPolicy :: Topology t => t -> Node -> Node -> [Node] -> Policy
+mkPathPolicy :: Topology -> Node -> Node -> [Node] -> Policy
 mkPathPolicy topo src dst (h1:path) = mk path
   where 
     srcIp = Wildcard (ip topo src) 0
     dstIp = Wildcard (ip topo dst) 0
     typ = Wildcard 0x800 0
-    pat = top {ptrnNwSrc = srcIp} --, ptrnNwDst = dstIp , ptrnDlTyp = typ}
+    pat = top {ptrnNwSrc = srcIp, ptrnNwDst = dstIp} --, ptrnDlTyp = typ}
     mk [] = PoBasic (PrPattern top) Set.empty
     mk (s:[dst]) = 
       let Just outPort = port topo s dst in
-        PoBasic (PrPattern pat) $ Set.singleton Flood -- $ Forward outPort
-    mk (s:ss) = 
-      let Just outPort = port topo s dst
+        PoBasic (PrPattern pat) $ Set.singleton $ Forward outPort
+    mk (s:s':ss) = case port topo s s' of
+      Just outPort -> 
+        let
           p1 = PoBasic (PrPattern pat) $ Set.singleton $ Forward outPort
-          p2 = mk ss
-       in PoUnion p1 p2
+          p2 = mk (s':ss)
+        in PoUnion p1 p2
+      Nothing -> error "shortest path: no port connecting neighbors on the path."
 
 printPath :: (Node,Node,Path) -> String
 printPath (h1,h2,path)= (show h1) ++ (show h2) ++ foldl (\s n -> s ++ "\n" ++ show n ) "" path
