@@ -20,7 +20,9 @@ policies=$top/../policies
 controller_log=$top/$controller.log
 
 ### Set environment variables
-if [ $(grep -c "$top/.." $PYTHONPATH) -lt 1 ]; then
+if [ "$PYTHONPATH" = "" ]; then
+    export PYTHONPATH=$top/..
+elif [ $(grep -c "$top/.." $PYTHONPATH) -lt 1 ]; then
     export PYTHONPATH=$PYTHONPATH:$top/..
 fi
 export FRENETIC_TOPOLOGIES_PATH=$topologies
