@@ -44,17 +44,20 @@ fi
 }
 
 ### Generate the topology
+function generate_topology {
+echo "Generating the topology..."
 $topologies/print_topology.py $topologies/$topo.py
 if [ $? -ne 0 ]; then
     echo "ERROR: couldn't generate topology."
     exit 1
 fi
+}
 
 ### Start the controller in the background.
 function start_controller {
 echo "Starting the controller..." | tee $controller_log
 echo `date` >> $controller_log
-$top/$controller +RHS -tc -RHS 2>> $controller_log &
+$top/$controller +RHS -tc -RHS 1>> $controller_log 2>> $controller_log &
 controller_job=$!
 
 sleep 2
@@ -95,7 +98,7 @@ build_controller
 if [ $justBuild -eq 1 ]; then 
     exit; 
 fi
-
+generate_topology
 start_controller
 start_mininet $tst
 kill_controller
