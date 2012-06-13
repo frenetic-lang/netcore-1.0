@@ -32,7 +32,8 @@
 {-# LANGUAGE
     TypeSynonymInstances,
     TemplateHaskell,
-    MultiParamTypeClasses
+    MultiParamTypeClasses,
+    FlexibleInstances
  #-}
 
 module Tests.Frenetic.ArbitraryCompat where

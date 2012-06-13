@@ -73,7 +73,7 @@ instance (Bits a) => Eq (Wildcard a) where
     (Wildcard x m) == (Wildcard x' m') =
         m == m' && x .|. m == x' .|. m
 
-instance (Bits a, Integral a) => Show (Wildcard a) where
+instance (Bits a, Integral a, Show a) => Show (Wildcard a) where
     show (Wildcard x m) | m == (complement 0) = "*"
                         | otherwise = if any (\c -> c == '?') s
                                       then s
@@ -191,7 +191,7 @@ class Approx a where
 newtype Prefix a = Prefix (Wildcard a)
     deriving (Eq, Matchable)
 
-instance (Bits a, Integral a) => Show (Prefix a) where
+instance (Bits a, Integral a, Show a) => Show (Prefix a) where
     show (Prefix w) = show w
 
 instance Approx Prefix where
