@@ -46,9 +46,9 @@ Test-Suite frenetic-compat
                       QuickCheck >= 2,
                       test-framework,
                       test-framework-th,
-                      test-framework-quickcheck2,
-                      frenetic
+                      test-framework-quickcheck2
     hs-source-dirs:   testsuite
+                      src
 -- 
 -- Test-Suite frenetic-netcore
 --     type:             exitcode-stdio-1.0
@@ -76,8 +76,7 @@ Test-Suite frenetic-netcore-compiler
                       test-framework,
                       test-framework-th,
                       test-framework-hunit,
-                      test-framework-quickcheck2,
-                      frenetic
+                      test-framework-quickcheck2
     other-modules:    Frenetic.NetCore.Compiler
     hs-source-dirs:   testsuite,
                       src
@@ -97,8 +96,7 @@ Test-Suite frenetic-switches
                       newtype,
                       newtype-th,
                       Animas,
-                      nettle-openflow == 0.1,
-                      frenetic
+                      nettle-openflow == 0.1
     hs-source-dirs:   testsuite,
                       src
 
