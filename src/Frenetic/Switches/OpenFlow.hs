@@ -39,7 +39,10 @@
     DeriveDataTypeable
  #-}
 
-module Frenetic.Switches.OpenFlow where
+module Frenetic.Switches.OpenFlow 
+  ( prefixToIPAddressPrefix
+  , ipAddressPrefixToPrefix
+  ) where
 
 import           Control.Newtype
 

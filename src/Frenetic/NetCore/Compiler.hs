@@ -41,7 +41,13 @@
     MultiParamTypeClasses
  #-}
 
-module Frenetic.NetCore.Compiler where
+module Frenetic.NetCore.Compiler 
+  ( compile
+  , specialize
+  , Classifier (..)
+  , classify
+  , minimizeClassifier
+  ) where
 
 import           Frenetic.Compat
 import           Frenetic.Pattern

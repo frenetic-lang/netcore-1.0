@@ -43,7 +43,11 @@
  #-}
 
 
-module Frenetic.NetCore.API where
+module Frenetic.NetCore.API 
+  ( Predicate (..)
+  , Policy (..)
+  , interpretPolicy
+  ) where
 
 import           Frenetic.Compat
 
