@@ -49,6 +49,7 @@ import Tests.Frenetic.ArbitraryCompat
 import Frenetic.Pattern
 import Tests.Frenetic.ArbitraryPattern
 import Frenetic.NetCore.API
+import Frenetic.NetCore.Action
 import Tests.Frenetic.NetCore.ArbitraryAPI
 
 import Frenetic.NetCore.Compiler
@@ -79,9 +80,9 @@ prop_semantic_Equivalence_minimize sw pk classifier = res == minimizedRes
 prop_semanticEquivalence_compile_pattern :: Switch -> Policy -> Packet -> Bool
 prop_semanticEquivalence_compile_pattern sw po pk = case (polActs,classActs) of
   ((s1, s2), Nothing)
-    | s1 == Set.empty && s2 == Set.empty    -> True
+    | s1 == emptyAction && s2 == emptyAction    -> True
   ((s1, s2), Just [])
-    | s1 == Set.empty && s2 == Set.empty    -> True
+    | s1 == emptyAction && s2 == emptyAction    -> True
   ((s1, s2), Just as)
     | as == actnController                  -> True -- TODO
     | as /= actnController && s1 /= s2      -> False
@@ -105,9 +106,9 @@ prop_semanticEquivalence_compile_pattern sw po pk = case (polActs,classActs) of
 prop_semanticEquivalence_compile_OFpattern :: Switch -> Policy -> Packet -> Bool
 prop_semanticEquivalence_compile_OFpattern sw po pk = case (polActs,classActs) of
   ((s1, s2), Nothing)
-    | s1 == Set.empty && s2 == Set.empty    -> True
+    | s1 == emptyAction && s2 == emptyAction    -> True
   ((s1, s2), Just [])
-    | s1 == Set.empty && s2 == Set.empty    -> True
+    | s1 == emptyAction && s2 == emptyAction    -> True
   ((s1, s2), Just as)
     | as == actnController                  -> True -- TODO
     | as /= actnController && s1 /= s2      -> False
@@ -127,7 +128,7 @@ prop_semanticEquivalence_compile_OFpattern sw po pk = case (polActs,classActs) o
 
 
 case_quiescence_bug_1 = do
-  assertEqual "policy -> flood" polActs (Set.singleton Flood, Set.singleton Flood)
+  assertEqual "policy -> flood" polActs (flood, flood)
   assertEqual "classifier -> flood" (Just [OFAction.SendOutPort OFAction.Flood]) classActs
   where
     topP :: Pattern
@@ -137,7 +138,7 @@ case_quiescence_bug_1 = do
     classifier = compile 0 policy
     classActs :: Maybe OFAction.ActionSequence
     classActs = classify 0 packet classifier
-    policy = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) $ Set.singleton Flood
+    policy = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) flood
     packet = Packet {
         pktDlSrc = 0
       , pktDlDst = 0
@@ -154,7 +155,7 @@ case_quiescence_bug_1 = do
       }
  
 case_quiescence_bug_2 = do
-  assertEqual "policy -> flood" polActs (Set.singleton Flood, Set.singleton Flood)
+  assertEqual "policy -> flood" polActs (flood, flood)
   assertEqual "classifier -> flood" (Just [OFAction.SendOutPort OFAction.Flood]) classActs
   where
     topP :: Pattern
@@ -165,8 +166,8 @@ case_quiescence_bug_2 = do
     classActs :: Maybe OFAction.ActionSequence
     classActs = classify 0 packet classifier
     policy = PoUnion p1 p2
-    p1 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) $ Set.singleton Flood
-    p2 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000002 0}) $ Set.singleton Flood
+    p1 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) flood
+    p2 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000002 0}) flood
     packet = Packet {
         pktDlSrc = 0
       , pktDlDst = 0
@@ -183,7 +184,7 @@ case_quiescence_bug_2 = do
       }
     
 case_quiescence_bug_3 = do
-  assertEqual "policy -> flood" polActs (Set.singleton Flood, Set.singleton Flood)
+  assertEqual "policy -> flood" polActs (flood, flood)
   assertEqual "classifier -> flood" (Just [OFAction.SendOutPort OFAction.Flood]) classActs
   where
     topP :: Pattern
@@ -194,8 +195,8 @@ case_quiescence_bug_3 = do
     classActs :: Maybe OFAction.ActionSequence
     classActs = classify 0 packet classifier
     policy = PoUnion p1 p2
-    p1 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) $ Set.singleton Flood
-    p2 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000002 0}) $ Set.singleton Flood
+    p1 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) flood
+    p2 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000002 0}) flood
     packet = Packet {
         pktDlSrc = 0
       , pktDlDst = 0
@@ -212,8 +213,9 @@ case_quiescence_bug_3 = do
       }
 
 case_quiescence_bug_4 = do
-  assertEqual "policy -> flood" polActs (Set.fromList [Forward 2, Flood], Set.fromList [Forward 2, Flood])
-  assertEqual "classifier -> flood" (Just [OFAction.SendOutPort $ OFAction.PhysicalPort 2, OFAction.SendOutPort OFAction.Flood]) classActs
+  assertEqual "policy -> flood" polActs (flood, flood)
+  assertEqual "classifier -> flood" 
+    (Just [OFAction.SendOutPort OFAction.Flood]) classActs
   where
     topP :: Pattern
     topP = top
@@ -222,7 +224,7 @@ case_quiescence_bug_4 = do
     classifier = compile 0 policy
     classActs :: Maybe OFAction.ActionSequence
     classActs = classify 0 packet classifier
-    policy = PoBasic (PrUnion (PrPattern pattern) (PrTo switch)) $ Set.fromList [Forward 2, Flood]
+    policy = PoBasic (PrUnion (PrPattern pattern) (PrTo switch)) flood
     switch = 0
     pattern = Pattern {
         ptrnDlSrc = Wildcard 0 0
@@ -256,7 +258,7 @@ case_quiescence_bug_4 = do
 case_quiescence_bug_5 = do
   hPutStrLn stderr ("bug_5: policy: " ++ show policy)
   hPutStrLn stderr ("bug_5: classifier: " ++ show classifier)
-  assertEqual "policy -> flood" polActs (Set.fromList [Forward 1], Set.fromList [Forward 1])
+  assertEqual "policy -> flood" polActs (forward 1, forward 1)
   assertEqual "classifier -> flood" (Just [OFAction.SendOutPort $ OFAction.PhysicalPort 1]) classActs
   where
     topP :: Pattern
@@ -266,7 +268,7 @@ case_quiescence_bug_5 = do
     classifier = compile switch policy
     classActs :: Maybe OFAction.ActionSequence
     classActs = classify switch packet classifier
-    policy = PoBasic (PrTo switch) $ Set.fromList [Forward 1]
+    policy = PoBasic (PrTo switch) $ (forward 1)
     switch = 0
     packet = Packet {
         pktDlSrc = 1

@@ -36,6 +36,7 @@ import Topologies
 import Frenetic.Compat
 import Frenetic.Pattern
 import Frenetic.NetCore.API
+import Frenetic.NetCore.Action
 import Data.Graph.Inductive.Graph
 import Data.Graph.Inductive.PatriciaTree
 import qualified Data.Graph.Inductive.Query.SP as SP
@@ -44,7 +45,7 @@ import qualified Data.Set as Set
 mkPolicy :: Topology -> Policy
 mkPolicy topo = combine paths
   where 
-    combine [] = PoBasic (PrPattern top) Set.empty
+    combine [] = PoBasic (PrPattern top) emptyAction
     combine [(h1,h2,[])] = combine []
     combine [(h1,h2,p)] = mkPathPolicy topo h1 h2 p
     combine ((h1,h2,[]):ps) = combine ps
@@ -63,15 +64,15 @@ mkPathPolicy topo src dst (h1:path) = mk path
     srcIp = Wildcard (ip topo src) 0
     dstIp = Wildcard (ip topo dst) 0
     typ = Wildcard 0x800 0
-    pat = top {ptrnNwSrc = srcIp, ptrnNwDst = dstIp} --, ptrnDlTyp = typ}
-    mk [] = PoBasic (PrPattern top) Set.empty
+    pat = top {ptrnNwSrc = srcIp, ptrnNwDst = dstIp, ptrnDlTyp = typ}
+    mk [] = PoBasic (PrPattern pat) emptyAction
     mk (s:[dst]) = 
       let Just outPort = port topo s dst in
-        PoBasic (PrPattern pat) $ Set.singleton $ Forward outPort
+        PoBasic (PrPattern pat) (forward outPort)
     mk (s:s':ss) = case port topo s s' of
       Just outPort -> 
         let
-          p1 = PoBasic (PrPattern pat) $ Set.singleton $ Forward outPort
+          p1 = PoBasic (PrPattern pat) (forward outPort)
           p2 = mk (s':ss)
         in PoUnion p1 p2
       Nothing -> error "shortest path: no port connecting neighbors on the path."

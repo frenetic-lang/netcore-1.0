@@ -17,6 +17,7 @@ Library
     exposed-modules:    Frenetic.Compat,
                         Frenetic.LargeWord,
                         Frenetic.Pattern,
+                        Frenetic.NetCore.Action,
                         Frenetic.NetCore.API,
                         Frenetic.Server
     other-modules:      Frenetic.Util,

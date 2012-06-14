@@ -50,6 +50,7 @@ module Frenetic.NetCore.API
   ) where
 
 import           Frenetic.Compat
+import Frenetic.NetCore.Action
 
 import qualified Data.List       as List
 import           Data.Bits
@@ -71,7 +72,7 @@ data Predicate = PrPattern Pattern
                | PrNegate Predicate
 
 {-| Policies denote functions from (switch, packet) to packets. -}
-data Policy = PoBasic Predicate Actions
+data Policy = PoBasic Predicate Action
             | PoUnknown 
             | PoUnion Policy Policy
             | PoIntersect Policy Policy
@@ -138,20 +139,16 @@ interpretPredicate p t = (False, False)
 interpretPolicy :: (ValidTransmission ptrn pkt) =>
                    Policy
                 -> Transmission ptrn pkt
-                -> (Actions, Actions)
+                -> (Action, Action)
 interpretPolicy (PoBasic pred as) tr = case interpretPredicate pred tr of
     (True, True) -> (as, as)
-    (True, False) -> (as, Set.empty)
-    (False, True) -> (Set.empty, as)
-    (False, False) -> (Set.empty, Set.empty)
--- TODO: NYI
--- interpretPolicy PoUnknown tr = (Set.empty, undefined)
+    (True, False) -> (as, emptyAction)
+    (False, True) -> (emptyAction, as)
+    (False, False) -> (emptyAction, emptyAction)
 interpretPolicy (PoUnion p1 p2) tr = 
-  pairLift Set.union (interpretPolicy p1 tr) (interpretPolicy p2 tr)
+  pairLift unionAction (interpretPolicy p1 tr) (interpretPolicy p2 tr)
 interpretPolicy (PoIntersect p1 p2) tr = 
-  pairLift Set.intersection (interpretPolicy p1 tr) (interpretPolicy p2 tr)
-interpretPolicy (PoDifference p1 p2) tr = 
-  pairLift Set.difference (interpretPolicy p1 tr) (interpretPolicy p2 tr)
+  pairLift interAction (interpretPolicy p1 tr) (interpretPolicy p2 tr)
 
 pairLift :: (a -> a -> a) -> (a, a) -> (a, a) -> (a, a)
 pairLift f (a1, a1') (a2, a2') = (f a1 a2, f a1' a2')

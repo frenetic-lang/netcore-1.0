@@ -63,7 +63,6 @@ type Port = Word16
 
 {-| Auxillary value for ethernet addresses.  -}
 type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
-
 {-| Frenetic "packets" -}
 data Packet = Packet {
     pktDlSrc :: Word48
@@ -96,38 +95,12 @@ data Pattern = Pattern {
   , ptrnInPort :: Maybe Port
   } deriving (Show, Eq, Typeable)
 
-                   
-{-| Frenetic "actions" -}
-type Actions = Set.Set Action
-
-{-| Frenetic "action" -}
-data Action = 
-      Flood
-    | Forward Port
-
-instance Show (Action) where
-  show Flood = "Flood"
-  show (Forward p) = show p
-
-instance Eq (Action) where
-    Flood == Flood = True
-    (Forward p) == (Forward p') = 
-        p == p'
-
-instance Ord (Action) where
-    compare Flood Flood = EQ
-    compare _ Flood = LT
-    compare Flood _ = GT
-    compare (Forward p) (Forward p') = compare p p'
-
 {-| Data that was sent. -}
 data Transmission ptrn pkt = Transmission {
       trPattern :: ptrn,
       trSwitch :: Switch,
       trPkt :: pkt
     } deriving (Eq)
-
-
 
 {-| Generic packets -}
 class (Show pkt, Ord pkt, Eq pkt) => GPacket pkt where
@@ -149,12 +122,6 @@ class (Typeable ptrn, Show ptrn, Matchable ptrn) => GPattern ptrn where
 {-| A valid transmission has a matching relationship between the pattern and packet -}
 class (GPattern ptrn, GPacket pkt) => ValidTransmission ptrn pkt where
      ptrnMatchPkt :: pkt -> ptrn -> Bool
-
-{-| This class represents backend actions. |-}
-class (Show actn, Eq actn) => GAction actn where
-    actnDefault :: actn
-    actnController :: actn
-    actnTranslate :: Actions -> actn
 
 instance GPacket Packet where 
   toPacket = id

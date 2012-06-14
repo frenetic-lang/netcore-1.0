@@ -63,6 +63,7 @@ import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Map             as Map
 import           Data.Typeable
+import Frenetic.NetCore.Action
 
 
 {-| Input: a function, a context, a value, and a lists. Apply the function to each pair from the list and the context and current value; we may modify the list and current value. The context is the list of items we have already processed. -}
@@ -244,24 +245,24 @@ compilePredicate s (PrNegate pr) = skelMap (\(a1, a2) -> (not a2, not a1)) (comp
                                    Skeleton [Bone top top (True, True)]
 
 {-| Compile a policy to intermediate form -}
-compilePolicy :: (GPattern ptrn) => Switch -> Policy -> Skeleton ptrn Actions
+compilePolicy :: (GPattern ptrn) => Switch -> Policy -> Skeleton ptrn Action
 compilePolicy s (PoBasic po as) = 
     skelMap f $ compilePredicate s po
   where
     f (True, True) = (as,  as)
-    f (False, True ) = (Set.empty, as)
-    f (False, False) = (Set.empty, Set.empty)
-compilePolicy s (PoUnknown) = Skeleton [Bone top top (Set.empty, undefined)] -- FIX we need some symbol for "top". Maybe cosets *were* a good idea?
-compilePolicy s (PoUnion po1 po2) = skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2' 
-    where
-      skel1 = compilePolicy s po1
-      skel2 = compilePolicy s po2
-      (skel12', skel1', skel2') = skelCart (skelLiftActn Set.union) skel1 skel2
+    f (False, True ) = (emptyAction, as)
+    f (False, False) = (emptyAction, emptyAction)
+compilePolicy s (PoUnion po1 po2) =
+   skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2' 
+      where skel1 = compilePolicy s po1
+            skel2 = compilePolicy s po2
+            (skel12', skel1', skel2') = 
+              skelCart (skelLiftActn unionAction) skel1 skel2
 compilePolicy s (PoIntersect po1 po2) = skelMinimize skel12'
-    where
-      skel1 = compilePolicy s po1
-      skel2 = compilePolicy s po2
-      (skel12', skel1', skel2') = skelCart (skelLiftActn  Set.intersection) skel1 skel2
+  where skel1 = compilePolicy s po1
+        skel2 = compilePolicy s po2
+        (skel12', skel1', skel2') = 
+          skelCart (skelLiftActn interAction) skel1 skel2
 
 {-| Compile a policy to a classifier. -}
 compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn

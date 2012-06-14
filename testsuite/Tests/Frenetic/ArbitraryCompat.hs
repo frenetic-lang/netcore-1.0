@@ -43,6 +43,7 @@ import Data.Bits
 import Frenetic.Compat
 import Frenetic.LargeWord
 import Frenetic.Pattern
+import Frenetic.NetCore.Action
 import Test.QuickCheck
 import Tests.Frenetic.ArbitraryPattern
 import Control.Newtype.TH
@@ -224,8 +225,15 @@ instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) wh
     [t {trSwitch = s} | s <- shrink (trSwitch t)] ++
     [t {trPkt = s} | s <- shrink (trPkt t)]
 
-instance Arbitrary (Action) where
+instance Arbitrary Forward where
+    arbitrary = oneof
+      [ return ForwardFlood,
+        do ps <- listOf arbitrary
+           return (ForwardPorts (Set.fromList ps)) ]
+
+instance Arbitrary Action where
   arbitrary = do
-    port <- arbitrary
-    oneof [ return Flood, return $ Forward port ]
+    fwd <- arbitrary
+    return (Action fwd)
+
 

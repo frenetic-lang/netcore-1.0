@@ -34,6 +34,7 @@
 
 module Frenetic.NetCore.Controller where
 
+import Frenetic.NetCore.Action
 import Control.Monad.State.Lazy
 
 import Frenetic.NetCore.API

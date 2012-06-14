@@ -63,6 +63,7 @@ import           Nettle.Ethernet.EthernetAddress
 
 import           Frenetic.Pattern
 import           Frenetic.Compat
+import Frenetic.NetCore.Action
 
 --type OFClassifier = Classifier OFMatch.Match OFAction.ActionSequence
 
@@ -95,12 +96,21 @@ instance Matchable IPAddress.IPAddressPrefix where
   top = IPAddress.defaultIPPrefix
   intersect = IPAddress.intersect
 
+forwardToOpenFlowActions :: Forward -> OFAction.ActionSequence
+forwardToOpenFlowActions (ForwardPorts set) =
+  map (\p -> OFAction.SendOutPort (OFAction.PhysicalPort p)) (Set.toList set)
+forwardToOpenFlowActions ForwardFlood = [OFAction.SendOutPort OFAction.Flood]
+
+toOpenFlowActions :: Action -> OFAction.ActionSequence
+toOpenFlowActions (Action fwd) = forwardToOpenFlowActions fwd
+
+toController :: OFAction.ActionSequence
+toController = OFAction.sendToController 0
+
 instance GAction OFAction.ActionSequence where
-    actnController = OFAction.sendToController 0
-    actnDefault = OFAction.sendToController 0
-    actnTranslate s = map atrans $ Set.toList s where
-        atrans Flood = OFAction.SendOutPort OFAction.Flood
-        atrans (Forward p) = OFAction.SendOutPort . OFAction.PhysicalPort $ p
+  actnController = toController
+  actnDefault = toController
+  actnTranslate = toOpenFlowActions
 
 deriving instance Typeable OFMatch.Match
 
