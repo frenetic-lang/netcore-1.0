@@ -31,12 +31,9 @@
 
 {-# LANGUAGE 
     NoMonomorphismRestriction,
-    GADTs,
     TypeSynonymInstances,
     FlexibleInstances,
-    MultiParamTypeClasses,
-    StandaloneDeriving,
-    DeriveDataTypeable
+    MultiParamTypeClasses
  #-}
 
 module Frenetic.Switches.OpenFlow 
@@ -49,7 +46,6 @@ import           Control.Newtype
 import           Data.Bits
 import           Frenetic.LargeWord
 import qualified Data.Set                        as Set
-import           Data.Typeable
 import           Data.Word
 
 
@@ -111,8 +107,6 @@ instance GAction OFAction.ActionSequence where
   actnController = toController
   actnDefault = toController
   actnTranslate = toOpenFlowActions
-
-deriving instance Typeable OFMatch.Match
 
 instance Matchable OFMatch.Match where
   top = OFMatch.Match { 

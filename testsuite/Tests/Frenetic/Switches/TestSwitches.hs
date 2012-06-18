@@ -41,7 +41,6 @@
 import qualified Data.Set as Set
 import Data.Word
 import Data.Bits
-import Data.HList
 import Test.Framework
 import Test.Framework.TH
 import Test.Framework.Providers.HUnit

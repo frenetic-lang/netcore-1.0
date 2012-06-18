@@ -32,7 +32,7 @@ Library
 
                         Frenetic.Hosts.Nettle
 --                        Frenetic.Playground
-
+    Extensions: TypeFamilies
     hs-source-dirs:     src
     
 
@@ -43,11 +43,11 @@ Test-Suite frenetic-compat
                       containers,
                       newtype,
                       newtype-th,
-                      HList,
                       QuickCheck >= 2,
                       test-framework,
                       test-framework-th,
                       test-framework-quickcheck2
+    Extensions: TypeFamilies
     hs-source-dirs:   testsuite
                       src
 -- 
@@ -66,7 +66,6 @@ Test-Suite frenetic-netcore-compiler
     main-is:          Tests/Frenetic/NetCore/TestCompiler.hs
     build-depends:    base, 
                       containers,
-                      HList,
                       newtype,
                       newtype-th,
                       Animas,
@@ -79,6 +78,7 @@ Test-Suite frenetic-netcore-compiler
                       test-framework-hunit,
                       test-framework-quickcheck2
     other-modules:    Frenetic.NetCore.Compiler
+    Extensions: TypeFamilies
     hs-source-dirs:   testsuite,
                       src
 
@@ -93,11 +93,11 @@ Test-Suite frenetic-switches
                       test-framework-quickcheck2,
                       test-framework-hunit,
                       containers,
-                      HList,
                       newtype,
                       newtype-th,
                       Animas,
                       nettle-openflow == 0.1
+    Extensions: TypeFamilies
     hs-source-dirs:   testsuite,
                       src
 

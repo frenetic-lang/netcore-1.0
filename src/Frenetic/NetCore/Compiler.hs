@@ -62,7 +62,6 @@ import qualified Data.List            as List
 import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Map             as Map
-import           Data.Typeable
 import Frenetic.NetCore.Action
 
 
@@ -221,14 +220,9 @@ skelMinimize :: (GPattern ptrn) => Skeleton ptrn actn -> Skeleton ptrn actn
 skelMinimize (Skeleton bones) = Skeleton $ minimizeShadowing getPat bones
   where getPat (Bone p1 p2 as) = p2
 
-{-| Compile a predicate to intermediate form. -}                                          
-compilePredicate :: forall ptrn. (GPattern ptrn) => Switch -> Predicate -> Skeleton ptrn Bool 
+{-| Compile a predicate to intermediate form. -}
+compilePredicate :: GPattern ptrn => Switch -> Predicate -> Skeleton ptrn Bool 
 compilePredicate s (PrPattern pat) = Skeleton [Bone (fromPatternOverapprox pat) pat (True, True)]
-compilePredicate s (PrSwitchPattern _ dyn) =
-  case fromDynamic dyn :: Maybe ptrn of
-    Just ptrn -> Skeleton [Bone ptrn undefined (True, True)]
-    Nothing -> Skeleton []
-compilePredicate s (PrUnknown) = Skeleton [Bone top top (False, True)]
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top (True, True)]
                              | otherwise = Skeleton []
 compilePredicate s (PrIntersect pr1 pr2) = skelMinimize skel12'

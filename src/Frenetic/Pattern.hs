@@ -40,7 +40,6 @@ import Data.List hiding (intersect)
 import Data.Bits
 import Data.Word
 import Data.Maybe
-import Data.HList
 import Numeric (showHex)
     
 {-|
@@ -152,7 +151,7 @@ showAbridged :: String -> String
 showAbridged = reverse . ('*' :) . dropWhile (== '?') . reverse
 
 -- Arbitrary "tuples"
-
+{-
 instance Matchable HNil where
     top = HNil
     intersect _ _ = Just HNil
@@ -162,7 +161,7 @@ instance (Matchable a, Matchable b) => Matchable (HCons a b) where
     intersect (HCons x y) (HCons x' y') = do x'' <- intersect x x'
                                              y'' <- intersect y y'
                                              Just $ HCons x'' y''
-
+-}
 -- Restricted wildcards
 
 {-|

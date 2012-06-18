@@ -31,15 +31,13 @@
 
 {-# LANGUAGE
     NoMonomorphismRestriction,
-    StandaloneDeriving,
     FlexibleInstances,
     Rank2Types,
     GADTs,
     ExistentialQuantification,
     MultiParamTypeClasses,
     FunctionalDependencies,
-    ScopedTypeVariables,
-    DeriveDataTypeable
+    ScopedTypeVariables
  #-}
 
 
@@ -51,20 +49,15 @@ module Frenetic.NetCore.API
 
 import           Frenetic.Compat
 import Frenetic.NetCore.Action
-
 import qualified Data.List       as List
 import           Data.Bits
-
 import           Data.Word
 import qualified Data.Set        as Set
-import           Data.Typeable
 import           Data.Dynamic
 
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern
-               | PrUnknown
-               | PrSwitchPattern String Dynamic
                | PrTo Switch 
                | PrUnion Predicate Predicate
                | PrIntersect Predicate Predicate
@@ -81,9 +74,7 @@ data Policy = PoBasic Predicate Action
               
 instance Show Predicate where
   show (PrPattern pat) = show pat  
-  show (PrUnknown) = "???"
   show (PrTo s) = "switch(" ++ show s ++ ")"
-  show (PrSwitchPattern desc _) = desc
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
   show (PrDifference pr1 pr2) = "(" ++ show pr1 ++ ") // (" ++ show pr2 ++ ")"
@@ -105,11 +96,6 @@ interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
 interpretPredicate (PrPattern ptrn) tr = 
     let rv = toPacket (trPkt tr) `ptrnMatchPkt` ptrn in 
       (rv, rv)
-interpretPredicate (PrSwitchPattern _ dyn) tr =
-    case fromDynamic dyn :: Maybe ptrn of
-      Just ptrn -> let k = ptrnMatchPkt (trPkt tr) ptrn in (k, k)
-      Nothing -> (False, False)
-interpretPredicate (PrUnknown) tr = (False, True) 
 interpretPredicate (PrTo sw) tr = 
     let rv = sw == trSwitch tr in
       (rv, rv)

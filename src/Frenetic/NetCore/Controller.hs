@@ -59,10 +59,6 @@ data Controller = Controller {
 {-| Controller monad -}
 newtype ControllerM a = ControllerM (StateT Controller IO a) 
 
-instance Monad ControllerM where
-  --return = newLift return
-  --(>>=) = newLift2 (>>=)
-
 {-| Make a controller -}
 mkController :: IO ControllerID 
 mkController = undefined -- runStateT

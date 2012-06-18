@@ -38,19 +38,15 @@
     ExistentialQuantification,
     MultiParamTypeClasses,
     FunctionalDependencies,
-    ScopedTypeVariables,
-    DeriveDataTypeable
+    ScopedTypeVariables
  #-}
 
 module Frenetic.Compat where
 
 import qualified Data.List          as List
 import           Data.Bits
-
 import           Data.Word
 import qualified Data.Set           as Set
-import           Data.Typeable
-
 import           Frenetic.Pattern
 import           Frenetic.LargeWord
 
@@ -77,7 +73,7 @@ data Packet = Packet {
   , pktTpSrc :: Word16
   , pktTpDst :: Word16
   , pktInPort :: Port
-  } deriving (Show, Eq, Ord, Typeable)
+  } deriving (Show, Eq, Ord)
              
 {-| Frenetic "patterns" -}
 data Pattern = Pattern { 
@@ -93,7 +89,7 @@ data Pattern = Pattern {
   , ptrnTpSrc :: Wildcard Word16
   , ptrnTpDst :: Wildcard Word16
   , ptrnInPort :: Maybe Port
-  } deriving (Show, Eq, Typeable)
+  } deriving (Show, Eq)
 
 {-| Data that was sent. -}
 data Transmission ptrn pkt = Transmission {
@@ -114,7 +110,7 @@ This class represents backend patterns.
   Approx class. If the pattern is not a real underapproximation,
   @patUnderapprox@ must return Nothing.
 -}
-class (Typeable ptrn, Show ptrn, Matchable ptrn) => GPattern ptrn where
+class (Show ptrn, Matchable ptrn) => GPattern ptrn where
     fromPatternOverapprox :: Pattern -> ptrn
     fromPatternUnderapprox :: Packet -> Pattern -> Maybe ptrn
     toPattern :: ptrn -> Pattern
