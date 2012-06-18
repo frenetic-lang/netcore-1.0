@@ -32,7 +32,8 @@ Library
 
                         Frenetic.Hosts.Nettle
 --                        Frenetic.Playground
-    Extensions: TypeFamilies
+    Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
+      FlexibleContexts
     hs-source-dirs:     src
     
 
@@ -46,8 +47,10 @@ Test-Suite frenetic-compat
                       QuickCheck >= 2,
                       test-framework,
                       test-framework-th,
-                      test-framework-quickcheck2
-    Extensions: TypeFamilies
+                      test-framework-quickcheck2,
+                      nettle-openflow == 0.1
+    Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
+      FlexibleContexts
     hs-source-dirs:   testsuite
                       src
 -- 
@@ -78,7 +81,8 @@ Test-Suite frenetic-netcore-compiler
                       test-framework-hunit,
                       test-framework-quickcheck2
     other-modules:    Frenetic.NetCore.Compiler
-    Extensions: TypeFamilies
+    Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
+      FlexibleContexts
     hs-source-dirs:   testsuite,
                       src
 
@@ -97,7 +101,8 @@ Test-Suite frenetic-switches
                       newtype-th,
                       Animas,
                       nettle-openflow == 0.1
-    Extensions: TypeFamilies
+    Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
+      FlexibleContexts
     hs-source-dirs:   testsuite,
                       src
 

@@ -2,7 +2,6 @@ module Frenetic.NetCore.Action
   ( Port
   , Forward (..)
   , Action (..)
-  , GAction (..)
   , emptyAction
   , unionAction
   , interAction
@@ -54,12 +53,6 @@ unionAction (Action fwd1) (Action fwd2) = Action (unionForward fwd1 fwd2)
 
 interAction :: Action -> Action -> Action
 interAction (Action fwd1) (Action fwd2) = Action (interForward fwd1 fwd2)
-
--- |This class represents backend actions.
-class (Show actn, Eq actn) => GAction actn where
-  actnDefault :: actn
-  actnController :: actn
-  actnTranslate :: Action -> actn
 
 flood :: Action
 flood = Action ForwardFlood

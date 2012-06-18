@@ -48,6 +48,7 @@ import Test.QuickCheck
 import Tests.Frenetic.ArbitraryPattern
 import Control.Newtype.TH
 import Control.Newtype
+import Frenetic.Switches.OpenFlow
 
 buildWord48 w1 w2 w3 w4 w5 w6 = 
   LargeKey 
@@ -106,6 +107,11 @@ instance Arbitrary Packet where
     [p {pktTpSrc = s}       | s <- shrink (pktTpSrc p)] ++
     [p {pktTpDst = s}       | s <- shrink (pktTpDst p)] ++
     [p {pktInPort = s}      | s <- shrink (pktInPort p)]
+
+instance Arbitrary (PacketImpl ()) where
+  arbitrary = do
+    v <- arbitrary
+    return (FreneticPkt v)
 
 
 instance Arbitrary Pattern where
@@ -236,4 +242,13 @@ instance Arbitrary Action where
     fwd <- arbitrary
     return (Action fwd)
 
+instance Arbitrary (PatternImpl ()) where
+  arbitrary = do
+    v <- arbitrary
+    return (FreneticPat v)
+
+instance Arbitrary (ActionImpl ()) where
+  arbitrary = do
+    v <- arbitrary
+    return (FreneticAct v)
 

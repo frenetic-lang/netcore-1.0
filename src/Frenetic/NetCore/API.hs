@@ -32,6 +32,7 @@
 {-# LANGUAGE
     NoMonomorphismRestriction,
     FlexibleInstances,
+    FlexibleContexts,
     Rank2Types,
     GADTs,
     ExistentialQuantification,
@@ -87,14 +88,17 @@ instance Show Policy where
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
   show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
 
+fromPat :: Pattern -> PatternImpl ()
+fromPat x = FreneticPat x
 
 {-| Implements the denotation function for predicates. -}
-interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
-                      Predicate
-                   -> Transmission ptrn pkt
+interpretPredicate :: FreneticImpl a
+                   => Predicate
+                   -> Transmission (PatternImpl a) (PacketImpl a)
                    -> (Bool, Bool)
 interpretPredicate (PrPattern ptrn) tr = 
-    let rv = toPacket (trPkt tr) `ptrnMatchPkt` ptrn in 
+    let rv = (FreneticPkt $ toPacket $ trPkt tr) `ptrnMatchPkt` 
+             (FreneticPat ptrn) in 
       (rv, rv)
 interpretPredicate (PrTo sw) tr = 
     let rv = sw == trSwitch tr in
@@ -116,15 +120,16 @@ interpretPredicate (PrNegate pr) t =
       (not b1, not b1')
 interpretPredicate p t = (False, False)
 
+
 -- {-| Implements the denotation function for actions. -}
 -- interpretActions :: (GPacket pkt) => pkt -> Actions -> Set.Set pkt
 -- interpretActions pkt actn = Set.fromList [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) 
 --                                          | prt' <- Set.toList actn] 
 
 {-| Implements the denotation function for policies. -}
-interpretPolicy :: (ValidTransmission ptrn pkt) =>
-                   Policy
-                -> Transmission ptrn pkt
+interpretPolicy :: FreneticImpl a
+                => Policy
+                -> Transmission (PatternImpl a) (PacketImpl a)
                 -> (Action, Action)
 interpretPolicy (PoBasic pred as) tr = case interpretPredicate pred tr of
     (True, True) -> (as, as)

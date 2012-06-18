@@ -29,18 +29,6 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE
-    NoMonomorphismRestriction,
-    StandaloneDeriving,
-    FlexibleInstances,
-    Rank2Types,
-    GADTs,
-    ExistentialQuantification,
-    MultiParamTypeClasses,
-    FunctionalDependencies,
-    ScopedTypeVariables
- #-}
-
 module Frenetic.Compat where
 
 import qualified Data.List          as List
@@ -49,7 +37,7 @@ import           Data.Word
 import qualified Data.Set           as Set
 import           Frenetic.Pattern
 import           Frenetic.LargeWord
-
+import Frenetic.NetCore.Action (Action (..), emptyAction)
 
 {-| The type of switches in the network. -}
 type Switch = Word64
@@ -98,31 +86,80 @@ data Transmission ptrn pkt = Transmission {
       trPkt :: pkt
     } deriving (Eq)
 
-{-| Generic packets -}
-class (Show pkt, Ord pkt, Eq pkt) => GPacket pkt where
-  toPacket :: pkt -> Packet
-  updatePacket :: pkt -> Packet -> pkt
+-- |'FreneticImpl a' is a family of related abstract types that define a
+-- back-end for Frenetic. 
+class (Show (PatternImpl a), 
+       Show (ActionImpl a),
+       Matchable (PatternImpl a), 
+       Eq (PacketImpl a),
+       Eq (ActionImpl a), 
+       Eq (PatternImpl a))
+       => FreneticImpl a where
 
-{-|
-This class represents backend patterns.
-
-* @patOverapprox@ and @patUnderapprox@ must follow the laws in the
-  Approx class. If the pattern is not a real underapproximation,
-  @patUnderapprox@ must return Nothing.
--}
-class (Show ptrn, Matchable ptrn) => GPattern ptrn where
-    fromPatternOverapprox :: Pattern -> ptrn
-    fromPatternUnderapprox :: Packet -> Pattern -> Maybe ptrn
-    toPattern :: ptrn -> Pattern
+  data PacketImpl a
+  -- |'PatternImpl a' represents switch-level patterns, which may not be
+  -- as expressive as Frenetic's pattern language.
+  --
+  --  @patOverapprox@ and @patUnderapprox@ must follow the laws in the
+  -- Approx class. If the pattern is not a real underapproximation,
+  -- @patUnderapprox@ must return Nothing.
+  data PatternImpl a
+  -- |'ActionImpl a' represents switch-level actions. All Frenetic actions
+  -- (@Action@) may not be realizable on switches.
+  data ActionImpl a
   
-{-| A valid transmission has a matching relationship between the pattern and packet -}
-class (GPattern ptrn, GPacket pkt) => ValidTransmission ptrn pkt where
-     ptrnMatchPkt :: pkt -> ptrn -> Bool
+  -- |'ptrnMatchPkt pkt pat' is 'True' if 'pat' matches 'pkt'.
+  ptrnMatchPkt :: PacketImpl a -> PatternImpl a -> Bool
+  toPacket :: PacketImpl a -> Packet
 
-instance GPacket Packet where 
-  toPacket = id
-  updatePacket pkt1 pkt2 = pkt2
+  updatePacket :: PacketImpl a -> Packet -> PacketImpl a  
 
+  fromPatternOverapprox :: Pattern -> PatternImpl a
+  fromPatternUnderapprox :: Packet -> Pattern -> Maybe (PatternImpl a)
+  toPattern :: PatternImpl a -> Pattern
+
+  actnDefault :: ActionImpl a 
+  actnController :: ActionImpl a
+  actnTranslate :: Action -> ActionImpl a
+
+instance Matchable (PatternImpl ()) where
+  top = FreneticPat top
+  intersect (FreneticPat p1) (FreneticPat p2) = case intersect p1 p2 of
+    Just p3 -> Just (FreneticPat p3)
+    Nothing -> Nothing
+
+
+-- |
+instance FreneticImpl () where
+  data PacketImpl () = FreneticPkt Packet deriving (Show, Eq)
+  data PatternImpl () = FreneticPat Pattern deriving (Show, Eq)
+  data ActionImpl () = FreneticAct { fromFreneticAct :: Action }
+    deriving (Show, Eq)   
+
+  toPacket (FreneticPkt x) = x
+  updatePacket pkt1 pkt2 = FreneticPkt pkt2
+  ptrnMatchPkt (FreneticPkt pkt) (FreneticPat ptrn) = 
+    wMatch (pktDlSrc pkt) (ptrnDlSrc ptrn)
+    && wMatch (pktDlDst pkt) (ptrnDlDst ptrn)
+    && wMatch (pktDlTyp pkt) (ptrnDlTyp ptrn)
+    && wMatch (pktDlVlan pkt) (ptrnDlVlan ptrn)
+    && wMatch (pktDlVlanPcp pkt) (ptrnDlVlanPcp ptrn)
+    && wMatch (pktNwSrc pkt) (ptrnNwSrc ptrn)
+    && wMatch (pktNwDst pkt) (ptrnNwDst ptrn)
+    && wMatch (pktNwProto pkt) (ptrnNwProto ptrn)
+    && wMatch (pktNwTos pkt) (ptrnNwTos ptrn)
+    && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
+    && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
+    && Just (pktInPort pkt) `match` ptrnInPort ptrn  
+  fromPatternOverapprox pat = FreneticPat pat
+  -- We never need to underapproximate real patterns
+  fromPatternUnderapprox pkt ptrn = Nothing 
+  toPattern (FreneticPat x) = x
+  actnDefault = FreneticAct emptyAction
+  actnController = FreneticAct emptyAction
+  actnTranslate x = FreneticAct x
+
+-- |Needed for Matchable (PatternImpl ())
 instance Matchable Pattern where
   top = Pattern {
     ptrnDlSrc = top
@@ -165,22 +202,4 @@ instance Matchable Pattern where
                          , ptrnTpDst = ptrnTpDst'
                          , ptrnInPort = ptrnInPort'
                          }
-                         
-instance GPattern Pattern where
-  fromPatternOverapprox = id
-  fromPatternUnderapprox pkt ptrn = Nothing -- We never need to underapproximate real patterns
-  toPattern = id
 
-instance ValidTransmission Pattern Packet where
-  ptrnMatchPkt pkt ptrn = wMatch (pktDlSrc pkt) (ptrnDlSrc ptrn)
-                          && wMatch (pktDlDst pkt) (ptrnDlDst ptrn)
-                          && wMatch (pktDlTyp pkt) (ptrnDlTyp ptrn)
-                          && wMatch (pktDlVlan pkt) (ptrnDlVlan ptrn)
-                          && wMatch (pktDlVlanPcp pkt) (ptrnDlVlanPcp ptrn)
-                          && wMatch (pktNwSrc pkt) (ptrnNwSrc ptrn)
-                          && wMatch (pktNwDst pkt) (ptrnNwDst ptrn)
-                          && wMatch (pktNwProto pkt) (ptrnNwProto ptrn)
-                          && wMatch (pktNwTos pkt) (ptrnNwTos ptrn)
-                          && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
-                          && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
-                          && Just (pktInPort pkt) `match` ptrnInPort ptrn  

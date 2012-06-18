@@ -30,14 +30,6 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE
-    NoMonomorphismRestriction,
-    FlexibleInstances,
-    Rank2Types,
-    GADTs,
-    MultiParamTypeClasses
- #-}
-
 module Frenetic.Hosts.Nettle where
 
 import Data.Set                            as Set
@@ -70,7 +62,7 @@ import Frenetic.NetCore.API
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
---import Frenetic.Util
+
 
 
 --
@@ -121,6 +113,11 @@ sendBufferedPacket addr mbid inport t proc =
                        Nettle.OpenFlow.Packet.actions = ofacts }
      liftIO $ tellP proc (addr,(1, msg)) 
 
+rawClassifier :: Classifier (PatternImpl OpenFlow) (ActionImpl OpenFlow)
+              -> [(OFMatch.Match, OFAction.ActionSequence)]
+rawClassifier (Classifier rules) = 
+  Prelude.map (\(p, a) -> (fromOFPat p, fromOFAct a)) rules
+
 --
 -- main handlers
 --
@@ -141,11 +138,16 @@ packetIn addr pkt proc =
               case Map.lookup addr addrs of
                 Just switch -> 
                     do let inport = receivedOnPort pkt 
-                       let t = Transmission (undefined :: OFMatch.Match) switch pkt
-                       installRules addr (unpack $ specialize t pol) proc
+                       let t = Transmission (undefined :: PatternImpl OpenFlow)
+                                            switch 
+                                            (toOFPkt pkt)
+                       let t' = Transmission (undefined :: OFMatch.Match)
+                                             switch 
+                                             pkt
+                       installRules addr (rawClassifier $ specialize t pol) proc
                        case bufferID pkt of 
                          Nothing -> return () 
-                         Just bid -> sendBufferedPacket addr bid inport t proc 
+                         Just bid -> sendBufferedPacket addr bid inport t' proc 
                 Nothing -> return () 
 
 keepalive :: SockAddr -> OFProcess -> IO () 
@@ -177,13 +179,13 @@ ofDispatch addr (xid, scmsg) proc =
            let pol = policy state 
            let addrs = addrMap state
            put (state { addrMap = Map.insert addr switch addrs })
-           let rules = unpack $ compile switch pol
+           let rules = rawClassifier $ compile switch pol
            installRules addr rules proc 
     PacketIn pkt -> 
 --         let src = show $ pktDlSrc $ toPacket pkt in 
 --         let dst = show $ pktDlDst $ toPacket pkt  in 
-        let src = show $ toPacket pkt in 
-        let dst = show $ toPacket pkt  in 
+        let src = show $ toPacket (toOFPkt pkt) in 
+        let dst = show $ toPacket (toOFPkt pkt)  in 
         do liftIO $ hPutStrLn stderr ("PacketIn: " ++ src ++ " => " ++ dst)
            packetIn addr pkt proc
     PortStatus status ->  return ()

@@ -30,13 +30,7 @@
 --------------------------------------------------------------------------------
 
 {-# LANGUAGE 
-    NoMonomorphismRestriction, 
-    ExistentialQuantification,
-    ImpredicativeTypes,
-    ScopedTypeVariables,
-    FlexibleInstances,
     TypeSynonymInstances, 
-    GADTs,
     TemplateHaskell,
     MultiParamTypeClasses
  #-}
@@ -108,20 +102,15 @@ cartMap f c (x:xs) ys =
 newtype Classifier ptrn a = Classifier [(ptrn, a)]
 $(mkNewTypes [''Classifier])
 
-{-| Valid classifiers must contain GPatterns and GActions. -}
-class (GPattern ptrn, GAction actn) => ValidClassifier ptrn actn
-instance (GPattern ptrn, GAction actn) => ValidClassifier ptrn actn
-
 -- We can show classifiers. TODO: Make the display nicer.
 instance (Show ptrn, Show actn) => Show (Classifier ptrn actn) where
   show = List.intercalate "\n" . List.map show . unpack 
 
-{-| A valid environment involves a valid classifier and valid transmission. -}
-class (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
-
-instance (ValidClassifier ptrn actn, ValidTransmission ptrn pkt) => ValidEnvironment ptrn actn pkt
-
-classify :: (ValidTransmission ptrn pkt) => Switch -> pkt -> Classifier ptrn actn -> Maybe actn
+classify :: FreneticImpl a
+         => Switch 
+         -> PacketImpl a 
+         -> Classifier (PatternImpl a) actn 
+         -> Maybe actn
 classify switch pkt (Classifier rules) = foldl f Nothing rules where 
     f (Just a) (ptrn, actn) = Just a
     f Nothing (ptrn, actn) = if ptrnMatchPkt pkt ptrn
@@ -134,7 +123,10 @@ classify switch pkt (Classifier rules) = foldl f Nothing rules where
       2. NYI
 
 |-}
-minimizeShadowing :: (GPattern ptrn) => (a -> ptrn) -> [a] -> [a]
+minimizeShadowing :: FreneticImpl a
+                  => (b -> PatternImpl a) 
+                  -> [b] 
+                  -> [b]
 minimizeShadowing getPat rules = reverse $ f $ reverse rules
   where f []     = []
         f (x:xs) = if any (shadows x) xs
@@ -147,16 +139,19 @@ minimizeShadowing getPat rules = reverse $ f $ reverse rules
             Nothing -> False
             Just p3 -> match p1 p3
 
-minimizeClassifier :: (ValidClassifier ptrn actn) => Classifier ptrn actn -> Classifier ptrn actn
+minimizeClassifier :: FreneticImpl a
+                   => Classifier (PatternImpl a) (ActionImpl a) 
+                   -> Classifier (PatternImpl a) (ActionImpl a)
 minimizeClassifier (Classifier rules) = Classifier $ minimizeShadowing fst rules
-
 
 {-| Remove any rules that 
     (1) have controller actions, 
     (2) don't match the packet, or
     (3) overlap with rules previously removed. -}
-prune :: (ValidEnvironment ptrn actn pkt) =>
-         pkt -> Classifier ptrn actn -> Classifier ptrn actn
+prune :: FreneticImpl a
+      => PacketImpl a
+      -> Classifier (PatternImpl a) (ActionImpl a) 
+      -> Classifier (PatternImpl a) (ActionImpl a)
 prune pkt = newLift $ removeControllers []
     where
       removeControllers prefix [] = []
@@ -173,7 +168,7 @@ data Bone ptrn actn = Bone ptrn Pattern (actn, actn)
 {-| Skeletons are the intermediate form. -} 
 newtype Skeleton ptrn actn = Skeleton [Bone ptrn actn]
                            deriving (Eq)
-$(mkNewTypes [''Skeleton])                                    
+$(mkNewTypes [''Skeleton])                    
 
 -- TODO: make this nicer.
 instance (Show ptrn, Show actn) => Show (Skeleton ptrn actn) where
@@ -192,11 +187,13 @@ skelMap :: ((a, a) -> (b, b)) -> Skeleton ptrn a -> Skeleton ptrn b
 skelMap f (Skeleton bones) = Skeleton $ map (\(Bone ptrn pr actns) -> Bone ptrn pr (f actns)) bones 
 
 {-| Cartesian combine two skeletons given a combination function for the actions. -}
-skelCart :: (GPattern ptrn) =>
-            ((actn, actn) -> (actn, actn) -> (actn, actn))
-            -> Skeleton ptrn actn
-            -> Skeleton ptrn actn
-            -> (Skeleton ptrn actn, Skeleton ptrn actn, Skeleton ptrn actn)
+skelCart :: FreneticImpl a
+         => ((actn, actn) -> (actn, actn) -> (actn, actn))
+         -> Skeleton (PatternImpl a) actn
+         -> Skeleton (PatternImpl a) actn
+         -> (Skeleton (PatternImpl a) actn, 
+             Skeleton (PatternImpl a) actn, 
+             Skeleton (PatternImpl a) actn)
 skelCart f (Skeleton bs1) (Skeleton bs2) = 
   let 
     (bs1',bs2',bs3') = cartMap h [] bs1 bs2 
@@ -216,13 +213,19 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
             (bs, Just x, Just y) 
       
 {-| Attempt to reduce the number of rules in a Skeleton. -}
-skelMinimize :: (GPattern ptrn) => Skeleton ptrn actn -> Skeleton ptrn actn
+skelMinimize :: FreneticImpl a
+             => Skeleton (PatternImpl a) actn 
+             -> Skeleton (PatternImpl a) actn
 skelMinimize (Skeleton bones) = Skeleton $ minimizeShadowing getPat bones
-  where getPat (Bone p1 p2 as) = p2
+  where getPat (Bone p1 p2 as) = FreneticPat p2
 
 {-| Compile a predicate to intermediate form. -}
-compilePredicate :: GPattern ptrn => Switch -> Predicate -> Skeleton ptrn Bool 
-compilePredicate s (PrPattern pat) = Skeleton [Bone (fromPatternOverapprox pat) pat (True, True)]
+compilePredicate :: FreneticImpl a
+                 => Switch 
+                 -> Predicate 
+                 -> Skeleton (PatternImpl a) Bool 
+compilePredicate s (PrPattern pat) = 
+  Skeleton [Bone (fromPatternOverapprox pat) pat (True, True)]
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top (True, True)]
                              | otherwise = Skeleton []
 compilePredicate s (PrIntersect pr1 pr2) = skelMinimize skel12'
@@ -239,7 +242,8 @@ compilePredicate s (PrNegate pr) = skelMap (\(a1, a2) -> (not a2, not a1)) (comp
                                    Skeleton [Bone top top (True, True)]
 
 {-| Compile a policy to intermediate form -}
-compilePolicy :: (GPattern ptrn) => Switch -> Policy -> Skeleton ptrn Action
+compilePolicy :: FreneticImpl a
+              => Switch -> Policy -> Skeleton (PatternImpl a) Action
 compilePolicy s (PoBasic po as) = 
     skelMap f $ compilePredicate s po
   where
@@ -259,7 +263,10 @@ compilePolicy s (PoIntersect po1 po2) = skelMinimize skel12'
           skelCart (skelLiftActn interAction) skel1 skel2
 
 {-| Compile a policy to a classifier. -}
-compile :: (ValidClassifier ptrn actn) => Switch -> Policy -> Classifier ptrn actn
+compile :: FreneticImpl a
+        => Switch 
+        -> Policy 
+        -> Classifier (PatternImpl a) (ActionImpl a)
 compile s po = Classifier $ map f $ unpack skel
   where
     f (Bone sptrn iptrn (actn1, actn2)) 
@@ -268,6 +275,8 @@ compile s po = Classifier $ map f $ unpack skel
     skel = compilePolicy s po
     
 {-| Return a supplemental classifier obtained from specializing the policy with the transmission. |-}
-specialize :: (ValidEnvironment ptrn actn pkt) =>
-              Transmission ptrn pkt -> Policy -> Classifier ptrn actn
+specialize :: FreneticImpl a
+           => Transmission (PatternImpl a) (PacketImpl a) 
+           -> Policy 
+           -> Classifier (PatternImpl a) (ActionImpl a)
 specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) po
