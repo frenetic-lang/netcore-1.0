@@ -98,7 +98,7 @@ forwardToOpenFlowActions (ForwardPorts set) =
 forwardToOpenFlowActions ForwardFlood = [OFAction.SendOutPort OFAction.Flood]
 
 toOpenFlowActions :: Action -> OFAction.ActionSequence
-toOpenFlowActions (Action fwd) = forwardToOpenFlowActions fwd
+toOpenFlowActions a = forwardToOpenFlowActions (actionForwards a)
 
 toController :: OFAction.ActionSequence
 toController = OFAction.sendToController 0

@@ -162,8 +162,8 @@ prune pkt = newLift $ removeControllers []
           | otherwise = (ptrn, actn) : removeControllers prefix rules
 
 {-| Each rule of the intermediate form is called a Bone. -}
-data Bone ptrn actn = Bone ptrn Pattern (actn, actn)
-                    deriving (Show, Eq)
+data Bone ptrn actn = Bone ptrn Pattern actn
+  deriving (Show, Eq)
 
 {-| Skeletons are the intermediate form. -} 
 newtype Skeleton ptrn actn = Skeleton [Bone ptrn actn]
@@ -178,17 +178,14 @@ instance (Show ptrn, Show actn) => Show (Skeleton ptrn actn) where
 skelAppend :: Skeleton ptrn actn -> Skeleton ptrn actn -> Skeleton ptrn actn
 skelAppend = newLift2 (++)
 
-{-| Lift a function that operates on actions to a function that operates on bounds. -}
-skelLiftActn :: (a -> a -> a) -> (a, a) -> (a, a) -> (a, a)
-skelLiftActn f (a1, a2) (a1', a2') = (f a1 a1', f a2 a2') 
-
 {-| Map the actions. |-}
-skelMap :: ((a, a) -> (b, b)) -> Skeleton ptrn a -> Skeleton ptrn b 
-skelMap f (Skeleton bones) = Skeleton $ map (\(Bone ptrn pr actns) -> Bone ptrn pr (f actns)) bones 
+skelMap :: (a -> b) -> Skeleton ptrn a -> Skeleton ptrn b 
+skelMap f (Skeleton bones) = 
+  Skeleton $ map (\(Bone ptrn pr actns) -> Bone ptrn pr (f actns)) bones 
 
 {-| Cartesian combine two skeletons given a combination function for the actions. -}
 skelCart :: FreneticImpl a
-         => ((actn, actn) -> (actn, actn) -> (actn, actn))
+         => (actn -> actn -> actn)
          -> Skeleton (PatternImpl a) actn
          -> Skeleton (PatternImpl a) actn
          -> (Skeleton (PatternImpl a) actn, 
@@ -225,42 +222,38 @@ compilePredicate :: FreneticImpl a
                  -> Predicate 
                  -> Skeleton (PatternImpl a) Bool 
 compilePredicate s (PrPattern pat) = 
-  Skeleton [Bone (fromPatternOverapprox pat) pat (True, True)]
-compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top (True, True)]
+  Skeleton [Bone (fromPatternOverapprox pat) pat True]
+compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top True]
                              | otherwise = Skeleton []
 compilePredicate s (PrIntersect pr1 pr2) = skelMinimize skel12'
     where
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
-      (skel12', skel1', skel2') = skelCart (skelLiftActn ( &&)) skel1 skel2
+      (skel12', skel1', skel2') = skelCart (&&) skel1 skel2
 compilePredicate s (PrUnion pr1 pr2) = skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2'
     where
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
-      (skel12', skel1', skel2') = skelCart (skelLiftActn ( ||)) skel1 skel2
-compilePredicate s (PrNegate pr) = skelMap (\(a1, a2) -> (not a2, not a1)) (compilePredicate s pr) `skelAppend`
-                                   Skeleton [Bone top top (True, True)]
+      (skel12', skel1', skel2') = skelCart (||) skel1 skel2
+compilePredicate s (PrNegate pr) = 
+  skelMap not (compilePredicate s pr) `skelAppend` Skeleton [Bone top top True]
 
 {-| Compile a policy to intermediate form -}
 compilePolicy :: FreneticImpl a
               => Switch -> Policy -> Skeleton (PatternImpl a) Action
 compilePolicy s (PoBasic po as) = 
-    skelMap f $ compilePredicate s po
-  where
-    f (True, True) = (as,  as)
-    f (False, True ) = (emptyAction, as)
-    f (False, False) = (emptyAction, emptyAction)
+    skelMap (const as) $ compilePredicate s po
 compilePolicy s (PoUnion po1 po2) =
    skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2' 
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
             (skel12', skel1', skel2') = 
-              skelCart (skelLiftActn unionAction) skel1 skel2
+              skelCart unionAction skel1 skel2
 compilePolicy s (PoIntersect po1 po2) = skelMinimize skel12'
   where skel1 = compilePolicy s po1
         skel2 = compilePolicy s po2
         (skel12', skel1', skel2') = 
-          skelCart (skelLiftActn interAction) skel1 skel2
+          skelCart interAction skel1 skel2
 
 {-| Compile a policy to a classifier. -}
 compile :: FreneticImpl a
@@ -269,9 +262,9 @@ compile :: FreneticImpl a
         -> Classifier (PatternImpl a) (ActionImpl a)
 compile s po = Classifier $ map f $ unpack skel
   where
-    f (Bone sptrn iptrn (actn1, actn2)) 
-      | toPattern sptrn `match` iptrn && actn1 == actn2 = (sptrn, actnTranslate actn1) 
-      | otherwise = (sptrn, actnController)                                        
+    f (Bone sptrn iptrn actn) 
+      | toPattern sptrn `match` iptrn = (sptrn, actnTranslate actn) 
+      | otherwise = (sptrn, actnController)
     skel = compilePolicy s po
     
 {-| Return a supplemental classifier obtained from specializing the policy with the transmission. |-}

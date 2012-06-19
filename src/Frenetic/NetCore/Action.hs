@@ -7,6 +7,8 @@ module Frenetic.NetCore.Action
   , interAction
   , flood
   , forward
+  , actionForwards
+  , actionNumPktQueries
   ) where
 
 import Control.Concurrent.Chan
@@ -26,14 +28,15 @@ instance Show Forward where
   show ForwardFlood = "Flood"
 
 data Action = Action {
-  actionFwd :: Forward
+  actionForwards :: Forward,
+  actionNumPktQueries :: [(Chan Word64, Int)]
 } deriving (Eq)
 
 instance Show Action where
-  show (Action fwd) = "<fwd=" ++ show fwd ++ ">"
+  show (Action fwd _) = "<fwd=" ++ show fwd ++ ">"
 
 emptyAction :: Action
-emptyAction = Action (ForwardPorts Set.empty)
+emptyAction = Action (ForwardPorts Set.empty) []
 
 unionForward :: Forward -> Forward -> Forward
 unionForward ForwardFlood _ = ForwardFlood
@@ -49,13 +52,17 @@ interForward (ForwardPorts set1) (ForwardPorts set2) =
   ForwardPorts (set1 `Set.intersection` set2)
 
 unionAction :: Action -> Action -> Action
-unionAction (Action fwd1) (Action fwd2) = Action (unionForward fwd1 fwd2)
+unionAction (Action fwd1 q1) (Action fwd2 q2) = 
+  Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
+    where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
 
 interAction :: Action -> Action -> Action
-interAction (Action fwd1) (Action fwd2) = Action (interForward fwd1 fwd2)
+interAction (Action fwd1 q1) (Action fwd2 q2) = 
+  Action (interForward fwd1 fwd2) (interQuery q1 q2)
+    where interQuery xs ys = filter (\x -> x `elem` ys) xs
 
 flood :: Action
-flood = Action ForwardFlood
+flood = Action ForwardFlood []
 
 forward :: Port -> Action
-forward p = Action (ForwardPorts (Set.singleton p))
+forward p = Action (ForwardPorts (Set.singleton p)) []

@@ -240,7 +240,7 @@ instance Arbitrary Forward where
 instance Arbitrary Action where
   arbitrary = do
     fwd <- arbitrary
-    return (Action fwd)
+    return (Action fwd []) -- TODO: arbitrary queries
 
 instance Arbitrary (PatternImpl ()) where
   arbitrary = do
