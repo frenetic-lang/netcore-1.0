@@ -41,14 +41,13 @@ module Frenetic.Switches.OpenFlow
   , fromOFAct
   ) where
 
-import           Control.Newtype
-
+import Data.HList
 import           Data.Bits
 import           Frenetic.LargeWord
 import qualified Data.Set                        as Set
 import           Data.Word
-
-
+import Nettle.OpenFlow hiding (intersect)
+import Nettle.Ethernet.AddressResolutionProtocol
 import           Nettle.OpenFlow.Packet
 import qualified Nettle.OpenFlow.Match           as OFMatch
 import qualified Nettle.OpenFlow.Action          as OFAction
@@ -56,21 +55,18 @@ import qualified Nettle.IPv4.IPPacket            as IPPacket
 import qualified Nettle.IPv4.IPAddress           as IPAddress
 import           Nettle.Ethernet.EthernetFrame
 import           Nettle.Ethernet.EthernetAddress    
-
 import           Frenetic.Pattern
 import           Frenetic.Compat
 import Frenetic.NetCore.Action
 
---type OFClassifier = Classifier OFMatch.Match OFAction.ActionSequence
-
-
 {-| Convert an EthernetAddress to a Word48. -}    
-ethToWord48 (EthernetAddress a b c d e f) =
-    LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
+ethToWord48 eth = 
+  LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
+    where (a, b, c, d, e, f) = unpack eth
              
 {-| Convert a Word48 to an EthernetAddress. -}    
 word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
-    EthernetAddress a b c d e f
+    ethernetAddress a b c d e f
 
 {-| Convert a pattern Prefix to an IPAddressPrefix. -}
 prefixToIPAddressPrefix :: Prefix Word32 -> IPAddress.IPAddressPrefix
@@ -97,90 +93,82 @@ forwardToOpenFlowActions (ForwardPorts set) =
   map (\p -> OFAction.SendOutPort (OFAction.PhysicalPort p)) (Set.toList set)
 forwardToOpenFlowActions ForwardFlood = [OFAction.SendOutPort OFAction.Flood]
 
-toOpenFlowActions :: Action -> OFAction.ActionSequence
-toOpenFlowActions a = forwardToOpenFlowActions (actionForwards a)
-
 toController :: OFAction.ActionSequence
 toController = OFAction.sendToController 0
 
-
-instance Matchable OFMatch.Match where
-  top = OFMatch.Match { 
-          OFMatch.inPort = top,
-          OFMatch.srcEthAddress = top,
-          OFMatch.dstEthAddress = top,
-          OFMatch.vLANID = top,
-          OFMatch.vLANPriority = top,
-          OFMatch.ethFrameType = top,
-          OFMatch.ipTypeOfService = top,
-          OFMatch.ipProtocol = top,
-          OFMatch.srcIPAddress = top,
-          OFMatch.dstIPAddress = top,
-          OFMatch.srcTransportPort = top,
-          OFMatch.dstTransportPort = top }
+instance Matchable Match where
+  top = Match { 
+          inPort = top,
+          srcEthAddress = top,
+          dstEthAddress = top,
+          vLANID = top,
+          vLANPriority = top,
+          ethFrameType = top,
+          ipTypeOfService = top,
+          matchIPProtocol = top,
+          srcIPAddress = top,
+          dstIPAddress = top,
+          srcTransportPort = top,
+          dstTransportPort = top }
         
   intersect ofm1 ofm2 = 
-      do inport <- intersect (OFMatch.inPort ofm1) (OFMatch.inPort ofm2)
-         srcethaddress <- intersect (OFMatch.srcEthAddress ofm1) (OFMatch.srcEthAddress ofm2)
-         dstethaddress <- intersect (OFMatch.dstEthAddress ofm1) (OFMatch.dstEthAddress ofm2)
-         vlanid <- intersect (OFMatch.vLANID ofm1) (OFMatch.vLANID ofm2)
-         vlanpriority <- intersect (OFMatch.vLANPriority ofm1) (OFMatch.vLANPriority ofm2)
-         ethframetype <- intersect (OFMatch.ethFrameType ofm1) (OFMatch.ethFrameType ofm2)
-         iptypeofservice <- intersect (OFMatch.ipTypeOfService ofm1) (OFMatch.ipTypeOfService ofm2)
-         ipprotocol <- intersect (OFMatch.ipProtocol ofm1) (OFMatch.ipProtocol ofm2)
-         srcipaddress <- intersect (OFMatch.srcIPAddress ofm1) (OFMatch.srcIPAddress ofm2)
-         dstipaddress <- intersect (OFMatch.dstIPAddress ofm1) (OFMatch.dstIPAddress ofm2)
-         srctransportport <- intersect (OFMatch.srcTransportPort ofm1) (OFMatch.srcTransportPort ofm2)
-         dsttransportport <- intersect (OFMatch.dstTransportPort ofm1) (OFMatch.dstTransportPort ofm2)
-         return OFMatch.Match { 
-           OFMatch.inPort = inport,
-           OFMatch.srcEthAddress = srcethaddress,
-           OFMatch.dstEthAddress = dstethaddress,
-           OFMatch.vLANID = vlanid,
-           OFMatch.vLANPriority = vlanpriority,
-           OFMatch.ethFrameType = ethframetype,
-           OFMatch.ipTypeOfService = iptypeofservice,
-           OFMatch.ipProtocol = ipprotocol,
-           OFMatch.srcIPAddress = srcipaddress,
-           OFMatch.dstIPAddress = dstipaddress,
-           OFMatch.srcTransportPort = srctransportport,
-           OFMatch.dstTransportPort = dsttransportport }
+      do inport <- intersect (inPort ofm1) (inPort ofm2)
+         srcethaddress <- intersect (srcEthAddress ofm1) (srcEthAddress ofm2)
+         dstethaddress <- intersect (dstEthAddress ofm1) (dstEthAddress ofm2)
+         vlanid <- intersect (vLANID ofm1) (vLANID ofm2)
+         vlanpriority <- intersect (vLANPriority ofm1) (vLANPriority ofm2)
+         ethframetype <- intersect (ethFrameType ofm1) (ethFrameType ofm2)
+         iptypeofservice <- intersect (ipTypeOfService ofm1) (ipTypeOfService ofm2)
+         ipprotocol <- intersect (matchIPProtocol ofm1) (matchIPProtocol ofm2)
+         srcipaddress <- intersect (srcIPAddress ofm1) (srcIPAddress ofm2)
+         dstipaddress <- intersect (dstIPAddress ofm1) (dstIPAddress ofm2)
+         srctransportport <- intersect (srcTransportPort ofm1) (srcTransportPort ofm2)
+         dsttransportport <- intersect (dstTransportPort ofm1) (dstTransportPort ofm2)
+         return Match { 
+           inPort = inport,
+           srcEthAddress = srcethaddress,
+           dstEthAddress = dstethaddress,
+           vLANID = vlanid,
+           vLANPriority = vlanpriority,
+           ethFrameType = ethframetype,
+           ipTypeOfService = iptypeofservice,
+           matchIPProtocol = ipprotocol,
+           srcIPAddress = srcipaddress,
+           dstIPAddress = dstipaddress,
+           srcTransportPort = srctransportport,
+           dstTransportPort = dsttransportport }
 
 
                    
-nettleEthernetFrame pkt = 
-  case runGetE getEthernetFrame $ packetData pkt of 
+nettleEthernetFrame pkt = case enclosedFrame pkt of
     Left err -> error ("Expected an Ethernet frame: " ++ err)
     Right ef -> ef
 
-nettleEthernetHeaders pkt = 
-  case nettleEthernetFrame pkt of
-    EthernetFrame hdr _ -> hdr
+nettleEthernetHeaders pkt = case enclosedFrame pkt of
+  Right (HCons hdr _) -> hdr
+  Left _ -> error "no ethernet headers"
 
-nettleEthernetBody pkt = 
-  case nettleEthernetFrame pkt of
-    EthernetFrame _ bdy -> bdy
+nettleEthernetBody pkt = case enclosedFrame pkt of
+  Right (HCons _ (HCons body _)) -> body
+  Left _ -> error "no ethernet body"
 
 data OpenFlow = OpenFlow
 
 
 instance Matchable (PatternImpl OpenFlow) where
   top = OFPat top
-  intersect (OFPat p1) (OFPat p2) = case intersect p1 p2 of
+  intersect (OFPat p1) (OFPat p2) = case Frenetic.Pattern.intersect p1 p2 of
     Just p3 -> Just (OFPat p3)
     Nothing -> Nothing
 
 instance FreneticImpl OpenFlow where
   data PacketImpl OpenFlow = OFPkt PacketInfo deriving (Show, Eq)
-  data PatternImpl OpenFlow = OFPat OFMatch.Match deriving (Show, Eq)
+  data PatternImpl OpenFlow = OFPat Match deriving (Show, Eq)
   data ActionImpl OpenFlow = OFAct { fromOFAct :: OFAction.ActionSequence }
     deriving (Show, Eq)
   
   ptrnMatchPkt (OFPkt pkt) (OFPat ptrn) = 
-    OFMatch.matches (receivedOnPort pkt, ethFrame) ptrn
-      where ethFrame = case runGetE getEthernetFrame (packetData pkt) of
-              Left err -> error err
-              Right eth -> eth
+    matches (receivedOnPort pkt, nettleEthernetFrame pkt) ptrn
 
   toPacket (OFPkt pkt) = Packet {
       pktInPort = receivedOnPort pkt,
@@ -200,55 +188,57 @@ instance FreneticImpl OpenFlow where
           Ethernet8021Q _ _ _ pri _ _ -> pri,
       pktNwSrc = 
         stripIPAddr $ case nettleEthernetBody pkt of
-          IPInEthernet (IPPacket.IPPacket hdr _) -> IPPacket.ipSrcAddress hdr
-          ARPInEthernet arp -> senderIPAddress arp
+          IPInEthernet (HCons hdr _) -> IPPacket.ipSrcAddress hdr
+          ARPInEthernet (ARPQuery q) -> querySenderIPAddress q
+          ARPInEthernet (ARPReply r) -> replySenderIPAddress r
           _ -> IPAddress.ipAddress 0 0 0 0,
       pktNwDst = 
         stripIPAddr $ case nettleEthernetBody pkt of
-          IPInEthernet (IPPacket.IPPacket hdr _) -> IPPacket.ipDstAddress hdr
-          ARPInEthernet arp -> targetIPAddress arp
+          IPInEthernet (HCons hdr _) -> IPPacket.ipDstAddress hdr
+          ARPInEthernet (ARPQuery q) -> queryTargetIPAddress q
+          ARPInEthernet (ARPReply r) -> replyTargetIPAddress r
           _ -> IPAddress.ipAddress 0 0 0 0,
       pktNwProto = 
         case nettleEthernetBody pkt of
-          IPInEthernet (IPPacket.IPPacket hdr _) -> IPPacket.ipProtocol hdr
-          ARPInEthernet arp -> 
-            case arpOpCode arp of 
-              ARPRequest -> 1
-              ARPReply -> 2
+          IPInEthernet (HCons hdr _) -> IPPacket.ipProtocol hdr
+          ARPInEthernet (ARPQuery _) -> 1
+          ARPInEthernet (ARPReply _) -> 2
           _ -> 0,
       pktNwTos = 
           case nettleEthernetBody pkt of
-            IPInEthernet (IPPacket.IPPacket hdr _) -> IPPacket.dscp hdr
+            IPInEthernet (HCons hdr _) -> IPPacket.dscp hdr
             _ -> 0 ,
       pktTpSrc = 
         case nettleEthernetBody pkt of 
-          IPInEthernet (IPPacket.IPPacket _ (IPPacket.TCPInIP (src,_))) -> src
-          IPInEthernet (IPPacket.IPPacket _ (IPPacket.UDPInIP (src,_))) -> src
-          IPInEthernet (IPPacket.IPPacket _ (IPPacket.ICMPInIP (typ,_))) -> fromIntegral typ
+          IPInEthernet (HCons _ (HCons (IPPacket.TCPInIP (src,dst)) _)) -> src
+          IPInEthernet (HCons _ (HCons (IPPacket.UDPInIP (src,dst) _) _)) -> src
+          IPInEthernet (HCons _ (HCons (IPPacket.ICMPInIP (typ,cod)) _)) -> 
+            fromIntegral typ
           _ -> 0,
       pktTpDst =
         case nettleEthernetBody pkt of 
-          IPInEthernet (IPPacket.IPPacket _ (IPPacket.TCPInIP (_,dst))) -> dst
-          IPInEthernet (IPPacket.IPPacket _ (IPPacket.UDPInIP (_,dst))) -> dst
-          IPInEthernet (IPPacket.IPPacket _ (IPPacket.ICMPInIP (_,cod))) -> fromIntegral cod
+          IPInEthernet (HCons _ (HCons (IPPacket.TCPInIP (src,dst)) _)) -> dst
+          IPInEthernet (HCons _ (HCons (IPPacket.UDPInIP (src,dst) _) _)) -> dst
+          IPInEthernet (HCons _ (HCons (IPPacket.ICMPInIP (typ,cod)) _)) -> 
+            fromIntegral cod
           _ -> 0
           }
     where
       stripIPAddr (IPAddress.IPAddress a) = a
 
   fromPatternOverapprox ptrn = OFPat $ top {
-    OFMatch.srcEthAddress = fmap word48ToEth $ overapprox $ ptrnDlSrc ptrn,
-    OFMatch.dstEthAddress = fmap word48ToEth $ overapprox $ ptrnDlDst ptrn,
-    OFMatch.ethFrameType = overapprox $ ptrnDlTyp ptrn,
-    OFMatch.vLANID = overapprox $ ptrnDlVlan ptrn,
-    OFMatch.vLANPriority = overapprox $ ptrnDlVlanPcp ptrn,
-    OFMatch.srcIPAddress = prefixToIPAddressPrefix $ overapprox $ ptrnNwSrc ptrn ,
-    OFMatch.dstIPAddress = prefixToIPAddressPrefix $ overapprox $ ptrnNwDst ptrn ,
-    OFMatch.ipProtocol = overapprox $ ptrnNwProto ptrn,
-    OFMatch.ipTypeOfService = overapprox $ ptrnNwTos ptrn,
-    OFMatch.srcTransportPort = overapprox $ ptrnTpSrc ptrn,
-    OFMatch.dstTransportPort = overapprox $ ptrnTpDst ptrn, 
-    OFMatch.inPort = ptrnInPort ptrn
+    srcEthAddress = fmap word48ToEth $ overapprox $ ptrnDlSrc ptrn,
+    dstEthAddress = fmap word48ToEth $ overapprox $ ptrnDlDst ptrn,
+    ethFrameType = overapprox $ ptrnDlTyp ptrn,
+    vLANID = overapprox $ ptrnDlVlan ptrn,
+    vLANPriority = overapprox $ ptrnDlVlanPcp ptrn,
+    srcIPAddress = prefixToIPAddressPrefix $ overapprox $ ptrnNwSrc ptrn ,
+    dstIPAddress = prefixToIPAddressPrefix $ overapprox $ ptrnNwDst ptrn ,
+    matchIPProtocol = overapprox $ ptrnNwProto ptrn,
+    ipTypeOfService = overapprox $ ptrnNwTos ptrn,
+    srcTransportPort = overapprox $ ptrnTpSrc ptrn,
+    dstTransportPort = overapprox $ ptrnTpDst ptrn, 
+    inPort = ptrnInPort ptrn
     }
     
   fromPatternUnderapprox pkt ptrn = do 
@@ -264,38 +254,38 @@ instance FreneticImpl OpenFlow where
     ptrnTpSrc' <- underapprox (ptrnTpSrc ptrn) (pktTpSrc pkt)
     ptrnTpDst' <- underapprox (ptrnTpDst ptrn) (pktTpDst pkt)
     return $ OFPat $ top {
-      OFMatch.srcEthAddress = fmap word48ToEth ptrnDlSrc',
-      OFMatch.dstEthAddress = fmap word48ToEth ptrnDlDst',
-      OFMatch.ethFrameType = ptrnDlTyp',
-      OFMatch.vLANID = ptrnDlVlan',
-      OFMatch.vLANPriority = ptrnDlVlanPcp',
-      OFMatch.srcIPAddress = prefixToIPAddressPrefix ptrnNwSrc' ,
-      OFMatch.dstIPAddress = prefixToIPAddressPrefix ptrnNwDst' ,
-      OFMatch.ipProtocol = ptrnNwProto',
-      OFMatch.ipTypeOfService = ptrnNwTos',
-      OFMatch.srcTransportPort = ptrnTpSrc',
-      OFMatch.dstTransportPort = ptrnTpDst',   
-      OFMatch.inPort = ptrnInPort ptrn
+      srcEthAddress = fmap word48ToEth ptrnDlSrc',
+      dstEthAddress = fmap word48ToEth ptrnDlDst',
+      ethFrameType = ptrnDlTyp',
+      vLANID = ptrnDlVlan',
+      vLANPriority = ptrnDlVlanPcp',
+      srcIPAddress = prefixToIPAddressPrefix ptrnNwSrc' ,
+      dstIPAddress = prefixToIPAddressPrefix ptrnNwDst' ,
+      matchIPProtocol = ptrnNwProto',
+      ipTypeOfService = ptrnNwTos',
+      srcTransportPort = ptrnTpSrc',
+      dstTransportPort = ptrnTpDst',   
+      inPort = ptrnInPort ptrn
       }
 
   toPattern (OFPat ptrn) = Pattern {
-    ptrnDlSrc     = inverseapprox $ fmap ethToWord48 $ OFMatch.srcEthAddress ptrn,
-    ptrnDlDst     = inverseapprox $ fmap ethToWord48 $ OFMatch.dstEthAddress ptrn,
-    ptrnDlTyp     = inverseapprox $ OFMatch.ethFrameType ptrn,
-    ptrnDlVlan    = inverseapprox $ OFMatch.vLANID ptrn,
-    ptrnDlVlanPcp = inverseapprox $ OFMatch.vLANPriority ptrn,
-    ptrnNwSrc     = inverseapprox $ ipAddressPrefixToPrefix $ OFMatch.srcIPAddress ptrn,
-    ptrnNwDst     = inverseapprox $ ipAddressPrefixToPrefix $ OFMatch.dstIPAddress ptrn,
-    ptrnNwProto   = inverseapprox $ OFMatch.ipProtocol ptrn,
-    ptrnNwTos     = inverseapprox $ OFMatch.ipTypeOfService ptrn,
-    ptrnTpSrc     = inverseapprox $ OFMatch.srcTransportPort ptrn,
-    ptrnTpDst     = inverseapprox $ OFMatch.dstTransportPort ptrn,
-    ptrnInPort    = OFMatch.inPort ptrn
+    ptrnDlSrc     = inverseapprox $ fmap ethToWord48 $ srcEthAddress ptrn,
+    ptrnDlDst     = inverseapprox $ fmap ethToWord48 $ dstEthAddress ptrn,
+    ptrnDlTyp     = inverseapprox $ ethFrameType ptrn,
+    ptrnDlVlan    = inverseapprox $ vLANID ptrn,
+    ptrnDlVlanPcp = inverseapprox $ vLANPriority ptrn,
+    ptrnNwSrc     = inverseapprox $ ipAddressPrefixToPrefix $ srcIPAddress ptrn,
+    ptrnNwDst     = inverseapprox $ ipAddressPrefixToPrefix $ dstIPAddress ptrn,
+    ptrnNwProto   = inverseapprox $ matchIPProtocol ptrn,
+    ptrnNwTos     = inverseapprox $ ipTypeOfService ptrn,
+    ptrnTpSrc     = inverseapprox $ srcTransportPort ptrn,
+    ptrnTpDst     = inverseapprox $ dstTransportPort ptrn,
+    ptrnInPort    = inPort ptrn
     }
 
   actnController = OFAct toController
   actnDefault = OFAct toController
-  actnTranslate a = OFAct (toOpenFlowActions a)
+  actnTranslate a = OFAct (forwardToOpenFlowActions (actionForwards a))
 
 toOFPkt :: PacketInfo -> PacketImpl OpenFlow
 toOFPkt p = OFPkt p
@@ -303,10 +293,10 @@ toOFPkt p = OFPkt p
 fromOFPkt :: PacketImpl OpenFlow -> PacketInfo
 fromOFPkt (OFPkt p) = p
 
-toOFPat :: OFMatch.Match -> PatternImpl OpenFlow
+toOFPat :: Match -> PatternImpl OpenFlow
 toOFPat p = OFPat p
 
-fromOFPat :: PatternImpl OpenFlow -> OFMatch.Match
+fromOFPat :: PatternImpl OpenFlow -> Match
 fromOFPat (OFPat p) = p
 
 toOFAct :: OFAction.ActionSequence -> ActionImpl OpenFlow

@@ -49,22 +49,15 @@ import Test.HUnit
 import Test.Framework.Providers.QuickCheck2
 import Test.QuickCheck.Property (Property, morallyDubiousIOProperty)
 import Test.QuickCheck.Text
-
 import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
-
 import Frenetic.Pattern
 import Frenetic.NetCore.API
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Tests.Frenetic.Switches.ArbitraryOpenFlow
-
-import Nettle.OpenFlow.Action
-import Nettle.OpenFlow.Match
-import Nettle.IPv4.IPAddress
+import Nettle.OpenFlow hiding (match)
 import qualified Nettle.IPv4.IPPacket as IP
-import Nettle.Ethernet.EthernetAddress
-import Nettle.Ethernet.EthernetFrame
 import Frenetic.NetCore.API
 import Control.Newtype.TH
 import Control.Newtype
@@ -89,7 +82,7 @@ prop_fromPatternOverapprox_toPattern_match sptrn =
 prop_exact_1 :: ExactishPattern -> Bool
 prop_exact_1 ptrn_in = 
   let ptrn :: Pattern
-      ptrn = unpack ptrn_in
+      ptrn = Control.Newtype.unpack ptrn_in
       approx :: PatternImpl OpenFlow
       approx = fromPatternOverapprox ptrn
   in ptrn `match` (toPattern approx)
@@ -108,12 +101,12 @@ case_fromPatternOverapprox_toPattern_regression_1 = do
   let p = toOFPat $ Match {
       inPort = Just 27
     , srcEthAddress = Nothing
-    , dstEthAddress = Just (EthernetAddress 7 43 42 48 39 35)
+    , dstEthAddress = Just (ethernetAddress 7 43 42 48 39 35)
     , vLANID = Just 0
     , vLANPriority = Just 40
     , ethFrameType = Nothing
     , ipTypeOfService = Nothing
-    , ipProtocol = Nothing
+    , matchIPProtocol = Nothing
     , srcIPAddress = (IPAddress 41,7)
     , dstIPAddress = (IPAddress 11,32)
     , srcTransportPort = Just 28

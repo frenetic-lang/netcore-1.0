@@ -39,176 +39,72 @@ import Frenetic.LargeWord
 import Control.Exception.Base
 import Control.Concurrent
 import Control.Monad.State
-import Control.Newtype
 import System.IO
-import Nettle.Ethernet.EthernetFrame
-import Nettle.Ethernet.EthernetAddress
-import Nettle.IPv4.IPPacket
-import Nettle.IPv4.IPAddress
-import Nettle.OpenFlow.FlowTable           as FlowTable hiding (FlowRemoved)
-import Nettle.OpenFlow.Match               as OFMatch
-import Nettle.OpenFlow.MessagesBinary
-import Nettle.OpenFlow.Messages            as Messages
-import Nettle.OpenFlow.Packet
-import Nettle.OpenFlow.Port
-import Nettle.OpenFlow.Switch
-import Nettle.OpenFlow.Action as OFAction
-import Nettle.Servers.TCPServer
-import Nettle.Servers.MultiplexedTCPServer
+import Nettle.OpenFlow
+import Nettle.Servers.Server
 import Frenetic.NetCore.API
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
 
-
-
---
--- Data types
---
-
-data ControllerState = 
-       ControllerState { addrMap :: Map SockAddr Switch,
-                         policy :: Policy }
-
-type ControllerOp = StateT ControllerState IO
-
-type FSCMessage = (TransactionID, SCMessage)
-type FCSMessage = (TransactionID, CSMessage)
-
-type OFProcess = 
-  Process (TCPMessage FSCMessage) (SockAddr, FCSMessage) IOException
-
--- Packet instances
-
-               
--- Nettle server
-
-
-installRules :: SockAddr -> [(OFMatch.Match, OFAction.ActionSequence)]  -> OFProcess -> ControllerOp ()
-installRules addr rules proc =
-  liftIO $ foldM_ (\pri rule -> tellP proc (addr,(1, mk_flow rule pri)) >> return (pri - 1)) 65535 rules
-  where mk_flow (pat, acts) pri = 
-          FlowMod AddFlow { match=pat, 
-                              priority=pri, 
-                              FlowTable.actions=acts, 
-                              cookie=0, 
-                              notifyWhenRemoved=False, 
-                              idleTimeOut=Permanent,
-                              hardTimeOut=Permanent,
-                              applyToPacket=Nothing,
-                              overlapAllowed=True } 
-
-sendBufferedPacket :: SockAddr -> BufferID -> PortID -> Transmission OFMatch.Match PacketInfo -> OFProcess -> ControllerOp ()
-sendBufferedPacket addr mbid inport t proc = 
-  do state <- get
-     let pkts = undefined --Set.toList $ interpretPolicy (policy state) t 
-     let ofacts = map ((SendOutPort . PhysicalPort) . receivedOnPort) pkts
-     let msg = Messages.PacketOut 
-                   Nettle.OpenFlow.Packet.PacketOut 
-                     { bufferIDData = Left mbid, 
-                       Nettle.OpenFlow.Packet.inPort = Just inport, 
-                       Nettle.OpenFlow.Packet.actions = ofacts }
-     liftIO $ tellP proc (addr,(1, msg)) 
+mkFlowMod :: (Match, ActionSequence) 
+          -> Priority
+          -> CSMessage
+mkFlowMod (pat, acts) pri = FlowMod AddFlow {
+  match=pat, 
+  priority=pri, 
+  actions=acts, 
+  cookie=0, 
+  notifyWhenRemoved=False, 
+  idleTimeOut=Permanent,
+  hardTimeOut=Permanent,
+  applyToPacket=Nothing,
+  overlapAllowed=True 
+} 
 
 rawClassifier :: Classifier (PatternImpl OpenFlow) (ActionImpl OpenFlow)
-              -> [(OFMatch.Match, OFAction.ActionSequence)]
+              -> [(Match, ActionSequence)]
 rawClassifier (Classifier rules) = 
   map (\(p, a) -> (fromOFPat p, fromOFAct a)) rules
 
---
--- main handlers
---
-
-freneticPort :: ServerPortNumber
-freneticPort = 6633 
-
-packetIn :: SockAddr -> PacketInfo -> OFProcess -> ControllerOp ()
-packetIn addr pkt proc = 
-  case runGetE getEthernetFrame (packetData pkt) of
-       Left err -> 
-           -- skip non-ethernet frames
-           liftIO $ hPutStrLn stderr ("Skipping packet due to " ++ err)
-       Right (EthernetFrame header body) -> 
-           do state <- get
-              let addrs = addrMap state
-              let pol = policy state
-              case Map.lookup addr addrs of
-                Just switch -> 
-                    do let inport = receivedOnPort pkt 
-                       let t = Transmission (undefined :: PatternImpl OpenFlow)
-                                            switch 
-                                            (toOFPkt pkt)
-                       let t' = Transmission (undefined :: OFMatch.Match)
-                                             switch 
-                                             pkt
-                       installRules addr (rawClassifier $ specialize t pol) proc
-                       case bufferID pkt of 
-                         Nothing -> return () 
-                         Just bid -> sendBufferedPacket addr bid inport t' proc 
-                Nothing -> return () 
-
-keepalive :: SockAddr -> OFProcess -> IO () 
-keepalive addr proc =  
-  do threadDelay 15000000
-     hPutStrLn stderr "Echo request"
-     tellP proc (addr, (1, CSEchoRequest []))
-     keepalive addr proc
-         
-switchJoin :: SockAddr -> OFProcess -> ControllerOp ()
-switchJoin addr proc = 
-  do liftIO $ tellP proc (addr, (1, FeaturesRequest))
-     liftIO $ forkIO (keepalive addr proc)
-     return ()
-  
-ofDispatch :: SockAddr -> FSCMessage -> OFProcess -> ControllerOp ()
-ofDispatch addr (xid, scmsg) proc =   
-  case scmsg of 
-    SCHello ->
-        switchJoin addr proc
-    SCEchoRequest n -> 
-        do liftIO $ hPutStrLn stderr "Echo reply"
-           liftIO $ tellP proc (addr, (1, CSEchoReply n))
-    SCEchoReply _ ->  return ()
-    Features sf -> 
-        do let switch = switchID sf 
-           liftIO $ hPutStrLn stderr ("Features from " ++ show switch)
-           state <- get
-           let pol = policy state 
-           let addrs = addrMap state
-           put (state { addrMap = Map.insert addr switch addrs })
-           let rules = rawClassifier $ compile switch pol
-           installRules addr rules proc 
-    PacketIn pkt -> 
---         let src = show $ pktDlSrc $ toPacket pkt in 
---         let dst = show $ pktDlDst $ toPacket pkt  in 
-        let src = show $ toPacket (toOFPkt pkt) in 
-        let dst = show $ toPacket (toOFPkt pkt)  in 
-        do liftIO $ hPutStrLn stderr ("PacketIn: " ++ src ++ " => " ++ dst)
-           packetIn addr pkt proc
-    PortStatus status ->  return ()
-    FlowRemoved flow ->  return ()
-    StatsReply reply ->  return ()
-    BarrierReply ->  return ()
-    Error e -> 
-        liftIO $ hPutStrLn stderr ("Error: " ++ show e)      
-
-loop :: OFProcess -> ControllerOp ()
-loop proc = do
-  msg <- liftIO $ readP proc
-  case msg of 
-    ConnectionEstablished addr -> 
-        do liftIO $ hPutStrLn stderr ("Connection to " ++ show addr ++ " established")
-           liftIO $ tellP proc (addr, (1, CSHello))
-    ConnectionTerminated addr ioex ->        
-        liftIO $ hPutStrLn stderr ("Connection to " ++ show addr ++ " terminated: " ++ show ioex)
-    PeerMessage addr msg -> 
-         ofDispatch addr msg proc
-  loop proc 
+handleOFMsg :: SwitchHandle -> Policy -> (TransactionID, SCMessage) -> IO ()
+handleOFMsg switch policy (xid, msg) = case msg of
+  PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
+                             enclosedFrame=Right frame})) -> do
+    let switchID = handle2SwitchID switch
+    let t = Transmission undefined switchID (toOFPkt pkt)
+    let t' = Transmission (toOFPat (frameToExactMatch inPort frame)) 
+                          switchID 
+                          (toOFPkt pkt)
+    let flowTbl = rawClassifier (specialize t policy)
+    let flowMods = zipWith mkFlowMod flowTbl [65535, 65534 ..]
+    mapM_ (sendToSwitch switch) (zip [1 ..] flowMods)
+    case bufferID pkt of
+      Nothing -> return ()
+      Just buf -> do
+        let (actions, _ {- spurious -}) = interpretPolicy policy t'
+        let msg = PacketOut $ PacketOutRecord (Left buf) (Just inPort) $
+                    (fromOFAct $ actnTranslate actions)
+        sendToSwitch switch (2, msg)
+  otherwise -> do
+    putStrLn $ "Unhandled message " ++ show msg
+      
+-- |Installs the static portion of the policy, then react.
+handleSwitch :: SwitchHandle -> Policy -> IO ()
+handleSwitch switch policy = do
+  -- Nettle handles keep alive
+  let flowTbl = rawClassifier (compile (handle2SwitchID switch) policy)
+  let flowMods = zipWith mkFlowMod flowTbl [65535 ..]
+  mapM_ (sendToSwitch switch) (zip [0..] flowMods)
+  untilNothing (receiveFromSwitch switch) (handleOFMsg switch policy)
 
 nettleServer :: Policy -> IO ()
-nettleServer init_policy = do 
-  let init_state = ControllerState { addrMap = Map.empty,
-                                     policy = init_policy }
-  proc <- openFlowServer freneticPort
+nettleServer policy = do 
   hPutStrLn stderr "--- Welcome to Frenetic ---"
-  evalStateT (loop proc) init_state 
+  server <- startOpenFlowServer Nothing -- bind to this address
+                                6633    -- port to listen on
+  forever $ do
+    -- Nettle does the OpenFlow handshake
+    (switch, switchFeatures) <- acceptSwitch server
+    forkIO (handleSwitch switch policy)
+  closeServer server

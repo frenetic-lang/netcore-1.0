@@ -11,7 +11,8 @@ Library
                         mtl >= 2.0.1.0,
                         newtype,
                         newtype-th,
-                        nettle-openflow == 0.1
+                        nettle-openflow == 0.2.*,
+                        HList
     exposed-modules:    Frenetic.Compat,
                         Frenetic.LargeWord,
                         Frenetic.Pattern,
@@ -34,14 +35,15 @@ Test-Suite frenetic-tests
                       containers,
                       newtype,
                       newtype-th,
-                      nettle-openflow == 0.1,
+                      nettle-openflow == 0.2.*,
                       mtl,
                       QuickCheck >= 2,
                       HUnit,
                       test-framework,
                       test-framework-th,
                       test-framework-hunit,
-                      test-framework-quickcheck2
+                      test-framework-quickcheck2,
+                      HList
     other-modules:    Frenetic.NetCore.Compiler
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
       FlexibleContexts, TemplateHaskell
