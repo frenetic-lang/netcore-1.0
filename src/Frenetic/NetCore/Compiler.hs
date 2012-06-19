@@ -242,7 +242,9 @@ compilePredicate s (PrNegate pr) =
 compilePolicy :: FreneticImpl a
               => Switch -> Policy -> Skeleton (PatternImpl a) Action
 compilePolicy s (PoBasic po as) = 
-    skelMap (const as) $ compilePredicate s po
+    skelMap f $ compilePredicate s po 
+      where f True = as
+            f False = emptyAction
 compilePolicy s (PoUnion po1 po2) =
    skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2' 
       where skel1 = compilePolicy s po1
