@@ -29,26 +29,22 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE
-    TemplateHaskell
- #-}
+module Tests.Frenetic.TestCompat where
 
 import Data.Word
 import Data.Bits
 import Test.Framework
 import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
-
 import Control.Newtype.TH
 import Control.Newtype
-
 import Frenetic.Compat
 import Frenetic.Pattern
 import Tests.Frenetic.ArbitraryCompat
 import Tests.Frenetic.ArbitraryPattern
 import Frenetic.LargeWord
 
-main = $(defaultMainGenerator)
+compatTests = $(testGroupGenerator)
 
 prop_ExactishWildcard_is_exactish :: ExactishWildcard Word8 -> Bool
 prop_ExactishWildcard_is_exactish w_in = let w@(Wildcard x m) = unW w_in in

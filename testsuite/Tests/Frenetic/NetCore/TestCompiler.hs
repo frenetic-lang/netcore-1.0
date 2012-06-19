@@ -34,6 +34,8 @@
     FlexibleContexts
  #-}
 
+module Tests.Frenetic.NetCore.TestCompiler where
+
 import qualified Data.Set as Set
 import Data.Word
 import Test.Framework
@@ -61,11 +63,24 @@ import qualified Nettle.OpenFlow.Match as OFMatch
 
 import System.IO
 
-main = $(defaultMainGenerator)
+compilerTests = $(testGroupGenerator)
 
 -- |It's easier to write tests with Nettle's actions.
 freneticToOFAct :: ActionImpl () -> OFAction.ActionSequence
 freneticToOFAct = fromOFAct.actnTranslate.fromFreneticAct
+
+case_regress_1 = do
+  let pred = PrNegate (PrNegate (PrTo 0))
+  let policy = PoBasic pred flood
+  let pkt = FreneticPkt (Packet {pktDlSrc = 4410948387332, 
+              pktDlDst = 6609988486150, pktDlTyp = 1, pktDlVlan = 4, 
+              pktDlVlanPcp = 0, pktNwSrc = 6, pktNwDst = 5, pktNwProto = 5, 
+              pktNwTos = 7, pktTpSrc = 5, pktTpDst = 0, pktInPort = 6})
+  let (polAct, _) = interpretPolicy policy (Transmission top 0 pkt)
+  let classAct = classify 0 pkt (compile 0 policy)
+  assertEqual "classifier should produce the same action" 
+    (Just (FreneticAct polAct)) classAct
+
 
 -- Invariant: given an arbitrary classifier c, minimze c yields an
 --            equivalent classifier.

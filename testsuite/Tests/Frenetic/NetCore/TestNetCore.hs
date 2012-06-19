@@ -32,13 +32,14 @@
 {-# LANGUAGE
     TemplateHaskell
  #-}
+module Tests.Frenetic.NetCore.TestNetCore where
 
 import Test.Framework
 import Test.Framework.Providers.QuickCheck2
-
+import Test.Framework.TH
 import Frenetic.NetCore.API
 
-main = defaultMain tests
+netCoreTests = $(testGroupGenerator)
 
 tests = [ testGroup "Simple Properties" [
             testProperty "reflInt" prop_reflInt ]]

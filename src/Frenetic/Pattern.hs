@@ -30,7 +30,7 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE ScopedTypeVariables,
+{-# LANGUAGE 
              ParallelListComp,
              GeneralizedNewtypeDeriving #-}
 

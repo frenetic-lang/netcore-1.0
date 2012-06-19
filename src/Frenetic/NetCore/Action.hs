@@ -7,8 +7,6 @@ module Frenetic.NetCore.Action
   , interAction
   , flood
   , forward
-  , actionForwards
-  , actionNumPktQueries
   ) where
 
 import Control.Concurrent.Chan

@@ -31,18 +31,16 @@
 --------------------------------------------------------------------------------
 
 module Frenetic.Hosts.Nettle where
-
-import Data.Set                            as Set
-import Data.Map                            as Map
+import qualified Data.Set as Set
+import qualified Data.Map as Map
+import Data.Map (Map)
+import Data.Set (Set)
 import Frenetic.LargeWord
-
 import Control.Exception.Base
 import Control.Concurrent
 import Control.Monad.State
 import Control.Newtype
-
 import System.IO
-
 import Nettle.Ethernet.EthernetFrame
 import Nettle.Ethernet.EthernetAddress
 import Nettle.IPv4.IPPacket
@@ -57,7 +55,6 @@ import Nettle.OpenFlow.Switch
 import Nettle.OpenFlow.Action as OFAction
 import Nettle.Servers.TCPServer
 import Nettle.Servers.MultiplexedTCPServer
-
 import Frenetic.NetCore.API
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
@@ -105,7 +102,7 @@ sendBufferedPacket :: SockAddr -> BufferID -> PortID -> Transmission OFMatch.Mat
 sendBufferedPacket addr mbid inport t proc = 
   do state <- get
      let pkts = undefined --Set.toList $ interpretPolicy (policy state) t 
-     let ofacts = Prelude.map ((SendOutPort . PhysicalPort) . receivedOnPort) pkts
+     let ofacts = map ((SendOutPort . PhysicalPort) . receivedOnPort) pkts
      let msg = Messages.PacketOut 
                    Nettle.OpenFlow.Packet.PacketOut 
                      { bufferIDData = Left mbid, 
@@ -116,7 +113,7 @@ sendBufferedPacket addr mbid inport t proc =
 rawClassifier :: Classifier (PatternImpl OpenFlow) (ActionImpl OpenFlow)
               -> [(OFMatch.Match, OFAction.ActionSequence)]
 rawClassifier (Classifier rules) = 
-  Prelude.map (\(p, a) -> (fromOFPat p, fromOFAct a)) rules
+  map (\(p, a) -> (fromOFPat p, fromOFAct a)) rules
 
 --
 -- main handlers

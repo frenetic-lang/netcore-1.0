@@ -37,6 +37,7 @@
     , FunctionalDependencies
     , BangPatterns
  #-}
+module Tests.Frenetic.Switches.TestSwitches where
 
 import qualified Data.Set as Set
 import Data.Word
@@ -68,7 +69,7 @@ import Frenetic.NetCore.API
 import Control.Newtype.TH
 import Control.Newtype
 
-main = $(defaultMainGenerator)
+switchTests = $(testGroupGenerator)
 
 prop_fromPatternOverapprox_toPattern :: PatternImpl OpenFlow -> Bool
 prop_fromPatternOverapprox_toPattern sptrn = 
