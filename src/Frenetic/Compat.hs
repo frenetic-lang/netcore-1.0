@@ -121,7 +121,6 @@ class (Show (PatternImpl a),
   actnDefault :: ActionImpl a 
   actnController :: ActionImpl a
   actnTranslate :: Action -> ActionImpl a
-  policyControllerPart :: a -> Pattern -> Action -> IO ()
 
 instance Matchable (PatternImpl ()) where
   top = FreneticPat top
@@ -159,7 +158,6 @@ instance FreneticImpl () where
   actnDefault = FreneticAct emptyAction
   actnController = FreneticAct emptyAction
   actnTranslate x = FreneticAct x
-  policyControllerPart () _ _ = return ()
 
 -- |Needed for Matchable (PatternImpl ())
 instance Matchable Pattern where

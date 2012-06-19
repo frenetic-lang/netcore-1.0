@@ -30,13 +30,14 @@
 --------------------------------------------------------------------------------
 
 {-# LANGUAGE 
-    TypeSynonymInstances, 
     TemplateHaskell,
     MultiParamTypeClasses
  #-}
-
 module Frenetic.NetCore.Compiler 
   ( compile
+  , compilePredicate
+  , Bone (..) -- TODO(arjun): do not export
+  , Skeleton (..) -- TODO(arjun): do not export
   , specialize
   , Classifier (..)
   , classify
