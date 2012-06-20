@@ -32,7 +32,8 @@
 {-# LANGUAGE
     TypeSynonymInstances,
     TemplateHaskell,
-    MultiParamTypeClasses
+    MultiParamTypeClasses,
+    FlexibleInstances
  #-}
 
 module Tests.Frenetic.ArbitraryCompat where
@@ -42,10 +43,12 @@ import Data.Bits
 import Frenetic.Compat
 import Frenetic.LargeWord
 import Frenetic.Pattern
+import Frenetic.NetCore.Action
 import Test.QuickCheck
 import Tests.Frenetic.ArbitraryPattern
 import Control.Newtype.TH
 import Control.Newtype
+import Frenetic.Switches.OpenFlow
 
 buildWord48 w1 w2 w3 w4 w5 w6 = 
   LargeKey 
@@ -104,6 +107,11 @@ instance Arbitrary Packet where
     [p {pktTpSrc = s}       | s <- shrink (pktTpSrc p)] ++
     [p {pktTpDst = s}       | s <- shrink (pktTpDst p)] ++
     [p {pktInPort = s}      | s <- shrink (pktInPort p)]
+
+instance Arbitrary (PacketImpl ()) where
+  arbitrary = do
+    v <- arbitrary
+    return (FreneticPkt v)
 
 
 instance Arbitrary Pattern where
@@ -223,8 +231,24 @@ instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) wh
     [t {trSwitch = s} | s <- shrink (trSwitch t)] ++
     [t {trPkt = s} | s <- shrink (trPkt t)]
 
-instance Arbitrary (Action) where
+instance Arbitrary Forward where
+    arbitrary = oneof
+      [ return ForwardFlood,
+        do ps <- listOf arbitrary
+           return (ForwardPorts (Set.fromList ps)) ]
+
+instance Arbitrary Action where
   arbitrary = do
-    port <- arbitrary
-    oneof [ return Flood, return $ Forward port ]
+    fwd <- arbitrary
+    return (Action fwd []) -- TODO: arbitrary queries
+
+instance Arbitrary (PatternImpl ()) where
+  arbitrary = do
+    v <- arbitrary
+    return (FreneticPat v)
+
+instance Arbitrary (ActionImpl ()) where
+  arbitrary = do
+    v <- arbitrary
+    return (FreneticAct v)
 

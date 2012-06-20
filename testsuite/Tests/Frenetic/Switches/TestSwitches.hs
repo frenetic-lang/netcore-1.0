@@ -37,11 +37,11 @@
     , FunctionalDependencies
     , BangPatterns
  #-}
+module Tests.Frenetic.Switches.TestSwitches where
 
 import qualified Data.Set as Set
 import Data.Word
 import Data.Bits
-import Data.HList
 import Test.Framework
 import Test.Framework.TH
 import Test.Framework.Providers.HUnit
@@ -49,41 +49,32 @@ import Test.HUnit
 import Test.Framework.Providers.QuickCheck2
 import Test.QuickCheck.Property (Property, morallyDubiousIOProperty)
 import Test.QuickCheck.Text
-
 import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
-
 import Frenetic.Pattern
 import Frenetic.NetCore.API
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Tests.Frenetic.Switches.ArbitraryOpenFlow
-
-import Nettle.OpenFlow.Action
-import Nettle.OpenFlow.Match
-import Nettle.IPv4.IPAddress
+import Nettle.OpenFlow hiding (match)
 import qualified Nettle.IPv4.IPPacket as IP
-import Nettle.Ethernet.EthernetAddress
-import Nettle.Ethernet.EthernetFrame
-
+import Frenetic.NetCore.API
 import Control.Newtype.TH
 import Control.Newtype
 
-main = $(defaultMainGenerator)
+switchTests = $(testGroupGenerator)
 
-prop_fromPatternOverapprox_toPattern :: Match -> Bool
+prop_fromPatternOverapprox_toPattern :: PatternImpl OpenFlow -> Bool
 prop_fromPatternOverapprox_toPattern sptrn = 
   sptrn == (fromPatternOverapprox $ toPattern sptrn)
 
-prop_fromPatternOverapprox_toPattern_match :: Match -> Bool
+prop_fromPatternOverapprox_toPattern_match :: PatternImpl OpenFlow -> Bool
 prop_fromPatternOverapprox_toPattern_match sptrn = 
   p1 `match` p2
     where
-      p1 :: Pattern
-      p2 :: Pattern
-      p2' :: Match
       p1 = toPattern sptrn
       p2 = toPattern p2'
+      p2' :: PatternImpl OpenFlow
       p2' = fromPatternOverapprox $ toPattern sptrn
 
 -- forall exact Pattern p, p `match` toPattern $ fromPatternOverapprox p
@@ -91,8 +82,8 @@ prop_fromPatternOverapprox_toPattern_match sptrn =
 prop_exact_1 :: ExactishPattern -> Bool
 prop_exact_1 ptrn_in = 
   let ptrn :: Pattern
-      ptrn = unpack ptrn_in
-      approx :: Match
+      ptrn = Control.Newtype.unpack ptrn_in
+      approx :: PatternImpl OpenFlow
       approx = fromPatternOverapprox ptrn
   in ptrn `match` (toPattern approx)
 
@@ -107,15 +98,15 @@ prop_ipAddressPrefix ip len_in = prefix == idPrefix
 -- The following tests pinpoint values that have failed at some
 -- point in the past.
 case_fromPatternOverapprox_toPattern_regression_1 = do
-  let p = Match {
+  let p = toOFPat $ Match {
       inPort = Just 27
     , srcEthAddress = Nothing
-    , dstEthAddress = Just (EthernetAddress 7 43 42 48 39 35)
+    , dstEthAddress = Just (ethernetAddress 7 43 42 48 39 35)
     , vLANID = Just 0
     , vLANPriority = Just 40
     , ethFrameType = Nothing
     , ipTypeOfService = Nothing
-    , ipProtocol = Nothing
+    , matchIPProtocol = Nothing
     , srcIPAddress = (IPAddress 41,7)
     , dstIPAddress = (IPAddress 11,32)
     , srcTransportPort = Just 28
@@ -126,7 +117,7 @@ case_fromPatternOverapprox_toPattern_regression_1 = do
 case_exact_regression_1 = p @=? (toPattern p')
   where
     p :: Pattern
-    p' :: Match
+    p' :: PatternImpl OpenFlow
     p = top{ptrnNwSrc = Wildcard 0x5000001 0}
     p' = fromPatternOverapprox p
 

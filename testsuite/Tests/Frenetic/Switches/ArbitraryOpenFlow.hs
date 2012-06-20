@@ -29,17 +29,12 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE
-    TypeSynonymInstances
- #-}
-
 module Tests.Frenetic.Switches.ArbitraryOpenFlow where
 import Test.QuickCheck
-import Nettle.OpenFlow.Match
-import Nettle.Ethernet.EthernetAddress
-import Nettle.IPv4.IPAddress
-import Nettle.OpenFlow.Action
+import Nettle.OpenFlow
 import Frenetic.NetCore.Compiler
+import Frenetic.Switches.OpenFlow
+import Frenetic.Compat
 
 instance Arbitrary Match where
   arbitrary = do
@@ -63,7 +58,7 @@ instance Arbitrary Match where
       , vLANPriority = vLANPriority_v
       , ethFrameType = ethFrameType_v
       , ipTypeOfService = ipTypeOfService_v
-      , ipProtocol = ipProtocol_v
+      , matchIPProtocol = ipProtocol_v
       , srcIPAddress = srcIPAddress_v
       , dstIPAddress = dstIPAddress_v
       , srcTransportPort = srcTransportPort_v
@@ -81,7 +76,7 @@ instance Arbitrary EthernetAddress where
     w4 <- arbitrary
     w5 <- arbitrary
     w6 <- arbitrary
-    return $ EthernetAddress w1 w2 w3 w4 w5 w6
+    return $ ethernetAddress w1 w2 w3 w4 w5 w6
 
 instance Arbitrary IPAddress where
   arbitrary = do
@@ -113,3 +108,12 @@ instance (Arbitrary ptrn, Arbitrary actn) => Arbitrary (Classifier ptrn actn) wh
     l <- listOf arbitrary
     return $ Classifier l
 
+instance Arbitrary (PatternImpl OpenFlow) where
+  arbitrary = do
+    v <- arbitrary
+    return (toOFPat v)
+
+instance Arbitrary (ActionImpl OpenFlow) where
+  arbitrary = do
+    v <- arbitrary
+    return (toOFAct v)

@@ -30,7 +30,7 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE ScopedTypeVariables,
+{-# LANGUAGE 
              ParallelListComp,
              GeneralizedNewtypeDeriving #-}
 
@@ -40,7 +40,6 @@ import Data.List hiding (intersect)
 import Data.Bits
 import Data.Word
 import Data.Maybe
-import Data.HList
 import Numeric (showHex)
     
 {-|
@@ -73,7 +72,7 @@ instance (Bits a) => Eq (Wildcard a) where
     (Wildcard x m) == (Wildcard x' m') =
         m == m' && x .|. m == x' .|. m
 
-instance (Bits a, Integral a) => Show (Wildcard a) where
+instance (Bits a, Integral a, Show a) => Show (Wildcard a) where
     show (Wildcard x m) | m == (complement 0) = "*"
                         | otherwise = if any (\c -> c == '?') s
                                       then s
@@ -152,7 +151,7 @@ showAbridged :: String -> String
 showAbridged = reverse . ('*' :) . dropWhile (== '?') . reverse
 
 -- Arbitrary "tuples"
-
+{-
 instance Matchable HNil where
     top = HNil
     intersect _ _ = Just HNil
@@ -162,7 +161,7 @@ instance (Matchable a, Matchable b) => Matchable (HCons a b) where
     intersect (HCons x y) (HCons x' y') = do x'' <- intersect x x'
                                              y'' <- intersect y y'
                                              Just $ HCons x'' y''
-
+-}
 -- Restricted wildcards
 
 {-|
@@ -191,7 +190,7 @@ class Approx a where
 newtype Prefix a = Prefix (Wildcard a)
     deriving (Eq, Matchable)
 
-instance (Bits a, Integral a) => Show (Prefix a) where
+instance (Bits a, Integral a, Show a) => Show (Prefix a) where
     show (Prefix w) = show w
 
 instance Approx Prefix where

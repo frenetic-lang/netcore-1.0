@@ -34,6 +34,7 @@
 
 module Frenetic.NetCore.Controller where
 
+import Frenetic.NetCore.Action
 import Control.Monad.State.Lazy
 
 import Frenetic.NetCore.API
@@ -57,10 +58,6 @@ data Controller = Controller {
                        
 {-| Controller monad -}
 newtype ControllerM a = ControllerM (StateT Controller IO a) 
-
-instance Monad ControllerM where
-  --return = newLift return
-  --(>>=) = newLift2 (>>=)
 
 {-| Make a controller -}
 mkController :: IO ControllerID 

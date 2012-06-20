@@ -52,8 +52,6 @@ instance Arbitrary Predicate where
       p1  <- resize (s-1) arbitrary
       p2  <- resize (s-1) arbitrary
       oneof [ return $ PrPattern pat,
-            -- TODO: return PrUnknown,
-            -- TODO: PrSwitchPattern,
             return $ PrTo sw,
             return $ PrUnion p1 p2,
             return $ PrIntersect p1 p2,
@@ -63,13 +61,9 @@ instance Arbitrary Predicate where
       pat <- arbitrary
       sw  <- arbitrary
       oneof [ return $ PrPattern pat,
-            -- TODO: return PrUnknown,
-            -- TODO: PrSwitchPattern,
             return $ PrTo sw ]
 
   shrink (PrPattern p)         = [PrPattern p' | p' <- shrink p]
-  shrink (PrUnknown)           = []
-  shrink (PrSwitchPattern s d) = []
   shrink (PrTo s)              = []
   shrink (PrUnion p1 p2)       = [p1, p2]
   shrink (PrIntersect p1 p2)   = [p1, p2]

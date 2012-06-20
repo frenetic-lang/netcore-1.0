@@ -28,18 +28,14 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE NoMonomorphismRestriction #-}
-
 import Frenetic.Server
 import Frenetic.NetCore.API
 import Frenetic.Compat
 import Frenetic.Pattern
-import Data.Set
-
 import Topologies
 import qualified Policies.ShortestPath as SP
-
 import System.IO
+import Frenetic.NetCore.Action
 import Debug.Trace (trace)
 
 main = do
@@ -48,14 +44,7 @@ main = do
       topo = parseTopo topoInput
   let policy = SP.mkPolicy topo
   hPutStrLn stderr ("COLE: " ++ show policy)
-  freneticServer policy
-
-policy2 = PoUnion 
-           (PoBasic (PrPattern top{ptrnInPort = (Just 1)})
-                    (singleton $ Forward 2))
-           (PoBasic (PrPattern top{ptrnInPort = (Just 2)})
-                    (singleton $ Forward 1))
-
-flood_policy :: Policy
-flood_policy = PoBasic (PrPattern top) (singleton Flood)
-
+  freneticServer (PoUnion policy arpFlood)
+  
+arpFlood :: Policy
+arpFlood = PoBasic (PrPattern top{ptrnDlTyp = Wildcard 0x806 0}) flood

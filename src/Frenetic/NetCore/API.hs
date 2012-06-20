@@ -31,35 +31,34 @@
 
 {-# LANGUAGE
     NoMonomorphismRestriction,
-    StandaloneDeriving,
     FlexibleInstances,
+    FlexibleContexts,
     Rank2Types,
     GADTs,
     ExistentialQuantification,
     MultiParamTypeClasses,
     FunctionalDependencies,
-    ScopedTypeVariables,
-    DeriveDataTypeable
+    ScopedTypeVariables
  #-}
 
 
-module Frenetic.NetCore.API where
+module Frenetic.NetCore.API 
+  ( Predicate (..)
+  , Policy (..)
+  , interpretPolicy
+  ) where
 
 import           Frenetic.Compat
-
+import Frenetic.NetCore.Action
 import qualified Data.List       as List
 import           Data.Bits
-
 import           Data.Word
 import qualified Data.Set        as Set
-import           Data.Typeable
 import           Data.Dynamic
 
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern
-               | PrUnknown
-               | PrSwitchPattern String Dynamic
                | PrTo Switch 
                | PrUnion Predicate Predicate
                | PrIntersect Predicate Predicate
@@ -67,7 +66,7 @@ data Predicate = PrPattern Pattern
                | PrNegate Predicate
 
 {-| Policies denote functions from (switch, packet) to packets. -}
-data Policy = PoBasic Predicate Actions
+data Policy = PoBasic Predicate Action
             | PoUnknown 
             | PoUnion Policy Policy
             | PoIntersect Policy Policy
@@ -76,9 +75,7 @@ data Policy = PoBasic Predicate Actions
               
 instance Show Predicate where
   show (PrPattern pat) = show pat  
-  show (PrUnknown) = "???"
   show (PrTo s) = "switch(" ++ show s ++ ")"
-  show (PrSwitchPattern desc _) = desc
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
   show (PrDifference pr1 pr2) = "(" ++ show pr1 ++ ") // (" ++ show pr2 ++ ")"
@@ -91,20 +88,18 @@ instance Show Policy where
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
   show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
 
+fromPat :: Pattern -> PatternImpl ()
+fromPat x = FreneticPat x
 
 {-| Implements the denotation function for predicates. -}
-interpretPredicate :: forall ptrn pkt. (ValidTransmission ptrn pkt) =>
-                      Predicate
-                   -> Transmission ptrn pkt
+interpretPredicate :: FreneticImpl a
+                   => Predicate
+                   -> Transmission (PatternImpl a) (PacketImpl a)
                    -> (Bool, Bool)
 interpretPredicate (PrPattern ptrn) tr = 
-    let rv = toPacket (trPkt tr) `ptrnMatchPkt` ptrn in 
+    let rv = (FreneticPkt $ toPacket $ trPkt tr) `ptrnMatchPkt` 
+             (FreneticPat ptrn) in 
       (rv, rv)
-interpretPredicate (PrSwitchPattern _ dyn) tr =
-    case fromDynamic dyn :: Maybe ptrn of
-      Just ptrn -> let k = ptrnMatchPkt (trPkt tr) ptrn in (k, k)
-      Nothing -> (False, False)
-interpretPredicate (PrUnknown) tr = (False, True) 
 interpretPredicate (PrTo sw) tr = 
     let rv = sw == trSwitch tr in
       (rv, rv)
@@ -125,29 +120,26 @@ interpretPredicate (PrNegate pr) t =
       (not b1, not b1')
 interpretPredicate p t = (False, False)
 
+
 -- {-| Implements the denotation function for actions. -}
 -- interpretActions :: (GPacket pkt) => pkt -> Actions -> Set.Set pkt
 -- interpretActions pkt actn = Set.fromList [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) 
 --                                          | prt' <- Set.toList actn] 
 
 {-| Implements the denotation function for policies. -}
-interpretPolicy :: (ValidTransmission ptrn pkt) =>
-                   Policy
-                -> Transmission ptrn pkt
-                -> (Actions, Actions)
+interpretPolicy :: FreneticImpl a
+                => Policy
+                -> Transmission (PatternImpl a) (PacketImpl a)
+                -> (Action, Action)
 interpretPolicy (PoBasic pred as) tr = case interpretPredicate pred tr of
     (True, True) -> (as, as)
-    (True, False) -> (as, Set.empty)
-    (False, True) -> (Set.empty, as)
-    (False, False) -> (Set.empty, Set.empty)
--- TODO: NYI
--- interpretPolicy PoUnknown tr = (Set.empty, undefined)
+    (True, False) -> (as, emptyAction)
+    (False, True) -> (emptyAction, as)
+    (False, False) -> (emptyAction, emptyAction)
 interpretPolicy (PoUnion p1 p2) tr = 
-  pairLift Set.union (interpretPolicy p1 tr) (interpretPolicy p2 tr)
+  pairLift unionAction (interpretPolicy p1 tr) (interpretPolicy p2 tr)
 interpretPolicy (PoIntersect p1 p2) tr = 
-  pairLift Set.intersection (interpretPolicy p1 tr) (interpretPolicy p2 tr)
-interpretPolicy (PoDifference p1 p2) tr = 
-  pairLift Set.difference (interpretPolicy p1 tr) (interpretPolicy p2 tr)
+  pairLift interAction (interpretPolicy p1 tr) (interpretPolicy p2 tr)
 
 pairLift :: (a -> a -> a) -> (a, a) -> (a, a) -> (a, a)
 pairLift f (a1, a1') (a2, a2') = (f a1 a2, f a1' a2')
