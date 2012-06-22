@@ -45,18 +45,8 @@ import Frenetic.NetCore.API
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
-
-data Nettle = Nettle {
-  server :: OpenFlowServer,
-  switches :: IORef (Map SwitchID SwitchHandle),
-  nextTxId :: IORef TransactionID,
-  -- ^ Transaction IDs in the semi-open interval '[0, nextTxId)' are in use.
-  -- @sendTransaction@ tries to reserve 'nextTxId' atomically. There could be
-  -- available transaction IDs within the range, but we will miss them
-  -- until 'nextTxId' changes.
-  txHandlers :: IORef (Map TransactionID (SCMessage -> IO ()))
-}
-  
+import Frenetic.NetCore.Action
+import Data.List (nub, find)
 
 -- |spin-lock until we acquire a 'TransactionID'
 reserveTxId :: Nettle -> IO TransactionID 
@@ -167,10 +157,12 @@ handleOFMsg nettle switch policy (xid, msg) = case msg of
       Nothing -> putStrLn $ "Unhandled message " ++ show msg
       
 -- |Installs the static portion of the policy, then react.
-handleSwitch :: Nettle -> SwitchHandle -> Policy -> IO ()
-handleSwitch nettle switch policy = do
+handleSwitch :: Nettle -> SwitchHandle -> Policy -> [Aggregator] -> IO ()
+handleSwitch nettle switch policy aggregators = do
   -- Nettle handles keep alive
-  let flowTbl = rawClassifier (compile (handle2SwitchID switch) policy)
+  let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
+  let flowTbl = rawClassifier classifier
+  runQueryOnSwitch nettle aggregators switch cl
   let flowMods = zipWith mkFlowMod flowTbl [65535 ..]
   mapM_ (sendToSwitch switch) (zip [0..] flowMods)
   untilNothing (receiveFromSwitch switch) (handleOFMsg nettle switch policy)
@@ -184,9 +176,54 @@ nettleServer policy = do
   nextTxId <- newIORef 10
   txHandlers <- newIORef Map.empty
   let nettle = Nettle server switches nextTxId txHandlers
+  let queries = policyQueries policy
+  aggregators <- policyAggregators policy
   forever $ do
     -- Nettle does the OpenFlow handshake
     (switch, switchFeatures) <- acceptSwitch server
     modifyIORef switches (Map.insert (handle2SwitchID switch) switch)
-    forkIO (handleSwitch nettle switch policy)
+    forkIO (handleSwitch nettle switch policy aggregators)
   closeServer server
+
+
+-- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
+-- The actions include queries that are not realizable on switches.
+-- We assume the classifier does not have any fully-shadowed patterns.
+classifierQueries :: [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
+                  -> [(NumPktQuery, [Match])]
+classifierQueries classifier = map sel queries where
+  queries = nub (concatMap (actQueries.snd) classifier)
+  sel query = (query, map (fromOFPat.fst) (filter (hasQuery query) classifier))
+  hasQuery query (_, action) = query `elem` actQueries action
+
+runQueryOnSwitch :: Nettle
+                 -> [Aggregator]
+                 -> SwitchHandle
+                 -> [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
+                 -> IO ()
+runQueryOnSwitch nettle aggregators switch classifier = do
+  let queries = classifierQueries classifier 
+  let pickAggregator (query, matches) = 
+        case find (\(q, _) -> q == query) aggregators of
+          Just (_, aggregator) -> Just (aggregator, query, matches)
+          Nothing -> Nothing
+  mapM_ (runQuery nettle switch) (map pickAggregator queries)
+
+getPktCount :: SCMessage -> Integer
+getPktCount msg = case msg of
+  StatsReply (FlowStatsReply _ stats) -> sum (map flowStatsPacketCount stats)
+  otherwise -> 0
+
+runQuery :: Nettle
+         -> SwitchHandle
+         -> Maybe (IORef Integer, NumPktQuery, [Match])
+         -> IO ()
+runQuery nettle switch (Just (aggregator, (_, millisecondDelay), matches)) = do
+  let mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
+  let statReqs = map mkReq matches
+  forkIO $ forever $ do
+    threadDelay (millisecondDelay * 1000)
+    sendTransaction nettle switch statReqs $ \replies -> do
+      let n = sum (map getPktCount replies)
+      atomicModifyIORef aggregator (\m -> (m + n, ()))
+  return ()

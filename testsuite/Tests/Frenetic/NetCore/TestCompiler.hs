@@ -69,6 +69,32 @@ compilerTests = $(testGroupGenerator)
 freneticToOFAct :: ActionImpl () -> OFAction.ActionSequence
 freneticToOFAct = fromOFAct.actnTranslate.fromFreneticAct
 
+case_test_query_1 = do
+  act <- query 1000
+  let policy = PoBasic (PrTo 0) act
+  let (Classifier tbl) = compile 0 policy
+  case tbl of
+    [(_, act)] -> assertEqual
+      "query should create an empty action in the flow table"
+      (fromOFAct act) [] 
+    otherwise -> assertFailure 
+      "query should create one entry in the flow table"
+
+test_query_2 = do
+  act <- query 1000
+  let policy = 
+        PoUnion (PoBasic (PrPattern top) flood)
+                (PoBasic (PrPattern $ top { ptrnDlDst = Wildcard 1 0 }) act)
+  let (Classifier tbl) = compile 0 policy
+  case tbl of
+    [(_, act1), (_, act2)] -> do
+      assertEqual "flood should come first in the flow-table"
+        (fromOFAct act1) [OFAction.SendOutPort OFAction.Flood]
+      assertEqual "empty action (for query) should come second in table"
+        (fromOFAct act2) []
+    otherwise -> assertFailure 
+      "query should create two entries in the flow table"
+
 case_regress_1 = do
   let pred = PrNegate (PrNegate (PrTo 0))
   let policy = PoBasic pred flood

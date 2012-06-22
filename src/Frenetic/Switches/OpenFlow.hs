@@ -32,21 +32,30 @@
 module Frenetic.Switches.OpenFlow 
   ( prefixToIPAddressPrefix
   , ipAddressPrefixToPrefix
-  , OpenFlow
+  , OpenFlow (..)
   , toOFPkt
   , fromOFPkt
   , toOFPat
   , fromOFPat
   , toOFAct
   , fromOFAct
+  , policyQueries
+  , Nettle (..)
+  , policyAggregators
+  , Aggregator
+  , actQueries
   ) where
 
 import Data.Map (Map)
+import qualified Data.Map as Map
+
 import Data.HList
+import Control.Concurrent.Chan
 import           Data.Bits
 import           Frenetic.LargeWord
 import qualified Data.Set                        as Set
 import           Data.Word
+import Data.List (nub, find)
 import Nettle.OpenFlow hiding (intersect)
 import qualified Nettle.IPv4.IPAddress as IPAddr
 import Nettle.Servers.Server
@@ -54,6 +63,19 @@ import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
 import Frenetic.Compat
 import Frenetic.NetCore.Action
+import Frenetic.NetCore.API
+import Control.Concurrent
+
+data Nettle = Nettle {
+  server :: OpenFlowServer,
+  switches :: IORef (Map SwitchID SwitchHandle),
+  nextTxId :: IORef TransactionID,
+  -- ^ Transaction IDs in the semi-open interval '[0, nextTxId)' are in use.
+  -- @sendTransaction@ tries to reserve 'nextTxId' atomically. There could be
+  -- available transaction IDs within the range, but we will miss them
+  -- until 'nextTxId' changes.
+  txHandlers :: IORef (Map TransactionID (SCMessage -> IO ()))
+}
 
 {-| Convert an EthernetAddress to a Word48. -}    
 ethToWord48 eth = 
@@ -148,7 +170,7 @@ nettleEthernetBody pkt = case enclosedFrame pkt of
   Right (HCons _ (HCons body _)) -> body
   Left _ -> error "no ethernet body"
 
-data OpenFlow = OpenFlow
+data OpenFlow = OpenFlow Nettle
 
 instance Matchable (PatternImpl OpenFlow) where
   top = OFPat top
@@ -156,11 +178,30 @@ instance Matchable (PatternImpl OpenFlow) where
     Just p3 -> Just (OFPat p3)
     Nothing -> Nothing
 
+toOFPkt :: PacketInfo -> PacketImpl OpenFlow
+toOFPkt p = OFPkt p
+
+fromOFPkt :: PacketImpl OpenFlow -> PacketInfo
+fromOFPkt (OFPkt p) = p
+
+toOFPat :: Match -> PatternImpl OpenFlow
+toOFPat p = OFPat p
+
+fromOFPat :: PatternImpl OpenFlow -> Match
+fromOFPat (OFPat p) = p
+
+toOFAct :: ActionSequence -> ActionImpl OpenFlow
+toOFAct p = OFAct p []
+
+instance Show (ActionImpl OpenFlow) where
+  show (OFAct acts ls) = show acts ++ " and " ++ show (length ls) ++ " queries"
+
 instance FreneticImpl OpenFlow where
   data PacketImpl OpenFlow = OFPkt PacketInfo deriving (Show, Eq)
   data PatternImpl OpenFlow = OFPat Match deriving (Show, Eq)
-  data ActionImpl OpenFlow = OFAct { fromOFAct :: ActionSequence }
-    deriving (Show, Eq)
+  data ActionImpl OpenFlow = OFAct { fromOFAct :: ActionSequence,
+                                     actQueries :: [NumPktQuery] }
+    deriving (Eq)
   
   ptrnMatchPkt (OFPkt pkt) (OFPat ptrn) = 
     matches (receivedOnPort pkt, nettleEthernetFrame pkt) ptrn
@@ -278,21 +319,24 @@ instance FreneticImpl OpenFlow where
     ptrnInPort    = inPort ptrn
     }
 
-  actnController = OFAct toController
-  actnDefault = OFAct toController
+  actnController = OFAct toController []
+  actnDefault = OFAct toController []
   actnTranslate a = OFAct (forwardToOpenFlowActions (actionForwards a))
+                          (actionNumPktQueries a)
 
-toOFPkt :: PacketInfo -> PacketImpl OpenFlow
-toOFPkt p = OFPkt p
+policyQueries :: Policy -> [NumPktQuery]
+policyQueries (PoBasic _ action) = actionNumPktQueries action
+policyQueries (PoUnion p1 p2) = policyQueries p1 ++ policyQueries p2
+policyQueries (PoIntersect p1 p2) = policyQueries p1 ++ policyQueries p2
 
-fromOFPkt :: PacketImpl OpenFlow -> PacketInfo
-fromOFPkt (OFPkt p) = p
+type Aggregator = (NumPktQuery, IORef Integer)
 
-toOFPat :: Match -> PatternImpl OpenFlow
-toOFPat p = OFPat p
-
-fromOFPat :: PatternImpl OpenFlow -> Match
-fromOFPat (OFPat p) = p
-
-toOFAct :: ActionSequence -> ActionImpl OpenFlow
-toOFAct p = OFAct p
+policyAggregators :: Policy -> IO [Aggregator]
+policyAggregators policy = mapM f (policyQueries policy)
+  where f (outChan, millisecondDelay) = do
+          aggregator <- newIORef 0
+          forkIO $ forever $ do
+            threadDelay (millisecondDelay * 1000)
+            n <- atomicModifyIORef aggregator (\n -> (0, n))
+            writeChan outChan n
+          return ((outChan, millisecondDelay), aggregator)
