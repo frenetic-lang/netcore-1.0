@@ -48,6 +48,7 @@ import           Frenetic.LargeWord
 import qualified Data.Set                        as Set
 import           Data.Word
 import Nettle.OpenFlow hiding (intersect)
+import qualified Nettle.IPv4.IPAddress as IPAddr
 import Nettle.Servers.Server
 import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
@@ -81,7 +82,7 @@ ipAddressPrefixToPrefix (IPAddress x, len) =
 
 instance Matchable IPAddressPrefix where
   top = defaultIPPrefix
-  intersect = intersect
+  intersect = IPAddr.intersect
 
 forwardToOpenFlowActions :: Forward -> ActionSequence
 forwardToOpenFlowActions (ForwardPorts set) =
