@@ -21,7 +21,6 @@ Library
                         Frenetic.Server
     other-modules:      Frenetic.Util,
                         Frenetic.Switches.OpenFlow,
-                        Frenetic.NetCore.Controller,
                         Frenetic.NetCore.Compiler,
                         Frenetic.Hosts.Nettle
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
