@@ -55,7 +55,6 @@ instance Arbitrary Predicate where
             return $ PrTo sw,
             return $ PrUnion p1 p2,
             return $ PrIntersect p1 p2,
-            -- TODO: return $ PrDifference p1 p2,
             return $ PrNegate $ p1 ]
     else do
       pat <- arbitrary
@@ -67,7 +66,6 @@ instance Arbitrary Predicate where
   shrink (PrTo s)              = []
   shrink (PrUnion p1 p2)       = [p1, p2]
   shrink (PrIntersect p1 p2)   = [p1, p2]
-  shrink (PrDifference p1 p2)  = [p1, p2]
   shrink (PrNegate p)          = [PrNegate p' | p' <- shrink p]
 
 
@@ -83,23 +81,14 @@ instance Arbitrary Policy where
           p1   <- resize (s-1) arbitrary
           p2   <- resize (s-1) arbitrary
           oneof [ return $ PoBasic pred acts
-                  , return $ PoUnion p1 p2
-                  , return $ PoIntersect p1 p2
-                  -- TODO: NYI 
-                  -- , return PoUnknown
-                  -- , return $ PoDifference p1 p2
-                 ]
+                , return $ PoIntersect p1 p2
+                ]
         else do
           pred <- resize s arbitrary
           acts <- resize s arbitrary
-          oneof [ return $ PoBasic pred acts
-                  -- TODO: NYI: 
-                  -- , return PoUnknown 
-                  ]
+          return $ PoBasic pred acts
 
   shrink (PoBasic pr as)        = [PoBasic pr' as | pr' <- shrink pr]
-  shrink (PoUnknown)            = []
   shrink (PoUnion p1 p2)        = [p1, p2]
   shrink (PoIntersect p1 p2)    = [p1, p2]
-  shrink (PoDifference p1 p2)   = [p1, p2]
 

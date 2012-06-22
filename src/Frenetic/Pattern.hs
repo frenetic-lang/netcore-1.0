@@ -33,8 +33,13 @@
 {-# LANGUAGE 
              ParallelListComp,
              GeneralizedNewtypeDeriving #-}
-
-module Frenetic.Pattern where
+module Frenetic.Pattern 
+  ( Matchable (..)
+  , Wildcard (..)
+  , Approx (..)
+  , Prefix (..)
+  , wMatch
+  ) where
 
 import Data.List hiding (intersect)
 import Data.Bits

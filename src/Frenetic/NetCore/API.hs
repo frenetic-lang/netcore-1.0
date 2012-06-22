@@ -29,19 +29,6 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE
-    NoMonomorphismRestriction,
-    FlexibleInstances,
-    FlexibleContexts,
-    Rank2Types,
-    GADTs,
-    ExistentialQuantification,
-    MultiParamTypeClasses,
-    FunctionalDependencies,
-    ScopedTypeVariables
- #-}
-
-
 module Frenetic.NetCore.API 
   ( Predicate (..)
   , Policy (..)
@@ -54,39 +41,30 @@ import qualified Data.List       as List
 import           Data.Bits
 import           Data.Word
 import qualified Data.Set        as Set
-import           Data.Dynamic
-
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern
                | PrTo Switch 
                | PrUnion Predicate Predicate
                | PrIntersect Predicate Predicate
-               | PrDifference Predicate Predicate
                | PrNegate Predicate
 
 {-| Policies denote functions from (switch, packet) to packets. -}
 data Policy = PoBasic Predicate Action
-            | PoUnknown 
             | PoUnion Policy Policy
             | PoIntersect Policy Policy
-            | PoDifference Policy Policy
-              
               
 instance Show Predicate where
   show (PrPattern pat) = show pat  
   show (PrTo s) = "switch(" ++ show s ++ ")"
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
-  show (PrDifference pr1 pr2) = "(" ++ show pr1 ++ ") // (" ++ show pr2 ++ ")"
   show (PrNegate pr) = "~(" ++ show pr ++ ")"
               
 instance Show Policy where
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
-  show (PoUnknown) = "???"
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
-  show (PoDifference po1 po2) = "(" ++ show po1 ++ ") \\\\ (" ++ show po2 ++ ")"
 
 fromPat :: Pattern -> PatternImpl ()
 fromPat x = FreneticPat x
@@ -111,10 +89,6 @@ interpretPredicate (PrIntersect pr1 pr2) t =
     let (b1, b1') = interpretPredicate pr1 t in
     let (b2, b2') = interpretPredicate pr2 t in
       (b1 && b2, b1' && b2)
-interpretPredicate (PrDifference pr1 pr2) t = 
-    let (b1, b1') = interpretPredicate pr1 t in
-    let (b2, b2') = interpretPredicate pr2 t in
-      (b1 && not b2, b1' && not b2)
 interpretPredicate (PrNegate pr) t =
     let (b1, b1') = interpretPredicate pr t in
       (not b1, not b1')

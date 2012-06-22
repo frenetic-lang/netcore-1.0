@@ -26,6 +26,8 @@ Library
                         Frenetic.Hosts.Nettle
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
       FlexibleContexts
+    ghc-options:
+      -fwarn-incomplete-patterns
     hs-source-dirs:     src
     
 Test-Suite frenetic-tests
@@ -44,7 +46,8 @@ Test-Suite frenetic-tests
                       test-framework-hunit,
                       test-framework-quickcheck2,
                       HList
-    other-modules:    Frenetic.NetCore.Compiler
+    ghc-options:
+      -fwarn-incomplete-patterns
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
       FlexibleContexts, TemplateHaskell
     hs-source-dirs:   testsuite,

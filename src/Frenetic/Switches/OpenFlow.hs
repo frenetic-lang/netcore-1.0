@@ -32,7 +32,7 @@
 module Frenetic.Switches.OpenFlow 
   ( prefixToIPAddressPrefix
   , ipAddressPrefixToPrefix
-  , OpenFlow (..)
+  , OpenFlow
   , toOFPkt
   , fromOFPkt
   , toOFPat
@@ -41,22 +41,17 @@ module Frenetic.Switches.OpenFlow
   , fromOFAct
   ) where
 
+import Data.Map (Map)
 import Data.HList
 import           Data.Bits
 import           Frenetic.LargeWord
 import qualified Data.Set                        as Set
 import           Data.Word
 import Nettle.OpenFlow hiding (intersect)
+import Nettle.Servers.Server
 import Nettle.Ethernet.AddressResolutionProtocol
-import           Nettle.OpenFlow.Packet
-import qualified Nettle.OpenFlow.Match           as OFMatch
-import qualified Nettle.OpenFlow.Action          as OFAction
-import qualified Nettle.IPv4.IPPacket            as IPPacket
-import qualified Nettle.IPv4.IPAddress           as IPAddress
-import           Nettle.Ethernet.EthernetFrame
-import           Nettle.Ethernet.EthernetAddress    
-import           Frenetic.Pattern
-import           Frenetic.Compat
+import Frenetic.Pattern
+import Frenetic.Compat
 import Frenetic.NetCore.Action
 
 {-| Convert an EthernetAddress to a Word48. -}    
@@ -69,32 +64,32 @@ word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
     ethernetAddress a b c d e f
 
 {-| Convert a pattern Prefix to an IPAddressPrefix. -}
-prefixToIPAddressPrefix :: Prefix Word32 -> IPAddress.IPAddressPrefix
+prefixToIPAddressPrefix :: Prefix Word32 -> IPAddressPrefix
 prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
-    (IPAddress.IPAddress x, prefLen)
+    (IPAddress x, prefLen)
     where
       prefLen = wordLen - measuredLen
       wordLen = 32
       measuredLen = fromIntegral $ length $ filter (testBit m) [0 .. 31]
 
 {-| Convert an IPAddressPrefix to a pattern Prefix. -}
-ipAddressPrefixToPrefix :: IPAddress.IPAddressPrefix -> Prefix Word32
-ipAddressPrefixToPrefix (IPAddress.IPAddress x, len) = 
+ipAddressPrefixToPrefix :: IPAddressPrefix -> Prefix Word32
+ipAddressPrefixToPrefix (IPAddress x, len) = 
   Prefix (Wildcard x (foldl setBit 0 [0 .. tailLen - 1]))
   where tailLen = wordLen - (fromIntegral len)
         wordLen = 32
 
-instance Matchable IPAddress.IPAddressPrefix where
-  top = IPAddress.defaultIPPrefix
-  intersect = IPAddress.intersect
+instance Matchable IPAddressPrefix where
+  top = defaultIPPrefix
+  intersect = intersect
 
-forwardToOpenFlowActions :: Forward -> OFAction.ActionSequence
+forwardToOpenFlowActions :: Forward -> ActionSequence
 forwardToOpenFlowActions (ForwardPorts set) =
-  map (\p -> OFAction.SendOutPort (OFAction.PhysicalPort p)) (Set.toList set)
-forwardToOpenFlowActions ForwardFlood = [OFAction.SendOutPort OFAction.Flood]
+  map (\p -> SendOutPort (PhysicalPort p)) (Set.toList set)
+forwardToOpenFlowActions ForwardFlood = [SendOutPort Flood]
 
-toController :: OFAction.ActionSequence
-toController = OFAction.sendToController 0
+toController :: ActionSequence
+toController = sendToController 0
 
 instance Matchable Match where
   top = Match { 
@@ -154,7 +149,6 @@ nettleEthernetBody pkt = case enclosedFrame pkt of
 
 data OpenFlow = OpenFlow
 
-
 instance Matchable (PatternImpl OpenFlow) where
   top = OFPat top
   intersect (OFPat p1) (OFPat p2) = case Frenetic.Pattern.intersect p1 p2 of
@@ -164,7 +158,7 @@ instance Matchable (PatternImpl OpenFlow) where
 instance FreneticImpl OpenFlow where
   data PacketImpl OpenFlow = OFPkt PacketInfo deriving (Show, Eq)
   data PatternImpl OpenFlow = OFPat Match deriving (Show, Eq)
-  data ActionImpl OpenFlow = OFAct { fromOFAct :: OFAction.ActionSequence }
+  data ActionImpl OpenFlow = OFAct { fromOFAct :: ActionSequence }
     deriving (Show, Eq)
   
   ptrnMatchPkt (OFPkt pkt) (OFPat ptrn) = 
@@ -188,43 +182,43 @@ instance FreneticImpl OpenFlow where
           Ethernet8021Q _ _ _ pri _ _ -> pri,
       pktNwSrc = 
         stripIPAddr $ case nettleEthernetBody pkt of
-          IPInEthernet (HCons hdr _) -> IPPacket.ipSrcAddress hdr
+          IPInEthernet (HCons hdr _) -> ipSrcAddress hdr
           ARPInEthernet (ARPQuery q) -> querySenderIPAddress q
           ARPInEthernet (ARPReply r) -> replySenderIPAddress r
-          _ -> IPAddress.ipAddress 0 0 0 0,
+          _ -> ipAddress 0 0 0 0,
       pktNwDst = 
         stripIPAddr $ case nettleEthernetBody pkt of
-          IPInEthernet (HCons hdr _) -> IPPacket.ipDstAddress hdr
+          IPInEthernet (HCons hdr _) -> ipDstAddress hdr
           ARPInEthernet (ARPQuery q) -> queryTargetIPAddress q
           ARPInEthernet (ARPReply r) -> replyTargetIPAddress r
-          _ -> IPAddress.ipAddress 0 0 0 0,
+          _ -> ipAddress 0 0 0 0,
       pktNwProto = 
         case nettleEthernetBody pkt of
-          IPInEthernet (HCons hdr _) -> IPPacket.ipProtocol hdr
+          IPInEthernet (HCons hdr _) -> ipProtocol hdr
           ARPInEthernet (ARPQuery _) -> 1
           ARPInEthernet (ARPReply _) -> 2
           _ -> 0,
       pktNwTos = 
           case nettleEthernetBody pkt of
-            IPInEthernet (HCons hdr _) -> IPPacket.dscp hdr
+            IPInEthernet (HCons hdr _) -> dscp hdr
             _ -> 0 ,
       pktTpSrc = 
         case nettleEthernetBody pkt of 
-          IPInEthernet (HCons _ (HCons (IPPacket.TCPInIP (src,dst)) _)) -> src
-          IPInEthernet (HCons _ (HCons (IPPacket.UDPInIP (src,dst) _) _)) -> src
-          IPInEthernet (HCons _ (HCons (IPPacket.ICMPInIP (typ,cod)) _)) -> 
+          IPInEthernet (HCons _ (HCons (TCPInIP (src,dst)) _)) -> src
+          IPInEthernet (HCons _ (HCons (UDPInIP (src,dst) _) _)) -> src
+          IPInEthernet (HCons _ (HCons (ICMPInIP (typ,cod)) _)) -> 
             fromIntegral typ
           _ -> 0,
       pktTpDst =
         case nettleEthernetBody pkt of 
-          IPInEthernet (HCons _ (HCons (IPPacket.TCPInIP (src,dst)) _)) -> dst
-          IPInEthernet (HCons _ (HCons (IPPacket.UDPInIP (src,dst) _) _)) -> dst
-          IPInEthernet (HCons _ (HCons (IPPacket.ICMPInIP (typ,cod)) _)) -> 
+          IPInEthernet (HCons _ (HCons (TCPInIP (src,dst)) _)) -> dst
+          IPInEthernet (HCons _ (HCons (UDPInIP (src,dst) _) _)) -> dst
+          IPInEthernet (HCons _ (HCons (ICMPInIP (typ,cod)) _)) -> 
             fromIntegral cod
           _ -> 0
           }
     where
-      stripIPAddr (IPAddress.IPAddress a) = a
+      stripIPAddr (IPAddress a) = a
 
   fromPatternOverapprox ptrn = OFPat $ top {
     srcEthAddress = fmap word48ToEth $ overapprox $ ptrnDlSrc ptrn,
@@ -299,5 +293,5 @@ toOFPat p = OFPat p
 fromOFPat :: PatternImpl OpenFlow -> Match
 fromOFPat (OFPat p) = p
 
-toOFAct :: OFAction.ActionSequence -> ActionImpl OpenFlow
+toOFAct :: ActionSequence -> ActionImpl OpenFlow
 toOFAct p = OFAct p
