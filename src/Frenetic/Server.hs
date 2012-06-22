@@ -28,9 +28,6 @@
 -- Frenetic front-end                                                         --
 -- $Id$ --
 --------------------------------------------------------------------------------
-
-{-# LANGUAGE NoMonomorphismRestriction #-}
-
 module Frenetic.Server where
 
 import Frenetic.Hosts.Nettle
