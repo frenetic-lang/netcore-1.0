@@ -9,12 +9,12 @@
 --                                                                            --
 -- Redistribution and use in source and binary forms, with or without         --
 -- modification, are permitted provided the following conditions are met:     --
--- * Redistributions of source code must retain the above copyright           --
+-- - Redistributions of source code must retain the above copyright           --
 --   notice, this list of conditions and the following disclaimer.            --
--- * Redistributions of binaries must reproduce the above copyright           --
+-- - Redistributions of binaries must reproduce the above copyright           --
 --   notice, this list of conditions and the following disclaimer in          --
 --   the documentation or other materials provided with the distribution.     --
--- * The names of the copyright holds and contributors may not be used to     --
+-- - The names of the copyright holds and contributors may not be used to     --
 --   endorse or promote products derived from this work without specific      --
 --   prior written permission.                                                --
 --                                                                            --
@@ -25,8 +25,6 @@
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
 -- /src/Frenetic/Compat.hs                                                    --
---                                                                            --
--- $Id$ --
 --------------------------------------------------------------------------------
 
 module Frenetic.Compat where
