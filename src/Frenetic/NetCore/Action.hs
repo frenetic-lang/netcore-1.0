@@ -1,12 +1,14 @@
 module Frenetic.NetCore.Action
   ( Port
   , Forward (..)
+  , NumPktQuery
   , Action (..)
   , emptyAction
   , unionAction
   , interAction
   , flood
   , forward
+  , query
   ) where
 
 import Control.Concurrent.Chan
@@ -25,9 +27,11 @@ instance Show Forward where
   show (ForwardPorts set) = show (Set.toList set)
   show ForwardFlood = "Flood"
 
+type NumPktQuery = (Chan Integer, Int)
+
 data Action = Action {
   actionForwards :: Forward,
-  actionNumPktQueries :: [(Chan Word64, Int)]
+  actionNumPktQueries :: [NumPktQuery]
 } deriving (Eq)
 
 instance Show Action where
@@ -64,3 +68,8 @@ flood = Action ForwardFlood []
 
 forward :: Port -> Action
 forward p = Action (ForwardPorts (Set.singleton p)) []
+
+query :: Int -> IO Action
+query millisecondInterval = do
+  ch <- newChan
+  return (Action (ForwardPorts Set.empty) [(ch, millisecondInterval)])

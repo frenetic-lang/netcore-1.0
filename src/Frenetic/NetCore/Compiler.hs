@@ -266,7 +266,7 @@ compile :: FreneticImpl a
 compile s po = Classifier $ map f $ unpack skel
   where
     f (Bone sptrn iptrn actn) 
-      | toPattern sptrn `match` iptrn = (sptrn, actnTranslate actn) 
+      | toPattern sptrn `match` iptrn = (sptrn, actnTranslate actn)
       | otherwise = (sptrn, actnController)
     skel = compilePolicy s po
     
