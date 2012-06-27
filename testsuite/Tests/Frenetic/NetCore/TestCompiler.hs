@@ -102,7 +102,7 @@ case_regress_1 = do
               pktDlDst = 6609988486150, pktDlTyp = 1, pktDlVlan = 4, 
               pktDlVlanPcp = 0, pktNwSrc = 6, pktNwDst = 5, pktNwProto = 5, 
               pktNwTos = 7, pktTpSrc = 5, pktTpDst = 0, pktInPort = 6})
-  let (polAct, _) = interpretPolicy policy (Transmission top 0 pkt)
+  let polAct = interpretPolicy policy (Transmission top 0 pkt)
   let classAct = classify 0 pkt (compile 0 policy)
   assertEqual "classifier should produce the same action" 
     (Just (FreneticAct polAct)) classAct
@@ -126,16 +126,10 @@ prop_semantic_Equivalence_minimize sw pk classifier = res == minimizedRes
 prop_semanticEquivalence_compile_pattern :: Switch -> Policy 
   -> PacketImpl () -> Bool
 prop_semanticEquivalence_compile_pattern sw po pk = 
-  case (polActs, fmap freneticToOFAct classActs) of
-  ((s1, s2), Nothing)
-    | s1 == emptyAction && s2 == emptyAction    -> True
-  ((s1, s2), Just []) -- the fromOFAct calls are only needed because of this []
-    | s1 == emptyAction && s2 == emptyAction    -> True
-  ((s1, s2), Just as)
-    | as == fromOFAct actnController                  -> True -- TODO
-    | as /= fromOFAct actnController && s1 /= s2      -> False
-    | otherwise -> as == fromOFAct (actnTranslate s1)
-  _                                         -> False
+  case fmap freneticToOFAct classActs of
+     Nothing -> polActs == emptyAction
+     Just [] -> polActs == emptyAction
+     Just as -> as == fromOFAct (actnTranslate polActs)
   where topP = top
         polActs = interpretPolicy po $ Transmission {trPattern=topP, trSwitch=sw, trPkt=pk}
         classifier = compile sw po
@@ -147,16 +141,10 @@ prop_semanticEquivalence_compile_pattern sw po pk =
 prop_semanticEquivalence_compile_OFpattern :: Switch -> Policy 
   -> PacketImpl () -> Bool
 prop_semanticEquivalence_compile_OFpattern sw po pk = 
-  case (polActs,fmap freneticToOFAct classActs) of
-  ((s1, s2), Nothing)
-    | s1 == emptyAction && s2 == emptyAction    -> True
-  ((s1, s2), Just [])
-    | s1 == emptyAction && s2 == emptyAction    -> True
-  ((s1, s2), Just as)
-    | as == fromOFAct actnController                  -> True -- TODO
-    | as /= fromOFAct actnController && s1 /= s2      -> False
-    | otherwise ->  as == fromOFAct (actnTranslate s1)
-  _                                         -> False
+  case fmap freneticToOFAct classActs of
+    Nothing -> polActs == emptyAction
+    Just [] -> polActs == emptyAction
+    Just as -> as == fromOFAct (actnTranslate polActs)
   where topP = top
         polActs = interpretPolicy po $ Transmission {trPattern=topP, trSwitch=sw, trPkt=pk}
         classifier = compile sw po
@@ -164,7 +152,7 @@ prop_semanticEquivalence_compile_OFpattern sw po pk =
 
 
 case_quiescence_bug_1 = do
-  assertEqual "policy -> flood" polActs (flood, flood)
+  assertEqual "policy -> flood" polActs flood
   assertEqual "classifier -> flood" 
     (Just [OFAction.SendOutPort OFAction.Flood]) 
      (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
@@ -191,7 +179,7 @@ case_quiescence_bug_1 = do
       }
  
 case_quiescence_bug_2 = do
-  assertEqual "policy -> flood" polActs (flood, flood)
+  assertEqual "policy -> flood" polActs flood
   assertEqual "classifier -> flood" 
     (Just [OFAction.SendOutPort OFAction.Flood])
     (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
@@ -219,7 +207,7 @@ case_quiescence_bug_2 = do
       }
     
 case_quiescence_bug_3 = do
-  assertEqual "policy -> flood" polActs (flood, flood)
+  assertEqual "policy -> flood" polActs flood
   assertEqual "classifier -> flood" 
     (Just [OFAction.SendOutPort OFAction.Flood])
     (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
@@ -247,7 +235,7 @@ case_quiescence_bug_3 = do
       }
 
 case_quiescence_bug_4 = do
-  assertEqual "policy -> flood" polActs (flood, flood)
+  assertEqual "policy -> flood" polActs flood
   assertEqual "classifier -> flood" 
     (Just [OFAction.SendOutPort OFAction.Flood])
     (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
@@ -290,7 +278,7 @@ case_quiescence_bug_4 = do
 case_quiescence_bug_5 = do
   hPutStrLn stderr ("bug_5: policy: " ++ show policy)
   hPutStrLn stderr ("bug_5: classifier: " ++ show classifier)
-  assertEqual "policy -> flood" polActs (forward 1, forward 1)
+  assertEqual "policy -> flood" polActs (forward 1)
   assertEqual "classifier -> flood" 
     (Just [OFAction.SendOutPort $ OFAction.PhysicalPort 1])
     (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)

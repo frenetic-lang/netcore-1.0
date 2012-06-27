@@ -64,54 +64,31 @@ instance Show Policy where
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
 
-fromPat :: Pattern -> PatternImpl ()
-fromPat x = FreneticPat x
-
-{-| Implements the denotation function for predicates. -}
+-- |Implements the denotation function for predicates.
 interpretPredicate :: FreneticImpl a
                    => Predicate
                    -> Transmission (PatternImpl a) (PacketImpl a)
-                   -> (Bool, Bool)
+                   -> Bool
 interpretPredicate (PrPattern ptrn) tr = 
-    let rv = (FreneticPkt $ toPacket $ trPkt tr) `ptrnMatchPkt` 
-             (FreneticPat ptrn) in 
-      (rv, rv)
-interpretPredicate (PrTo sw) tr = 
-    let rv = sw == trSwitch tr in
-      (rv, rv)
-interpretPredicate (PrUnion pr1 pr2) t = 
-    let (b1, b1') = interpretPredicate pr1 t in
-    let (b2, b2') = interpretPredicate pr2 t in
-      (b1 || b2, b1' || b2)
-interpretPredicate (PrIntersect pr1 pr2) t = 
-    let (b1, b1') = interpretPredicate pr1 t in
-    let (b2, b2') = interpretPredicate pr2 t in
-      (b1 && b2, b1' && b2)
-interpretPredicate (PrNegate pr) t =
-    let (b1, b1') = interpretPredicate pr t in
-      (not b1, not b1')
-interpretPredicate p t = (False, False)
+  FreneticPkt (toPacket (trPkt tr)) `ptrnMatchPkt` FreneticPat ptrn
+interpretPredicate (PrTo sw) tr =
+  sw == trSwitch tr
+interpretPredicate (PrUnion pr1 pr2) tr = 
+  interpretPredicate pr1 tr || interpretPredicate pr2 tr
+interpretPredicate (PrIntersect pr1 pr2) tr = 
+   interpretPredicate pr1 tr && interpretPredicate pr2 tr
+interpretPredicate (PrNegate pr) tr =
+  not (interpretPredicate pr tr)
 
-
--- {-| Implements the denotation function for actions. -}
--- interpretActions :: (GPacket pkt) => pkt -> Actions -> Set.Set pkt
--- interpretActions pkt actn = Set.fromList [updatePacket pkt ((toPacket pkt) { pktInPort = prt' }) 
---                                          | prt' <- Set.toList actn] 
-
-{-| Implements the denotation function for policies. -}
+-- |Implements the denotation function for policies.
 interpretPolicy :: FreneticImpl a
                 => Policy
                 -> Transmission (PatternImpl a) (PacketImpl a)
-                -> (Action, Action)
-interpretPolicy (PoBasic pred as) tr = case interpretPredicate pred tr of
-    (True, True) -> (as, as)
-    (True, False) -> (as, emptyAction)
-    (False, True) -> (emptyAction, as)
-    (False, False) -> (emptyAction, emptyAction)
+                -> Action
+interpretPolicy (PoBasic pred acts) tr = case interpretPredicate pred tr of
+  True -> acts 
+  False -> emptyAction
 interpretPolicy (PoUnion p1 p2) tr = 
-  pairLift unionAction (interpretPolicy p1 tr) (interpretPolicy p2 tr)
+  interpretPolicy p1 tr `unionAction` interpretPolicy p2 tr
 interpretPolicy (PoIntersect p1 p2) tr = 
-  pairLift interAction (interpretPolicy p1 tr) (interpretPolicy p2 tr)
-
-pairLift :: (a -> a -> a) -> (a, a) -> (a, a) -> (a, a)
-pairLift f (a1, a1') (a2, a2') = (f a1 a2, f a1' a2')
+  interpretPolicy p1 tr `interAction` interpretPolicy p2 tr

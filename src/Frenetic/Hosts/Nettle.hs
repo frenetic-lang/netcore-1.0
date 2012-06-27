@@ -145,7 +145,7 @@ handleOFMsg nettle switch policy (xid, msg) = case msg of
     case bufferID pkt of
       Nothing -> return ()
       Just buf -> do
-        let (actions, _ {- spurious -}) = interpretPolicy policy t'
+        let actions = interpretPolicy policy t'
         let msg = PacketOut $ PacketOutRecord (Left buf) (Just inPort) $
                     (fromOFAct $ actnTranslate actions)
         sendToSwitch switch (2, msg) 
