@@ -72,7 +72,7 @@ class Query1(unittest.TestCase):
   def tearDown(self):
     self.mn.destroy()
 
-  def testSpecialization(self):
+  def testQuery(self):
     src = self.mn.hosts[0]
     dst = self.mn.hosts[1]
     self.assertEqual(self.mn.ping(src, dst, 1, 5), 0)
