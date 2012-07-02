@@ -44,8 +44,10 @@ import Frenetic.NetCore.API
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
-import Frenetic.NetCore.Action
 import Data.List (nub, find)
+
+sendToSwitch' sw msg = do
+  sendToSwitch sw msg
 
 -- |spin-lock until we acquire a 'TransactionID'
 reserveTxId :: Nettle -> IO TransactionID 
@@ -134,21 +136,29 @@ handleOFMsg :: Nettle
 handleOFMsg nettle switch policy (xid, msg) = case msg of
   PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                              enclosedFrame=Right frame})) -> do
+    putStrLn "Controller received OFPT_PACKET_IN"
+    hFlush stdout
     let switchID = handle2SwitchID switch
     let t = Transmission undefined switchID (toOFPkt pkt)
     let t' = Transmission (toOFPat (frameToExactMatch inPort frame)) 
                           switchID 
                           (toOFPkt pkt)
     let flowTbl = rawClassifier (specialize t policy)
+    let actions = interpretPolicy policy t'
+    let mod = mkFlowMod (frameToExactMatch inPort frame, 
+                         fromOFAct $ actnTranslate actions)
+                        65535
+    sendToSwitch' switch (1, mod)
+    {-
     let flowMods = zipWith mkFlowMod flowTbl [65535, 65534 ..]
-    mapM_ (sendToSwitch switch) (zip [1 ..] flowMods)
+    mapM_ (sendToSwitch' switch) (zip [1 ..] flowMods)
+    -}
     case bufferID pkt of
       Nothing -> return ()
       Just buf -> do
-        let (actions, _ {- spurious -}) = interpretPolicy policy t'
         let msg = PacketOut $ PacketOutRecord (Left buf) (Just inPort) $
                     (fromOFAct $ actnTranslate actions)
-        sendToSwitch switch (2, msg) 
+        sendToSwitch' switch (2, msg) 
   otherwise -> do
     handlers <- readIORef (txHandlers nettle)
     case Map.lookup xid handlers of
@@ -156,14 +166,15 @@ handleOFMsg nettle switch policy (xid, msg) = case msg of
       Nothing -> putStrLn $ "Unhandled message " ++ show msg
       
 -- |Installs the static portion of the policy, then react.
-handleSwitch :: Nettle -> SwitchHandle -> Policy -> [Aggregator] -> IO ()
-handleSwitch nettle switch policy aggregators = do
+handleSwitch :: Nettle -> SwitchHandle -> Policy -> IO ()
+handleSwitch nettle switch policy = do
   -- Nettle handles keep alive
   let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
   let flowTbl = rawClassifier classifier
-  runQueryOnSwitch nettle aggregators switch cl
-  let flowMods = zipWith mkFlowMod flowTbl [65535 ..]
-  mapM_ (sendToSwitch switch) (zip [0..] flowMods)
+  runQueryOnSwitch nettle switch cl
+  -- Priority 65535 is for microflow rules from reactive-specialization
+  let flowMods = zipWith mkFlowMod flowTbl [65534, 65533 ..]
+  mapM_ (sendToSwitch' switch) (zip [0..] flowMods)
   untilNothing (receiveFromSwitch switch) (handleOFMsg nettle switch policy)
 
 nettleServer :: Policy -> IO ()
@@ -175,15 +186,12 @@ nettleServer policy = do
   nextTxId <- newIORef 10
   txHandlers <- newIORef Map.empty
   let nettle = Nettle server switches nextTxId txHandlers
-  let queries = policyQueries policy
-  aggregators <- policyAggregators policy
   forever $ do
     -- Nettle does the OpenFlow handshake
     (switch, switchFeatures) <- acceptSwitch server
     modifyIORef switches (Map.insert (handle2SwitchID switch) switch)
-    forkIO (handleSwitch nettle switch policy aggregators)
+    forkIO (handleSwitch nettle switch policy)
   closeServer server
-
 
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
 -- The actions include queries that are not realizable on switches.
@@ -196,33 +204,22 @@ classifierQueries classifier = map sel queries where
   hasQuery query (_, action) = query `elem` actQueries action
 
 runQueryOnSwitch :: Nettle
-                 -> [Aggregator]
                  -> SwitchHandle
                  -> [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
                  -> IO ()
-runQueryOnSwitch nettle aggregators switch classifier = do
-  let queries = classifierQueries classifier 
-  let pickAggregator (query, matches) = 
-        case find (\(q, _) -> q == query) aggregators of
-          Just (_, aggregator) -> Just (aggregator, query, matches)
-          Nothing -> Nothing
-  mapM_ (runQuery nettle switch) (map pickAggregator queries)
+runQueryOnSwitch nettle switch classifier = 
+  mapM_ runQuery (classifierQueries classifier)
+    where mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
+          switchID = handle2SwitchID switch
+          runQuery ((outChan, millisecondDelay), pats) = do
+            let statReqs = map mkReq pats
+            forkIO $ forever $ do
+              threadDelay (millisecondDelay * 1000)
+              sendTransaction nettle switch statReqs $ \replies -> do
+              writeChan outChan (switchID, sum (map getPktCount replies))
+            return ()
 
 getPktCount :: SCMessage -> Integer
 getPktCount msg = case msg of
   StatsReply (FlowStatsReply _ stats) -> sum (map flowStatsPacketCount stats)
   otherwise -> 0
-
-runQuery :: Nettle
-         -> SwitchHandle
-         -> Maybe (IORef Integer, NumPktQuery, [Match])
-         -> IO ()
-runQuery nettle switch (Just (aggregator, (_, millisecondDelay), matches)) = do
-  let mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
-  let statReqs = map mkReq matches
-  forkIO $ forever $ do
-    threadDelay (millisecondDelay * 1000)
-    sendTransaction nettle switch statReqs $ \replies -> do
-      let n = sum (map getPktCount replies)
-      atomicModifyIORef aggregator (\m -> (m + n, ()))
-  return ()

@@ -27,15 +27,38 @@
 -- /src/Frenetic/Compat.hs                                                    --
 --------------------------------------------------------------------------------
 
-module Frenetic.Compat where
+module Frenetic.Compat
+  ( Switch
+  , Port
+  , Word48
+  , Packet (..)
+  , Pattern (..)
+  , Transmission (..)
+  -- * Actions
+  , Action
+  , NumPktQuery
+  -- ** Basic actions
+  , flood
+  , forward
+  , query
+  , emptyAction
+  -- ** Action composition
+  , unionAction
+  , interAction
+  -- ** Inspecting actions
+  , actionNumPktQueries
+  , actionForwardsTo
+  -- * Implementation
+  , FreneticImpl (..)
+  )  where
 
+import Frenetic.Util
 import qualified Data.List          as List
 import           Data.Bits
 import           Data.Word
 import qualified Data.Set           as Set
 import           Frenetic.Pattern
 import           Frenetic.LargeWord
-import Frenetic.NetCore.Action (Action (..), emptyAction)
 
 {-| The type of switches in the network. -}
 type Switch = Word64
@@ -45,7 +68,8 @@ type Port = Word16
 
 {-| Auxillary value for ethernet addresses.  -}
 type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
-{-| Frenetic "packets" -}
+
+-- |Frenetic packets
 data Packet = Packet {
     pktDlSrc :: Word48
   , pktDlDst :: Word48
@@ -61,7 +85,7 @@ data Packet = Packet {
   , pktInPort :: Port
   } deriving (Show, Eq, Ord)
              
-{-| Frenetic "patterns" -}
+-- |Frenetic patterns
 data Pattern = Pattern { 
   ptrnDlSrc :: Wildcard Word48
   , ptrnDlDst :: Wildcard Word48
@@ -83,6 +107,67 @@ data Transmission ptrn pkt = Transmission {
       trSwitch :: Switch,
       trPkt :: pkt
     } deriving (Eq)
+
+data Forward
+  = ForwardPorts (Set Port)
+  | ForwardFlood 
+  deriving (Eq)
+
+instance Show Forward where
+  show (ForwardPorts set) = show (Set.toList set)
+  show ForwardFlood = "Flood"
+
+type NumPktQuery = (Chan (Switch, Integer), Int)
+
+data Action = Action {
+  actionForwards :: Forward,
+  actionNumPktQueries :: [NumPktQuery]
+} deriving (Eq)
+
+actionForwardsTo :: Action 
+                 -> Maybe (Set Port) -- ^'Nothing' indicates flood
+actionForwardsTo (Action (ForwardPorts set) _) = Just set
+actionForwardsTo (Action ForwardFlood _) = Nothing
+
+instance Show Action where
+  show (Action fwd _) = "<fwd=" ++ show fwd ++ ">"
+
+emptyAction :: Action
+emptyAction = Action (ForwardPorts Set.empty) []
+
+unionForward :: Forward -> Forward -> Forward
+unionForward ForwardFlood _ = ForwardFlood
+unionForward _ ForwardFlood = ForwardFlood
+unionForward (ForwardPorts set1) (ForwardPorts set2) = 
+  ForwardPorts (set1 `Set.union` set2)
+
+interForward :: Forward -> Forward -> Forward
+interForward ForwardFlood ForwardFlood = ForwardFlood
+interForward ForwardFlood (ForwardPorts set2) = ForwardPorts set2
+interForward (ForwardPorts set1) ForwardFlood = ForwardPorts set1
+interForward (ForwardPorts set1) (ForwardPorts set2) = 
+  ForwardPorts (set1 `Set.intersection` set2)
+
+unionAction :: Action -> Action -> Action
+unionAction (Action fwd1 q1) (Action fwd2 q2) = 
+  Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
+    where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
+
+interAction :: Action -> Action -> Action
+interAction (Action fwd1 q1) (Action fwd2 q2) = 
+  Action (interForward fwd1 fwd2) (interQuery q1 q2)
+    where interQuery xs ys = filter (\x -> x `elem` ys) xs
+
+flood :: Action
+flood = Action ForwardFlood []
+
+forward :: Port -> Action
+forward p = Action (ForwardPorts (Set.singleton p)) []
+
+query :: Int -> IO Action
+query millisecondInterval = do
+  ch <- newChan
+  return (Action (ForwardPorts Set.empty) [(ch, millisecondInterval)])
 
 -- |'FreneticImpl a' is a family of related abstract types that define a
 -- back-end for Frenetic. 
@@ -119,85 +204,4 @@ class (Show (PatternImpl a),
   actnDefault :: ActionImpl a 
   actnController :: ActionImpl a
   actnTranslate :: Action -> ActionImpl a
-
-instance Matchable (PatternImpl ()) where
-  top = FreneticPat top
-  intersect (FreneticPat p1) (FreneticPat p2) = case intersect p1 p2 of
-    Just p3 -> Just (FreneticPat p3)
-    Nothing -> Nothing
-
-
--- |
-instance FreneticImpl () where
-  data PacketImpl () = FreneticPkt Packet deriving (Show, Eq)
-  data PatternImpl () = FreneticPat Pattern deriving (Show, Eq)
-  data ActionImpl () = FreneticAct { fromFreneticAct :: Action }
-    deriving (Show, Eq)   
-
-  toPacket (FreneticPkt x) = x
-  updatePacket pkt1 pkt2 = FreneticPkt pkt2
-  ptrnMatchPkt (FreneticPkt pkt) (FreneticPat ptrn) = 
-    wMatch (pktDlSrc pkt) (ptrnDlSrc ptrn)
-    && wMatch (pktDlDst pkt) (ptrnDlDst ptrn)
-    && wMatch (pktDlTyp pkt) (ptrnDlTyp ptrn)
-    && wMatch (pktDlVlan pkt) (ptrnDlVlan ptrn)
-    && wMatch (pktDlVlanPcp pkt) (ptrnDlVlanPcp ptrn)
-    && wMatch (pktNwSrc pkt) (ptrnNwSrc ptrn)
-    && wMatch (pktNwDst pkt) (ptrnNwDst ptrn)
-    && wMatch (pktNwProto pkt) (ptrnNwProto ptrn)
-    && wMatch (pktNwTos pkt) (ptrnNwTos ptrn)
-    && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
-    && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
-    && Just (pktInPort pkt) `match` ptrnInPort ptrn  
-  fromPatternOverapprox pat = FreneticPat pat
-  -- We never need to underapproximate real patterns
-  fromPatternUnderapprox pkt ptrn = Nothing 
-  toPattern (FreneticPat x) = x
-  actnDefault = FreneticAct emptyAction
-  actnController = FreneticAct emptyAction
-  actnTranslate x = FreneticAct x
-
--- |Needed for Matchable (PatternImpl ())
-instance Matchable Pattern where
-  top = Pattern {
-    ptrnDlSrc = top
-    , ptrnDlDst = top
-    , ptrnDlTyp = top
-    , ptrnDlVlan = top
-    , ptrnDlVlanPcp = top
-    , ptrnNwSrc = top
-    , ptrnNwDst = top
-    , ptrnNwProto = top
-    , ptrnNwTos = top
-    , ptrnTpSrc = top
-    , ptrnTpDst = top
-    , ptrnInPort = top
-    }
-        
-  intersect p1 p2 = do ptrnDlSrc' <- intersect (ptrnDlSrc p1) (ptrnDlSrc p2)
-                       ptrnDlDst' <- intersect (ptrnDlDst p1) (ptrnDlDst p2)
-                       ptrnDlTyp' <- intersect (ptrnDlTyp p1) (ptrnDlTyp p2)
-                       ptrnDlVlan' <- intersect (ptrnDlVlan p1) (ptrnDlVlan p2)
-                       ptrnDlVlanPcp' <- intersect (ptrnDlVlanPcp p1) (ptrnDlVlanPcp p2)
-                       ptrnNwSrc' <- intersect (ptrnNwSrc p1) (ptrnNwSrc p2)
-                       ptrnNwDst' <- intersect (ptrnNwDst p1) (ptrnNwDst p2)
-                       ptrnNwProto' <- intersect (ptrnNwProto p1) (ptrnNwProto p2)
-                       ptrnNwTos' <- intersect (ptrnNwTos p1) (ptrnNwTos p2)
-                       ptrnTpSrc' <- intersect (ptrnTpSrc p1) (ptrnTpSrc p2)
-                       ptrnTpDst' <- intersect (ptrnTpDst p1) (ptrnTpDst p2)
-                       ptrnInPort' <- intersect (ptrnInPort p1) (ptrnInPort p2)
-                       return Pattern {
-                         ptrnDlSrc = ptrnDlSrc'
-                         , ptrnDlDst = ptrnDlDst'
-                         , ptrnDlTyp = ptrnDlTyp'
-                         , ptrnDlVlan = ptrnDlVlan'
-                         , ptrnDlVlanPcp = ptrnDlVlanPcp'
-                         , ptrnNwSrc = ptrnNwSrc'
-                         , ptrnNwDst = ptrnNwDst'
-                         , ptrnNwProto = ptrnNwProto'
-                         , ptrnNwTos = ptrnNwTos'
-                         , ptrnTpSrc = ptrnTpSrc'
-                         , ptrnTpDst = ptrnTpDst'
-                         , ptrnInPort = ptrnInPort'
-                         }
 

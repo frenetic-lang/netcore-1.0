@@ -37,13 +37,13 @@
  #-}
 
 module Tests.Frenetic.ArbitraryCompat where
-import Data.Set                                 as Set
+import Frenetic.NetCore.Semantics
+import qualified Data.Set as Set
 import Data.Word
 import Data.Bits
 import Frenetic.Compat
 import Frenetic.LargeWord
 import Frenetic.Pattern
-import Frenetic.NetCore.Action
 import Test.QuickCheck
 import Tests.Frenetic.ArbitraryPattern
 import Control.Newtype.TH
@@ -216,7 +216,7 @@ instance (Arbitrary a, Ord a) => Arbitrary (Set.Set a) where
     let f a b = let shrunkElems = shrink a 
                 in case shrunkElems of
                      [] -> b
-                     _  -> union (Set.fromList shrunkElems) b 
+                     _  -> Set.union (Set.fromList shrunkElems) b 
     in [Set.fold f Set.empty s]
 
 instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) where
@@ -231,16 +231,13 @@ instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) wh
     [t {trSwitch = s} | s <- shrink (trSwitch t)] ++
     [t {trPkt = s} | s <- shrink (trPkt t)]
 
-instance Arbitrary Forward where
-    arbitrary = oneof
-      [ return ForwardFlood,
-        do ps <- listOf arbitrary
-           return (ForwardPorts (Set.fromList ps)) ]
-
 instance Arbitrary Action where
   arbitrary = do
-    fwd <- arbitrary
-    return (Action fwd []) -- TODO: arbitrary queries
+    -- TODO(arjun): queries
+    oneof [ return flood,
+            do ports <- listOf arbitrary
+               return $ foldr unionAction emptyAction (map forward ports)
+          ]
 
 instance Arbitrary (PatternImpl ()) where
   arbitrary = do

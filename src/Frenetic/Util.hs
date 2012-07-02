@@ -1,6 +1,12 @@
+module Frenetic.Util
+  ( newLift
+  , newLift2
+  , Set
+  , module Control.Concurrent.Chan
+  ) where
 
-module Frenetic.Util (newLift, newLift2) where
-
+import Control.Concurrent.Chan
+import Data.Set (Set)
 import Control.Newtype
 
 newLift :: (Newtype n o) => (o -> o) -> n -> n

@@ -47,17 +47,14 @@ import           Frenetic.Compat
 import           Frenetic.Pattern
 import           Frenetic.Util
 import           Frenetic.NetCore.API
-
+import Frenetic.NetCore.Semantics
 import           Control.Newtype.TH
 import           Control.Newtype
-
 import           Data.Dynamic
 import qualified Data.List            as List
 import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Map             as Map
-import Frenetic.NetCore.Action
-
 
 {-| Input: a function, a context, a value, and a lists. Apply the function to each pair from the list and the context and current value; we may modify the list and current value. The context is the list of items we have already processed. -}
 selfMap :: ([a] -> c -> a -> a -> (c, Maybe a, Maybe a)) -> [a] -> c -> [a] -> [a]

@@ -40,8 +40,6 @@ module Frenetic.Switches.OpenFlow
   , fromOFAct
   , policyQueries
   , Nettle (..)
-  , policyAggregators
-  , Aggregator
   , actQueries
   ) where
 
@@ -61,7 +59,6 @@ import Nettle.Servers.Server
 import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
 import Frenetic.Compat
-import Frenetic.NetCore.Action
 import Frenetic.NetCore.API
 import Control.Concurrent
 
@@ -105,13 +102,12 @@ instance Matchable IPAddressPrefix where
   top = defaultIPPrefix
   intersect = IPAddr.intersect
 
-forwardToOpenFlowActions :: Forward -> ActionSequence
-forwardToOpenFlowActions (ForwardPorts set) =
+forwardToOpenFlowActions (Just set) =
   map (\p -> SendOutPort (PhysicalPort p)) (Set.toList set)
-forwardToOpenFlowActions ForwardFlood = [SendOutPort Flood]
+forwardToOpenFlowActions Nothing = [SendOutPort Flood]
 
 toController :: ActionSequence
-toController = sendToController 0
+toController = sendToController maxBound
 
 instance Matchable Match where
   top = Match { 
@@ -320,22 +316,10 @@ instance FreneticImpl OpenFlow where
 
   actnController = OFAct toController []
   actnDefault = OFAct toController []
-  actnTranslate a = OFAct (forwardToOpenFlowActions (actionForwards a))
+  actnTranslate a = OFAct (forwardToOpenFlowActions (actionForwardsTo a))
                           (actionNumPktQueries a)
 
 policyQueries :: Policy -> [NumPktQuery]
 policyQueries (PoBasic _ action) = actionNumPktQueries action
 policyQueries (PoUnion p1 p2) = policyQueries p1 ++ policyQueries p2
 policyQueries (PoIntersect p1 p2) = policyQueries p1 ++ policyQueries p2
-
-type Aggregator = (NumPktQuery, IORef Integer)
-
-policyAggregators :: Policy -> IO [Aggregator]
-policyAggregators policy = mapM f (policyQueries policy)
-  where f (outChan, millisecondDelay) = do
-          aggregator <- newIORef 0
-          forkIO $ forever $ do
-            threadDelay (millisecondDelay * 1000)
-            n <- atomicModifyIORef aggregator (\n -> (0, n))
-            writeChan outChan n
-          return ((outChan, millisecondDelay), aggregator)
