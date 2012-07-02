@@ -137,6 +137,8 @@ handleOFMsg :: Nettle
 handleOFMsg nettle switch policy (xid, msg) = case msg of
   PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                              enclosedFrame=Right frame})) -> do
+    putStrLn "Controller received OFPT_PACKET_IN"
+    hFlush stdout
     let switchID = handle2SwitchID switch
     let t = Transmission undefined switchID (toOFPkt pkt)
     let t' = Transmission (toOFPat (frameToExactMatch inPort frame)) 

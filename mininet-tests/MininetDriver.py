@@ -1,5 +1,5 @@
 import socket
-from subprocess import Popen
+from subprocess import Popen, call
 from mininet.node import RemoteController, UserSwitch
 from mininet.net import Mininet
 import mininet.topolib
@@ -17,8 +17,13 @@ LinearTopo = mininet.topo.LinearTopo
 class PaneException(Exception):
   pass
 
+def quiet_system(cmd):
+  fnull = open(os.devnull, 'w')
+  result = call(cmd, shell = True, stdout = fnull, stderr = fnull)
+  fnull.close()
+
 def kill_controllers():
-  os.system('lsof | grep "TCP \\*:6633 (LISTEN)" | cut -d " " -f 2 | \
+  quiet_system('lsof | grep "TCP \\*:6633 (LISTEN)" | cut -d " " -f 2 | \
     xargs kill')
 
 
@@ -26,7 +31,7 @@ class MininetTest(object):
 
   def __init__(self, topo, controller):
     # Mininet can cleanup after itself
-    os.system('mn -c')
+    quiet_system('mn -c')
     self.controller = controller
     self.net = Mininet(topo=topo,controller=RemoteController,switch=UserSwitch)
     self.net.start()
