@@ -44,7 +44,6 @@ import Frenetic.NetCore.API
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
-import Frenetic.NetCore.Action
 import Data.List (nub, find)
 
 sendToSwitch' sw msg = do

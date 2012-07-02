@@ -34,7 +34,7 @@ module Frenetic.NetCore.API
   ) where
 
 import           Frenetic.Compat
-import Frenetic.NetCore.Action
+import Frenetic.NetCore.Semantics
 import qualified Data.List       as List
 import           Data.Bits
 import           Data.Word

@@ -14,10 +14,10 @@ Library
                         nettle-openflow == 0.2.*,
                         HList
     exposed-modules:    Frenetic.NetCore,
+                        Frenetic.NetCore.Semantics,
                         Frenetic.Compat,
                         Frenetic.LargeWord,
                         Frenetic.Pattern,
-                        Frenetic.NetCore.Action,
                         Frenetic.NetCore.API,
                         Frenetic.Server
     other-modules:      Frenetic.Util,

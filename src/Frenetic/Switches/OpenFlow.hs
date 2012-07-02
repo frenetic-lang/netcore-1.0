@@ -61,7 +61,6 @@ import Nettle.Servers.Server
 import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
 import Frenetic.Compat
-import Frenetic.NetCore.Action
 import Frenetic.NetCore.API
 import Control.Concurrent
 
@@ -105,10 +104,9 @@ instance Matchable IPAddressPrefix where
   top = defaultIPPrefix
   intersect = IPAddr.intersect
 
-forwardToOpenFlowActions :: Forward -> ActionSequence
-forwardToOpenFlowActions (ForwardPorts set) =
+forwardToOpenFlowActions (Just set) =
   map (\p -> SendOutPort (PhysicalPort p)) (Set.toList set)
-forwardToOpenFlowActions ForwardFlood = [SendOutPort Flood]
+forwardToOpenFlowActions Nothing = [SendOutPort Flood]
 
 toController :: ActionSequence
 toController = sendToController maxBound
@@ -320,7 +318,7 @@ instance FreneticImpl OpenFlow where
 
   actnController = OFAct toController []
   actnDefault = OFAct toController []
-  actnTranslate a = OFAct (forwardToOpenFlowActions (actionForwards a))
+  actnTranslate a = OFAct (forwardToOpenFlowActions (actionForwardsTo a))
                           (actionNumPktQueries a)
 
 policyQueries :: Policy -> [NumPktQuery]
