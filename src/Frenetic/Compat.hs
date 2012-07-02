@@ -117,7 +117,7 @@ instance Show Forward where
   show (ForwardPorts set) = show (Set.toList set)
   show ForwardFlood = "Flood"
 
-type NumPktQuery = (Chan Integer, Int)
+type NumPktQuery = (Chan (Switch, Integer), Int)
 
 data Action = Action {
   actionForwards :: Forward,

@@ -40,8 +40,6 @@ module Frenetic.Switches.OpenFlow
   , fromOFAct
   , policyQueries
   , Nettle (..)
-  , policyAggregators
-  , Aggregator
   , actQueries
   ) where
 
@@ -325,15 +323,3 @@ policyQueries :: Policy -> [NumPktQuery]
 policyQueries (PoBasic _ action) = actionNumPktQueries action
 policyQueries (PoUnion p1 p2) = policyQueries p1 ++ policyQueries p2
 policyQueries (PoIntersect p1 p2) = policyQueries p1 ++ policyQueries p2
-
-type Aggregator = (NumPktQuery, IORef Integer)
-
-policyAggregators :: Policy -> IO [Aggregator]
-policyAggregators policy = mapM f (policyQueries policy)
-  where f (outChan, millisecondDelay) = do
-          aggregator <- newIORef 0
-          forkIO $ forever $ do
-            threadDelay (millisecondDelay * 1000)
-            n <- atomicModifyIORef aggregator (\n -> (0, n))
-            writeChan outChan n
-          return ((outChan, millisecondDelay), aggregator)
