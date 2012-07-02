@@ -28,46 +28,19 @@
 --------------------------------------------------------------------------------
 
 module Frenetic.Compat
-  ( Switch
-  , Port
-  , Word48
-  , Packet (..)
-  , Pattern (..)
+  ( Packet (..)
   , Transmission (..)
-  -- * Actions
-  , Action
-  , NumPktQuery
-  -- ** Basic actions
-  , flood
-  , forward
-  , query
-  , emptyAction
-  -- ** Action composition
-  , unionAction
-  , interAction
-  -- ** Inspecting actions
-  , actionNumPktQueries
-  , actionForwardsTo
   -- * Implementation
   , FreneticImpl (..)
   )  where
 
 import Frenetic.Util
+import Frenetic.NetCore.API
 import qualified Data.List          as List
 import           Data.Bits
 import           Data.Word
 import qualified Data.Set           as Set
 import           Frenetic.Pattern
-import           Frenetic.LargeWord
-
-{-| The type of switches in the network. -}
-type Switch = Word64
-
-{-| The type of switch ports. -}
-type Port = Word16
-
-{-| Auxillary value for ethernet addresses.  -}
-type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
 
 -- |Frenetic packets
 data Packet = Packet {
@@ -84,22 +57,6 @@ data Packet = Packet {
   , pktTpDst :: Word16
   , pktInPort :: Port
   } deriving (Show, Eq, Ord)
-             
--- |Frenetic patterns
-data Pattern = Pattern { 
-  ptrnDlSrc :: Wildcard Word48
-  , ptrnDlDst :: Wildcard Word48
-  , ptrnDlTyp :: Wildcard Word16
-  , ptrnDlVlan :: Wildcard Word16
-  , ptrnDlVlanPcp :: Wildcard Word8
-  , ptrnNwSrc :: Wildcard Word32
-  , ptrnNwDst :: Wildcard Word32
-  , ptrnNwProto :: Wildcard Word8
-  , ptrnNwTos :: Wildcard Word8
-  , ptrnTpSrc :: Wildcard Word16
-  , ptrnTpDst :: Wildcard Word16
-  , ptrnInPort :: Maybe Port
-  } deriving (Show, Eq)
 
 {-| Data that was sent. -}
 data Transmission ptrn pkt = Transmission {
@@ -108,66 +65,6 @@ data Transmission ptrn pkt = Transmission {
       trPkt :: pkt
     } deriving (Eq)
 
-data Forward
-  = ForwardPorts (Set Port)
-  | ForwardFlood 
-  deriving (Eq)
-
-instance Show Forward where
-  show (ForwardPorts set) = show (Set.toList set)
-  show ForwardFlood = "Flood"
-
-type NumPktQuery = (Chan (Switch, Integer), Int)
-
-data Action = Action {
-  actionForwards :: Forward,
-  actionNumPktQueries :: [NumPktQuery]
-} deriving (Eq)
-
-actionForwardsTo :: Action 
-                 -> Maybe (Set Port) -- ^'Nothing' indicates flood
-actionForwardsTo (Action (ForwardPorts set) _) = Just set
-actionForwardsTo (Action ForwardFlood _) = Nothing
-
-instance Show Action where
-  show (Action fwd _) = "<fwd=" ++ show fwd ++ ">"
-
-emptyAction :: Action
-emptyAction = Action (ForwardPorts Set.empty) []
-
-unionForward :: Forward -> Forward -> Forward
-unionForward ForwardFlood _ = ForwardFlood
-unionForward _ ForwardFlood = ForwardFlood
-unionForward (ForwardPorts set1) (ForwardPorts set2) = 
-  ForwardPorts (set1 `Set.union` set2)
-
-interForward :: Forward -> Forward -> Forward
-interForward ForwardFlood ForwardFlood = ForwardFlood
-interForward ForwardFlood (ForwardPorts set2) = ForwardPorts set2
-interForward (ForwardPorts set1) ForwardFlood = ForwardPorts set1
-interForward (ForwardPorts set1) (ForwardPorts set2) = 
-  ForwardPorts (set1 `Set.intersection` set2)
-
-unionAction :: Action -> Action -> Action
-unionAction (Action fwd1 q1) (Action fwd2 q2) = 
-  Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
-    where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
-
-interAction :: Action -> Action -> Action
-interAction (Action fwd1 q1) (Action fwd2 q2) = 
-  Action (interForward fwd1 fwd2) (interQuery q1 q2)
-    where interQuery xs ys = filter (\x -> x `elem` ys) xs
-
-flood :: Action
-flood = Action ForwardFlood []
-
-forward :: Port -> Action
-forward p = Action (ForwardPorts (Set.singleton p)) []
-
-query :: Int -> IO (Chan (Switch, Integer), Action)
-query millisecondInterval = do
-  ch <- newChan
-  return (ch, Action (ForwardPorts Set.empty) [(ch, millisecondInterval)])
 
 -- |'FreneticImpl a' is a family of related abstract types that define a
 -- back-end for Frenetic. 

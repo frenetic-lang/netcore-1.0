@@ -41,6 +41,7 @@ import System.IO
 import Nettle.OpenFlow
 import Nettle.Servers.Server
 import Frenetic.NetCore.API
+import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat

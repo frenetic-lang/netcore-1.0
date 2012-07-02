@@ -28,17 +28,126 @@
 --------------------------------------------------------------------------------
 
 module Frenetic.NetCore.API 
-  ( Predicate (..)
+  ( -- * Basic types
+    Switch
+  , Port
+  , Word48
+  -- * Actions
+  , Action
+  , NumPktQuery
+  -- ** Basic actions
+  , flood
+  , forward
+  , query
+  , emptyAction
+  -- ** Action composition
+  , unionAction
+  , interAction
+  -- ** Inspecting actions
+  , actionNumPktQueries
+  , actionForwardsTo
+  -- * Patterns
+  , Pattern (..)
+  -- * Predicates
+  , Predicate (..)
+  -- * Policies
   , Policy (..)
-  , interpretPolicy
   ) where
 
-import           Frenetic.Compat
-import Frenetic.NetCore.Semantics
-import qualified Data.List       as List
-import           Data.Bits
-import           Data.Word
-import qualified Data.Set        as Set
+import Frenetic.Util
+import qualified Data.List as List
+import Data.Bits
+import Data.Word
+import qualified Data.Set as Set
+import Frenetic.LargeWord
+import Frenetic.Pattern
+
+{-| The type of switches in the network. -}
+type Switch = Word64
+
+{-| The type of switch ports. -}
+type Port = Word16
+
+{-| Auxillary value for ethernet addresses.  -}
+type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
+             
+-- |Frenetic patterns
+data Pattern = Pattern { 
+  ptrnDlSrc :: Wildcard Word48
+  , ptrnDlDst :: Wildcard Word48
+  , ptrnDlTyp :: Wildcard Word16
+  , ptrnDlVlan :: Wildcard Word16
+  , ptrnDlVlanPcp :: Wildcard Word8
+  , ptrnNwSrc :: Wildcard Word32
+  , ptrnNwDst :: Wildcard Word32
+  , ptrnNwProto :: Wildcard Word8
+  , ptrnNwTos :: Wildcard Word8
+  , ptrnTpSrc :: Wildcard Word16
+  , ptrnTpDst :: Wildcard Word16
+  , ptrnInPort :: Maybe Port
+  } deriving (Show, Eq)
+
+data Forward
+  = ForwardPorts (Set Port)
+  | ForwardFlood 
+  deriving (Eq)
+
+instance Show Forward where
+  show (ForwardPorts set) = show (Set.toList set)
+  show ForwardFlood = "Flood"
+
+type NumPktQuery = (Chan (Switch, Integer), Int)
+
+data Action = Action {
+  actionForwards :: Forward,
+  actionNumPktQueries :: [NumPktQuery]
+} deriving (Eq)
+
+actionForwardsTo :: Action 
+                 -> Maybe (Set Port) -- ^'Nothing' indicates flood
+actionForwardsTo (Action (ForwardPorts set) _) = Just set
+actionForwardsTo (Action ForwardFlood _) = Nothing
+
+instance Show Action where
+  show (Action fwd _) = "<fwd=" ++ show fwd ++ ">"
+
+emptyAction :: Action
+emptyAction = Action (ForwardPorts Set.empty) []
+
+unionForward :: Forward -> Forward -> Forward
+unionForward ForwardFlood _ = ForwardFlood
+unionForward _ ForwardFlood = ForwardFlood
+unionForward (ForwardPorts set1) (ForwardPorts set2) = 
+  ForwardPorts (set1 `Set.union` set2)
+
+interForward :: Forward -> Forward -> Forward
+interForward ForwardFlood ForwardFlood = ForwardFlood
+interForward ForwardFlood (ForwardPorts set2) = ForwardPorts set2
+interForward (ForwardPorts set1) ForwardFlood = ForwardPorts set1
+interForward (ForwardPorts set1) (ForwardPorts set2) = 
+  ForwardPorts (set1 `Set.intersection` set2)
+
+unionAction :: Action -> Action -> Action
+unionAction (Action fwd1 q1) (Action fwd2 q2) = 
+  Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
+    where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
+
+interAction :: Action -> Action -> Action
+interAction (Action fwd1 q1) (Action fwd2 q2) = 
+  Action (interForward fwd1 fwd2) (interQuery q1 q2)
+    where interQuery xs ys = filter (\x -> x `elem` ys) xs
+
+flood :: Action
+flood = Action ForwardFlood []
+
+forward :: Port -> Action
+forward p = Action (ForwardPorts (Set.singleton p)) []
+
+query :: Int -> IO (Chan (Switch, Integer), Action)
+query millisecondInterval = do
+  ch <- newChan
+  return (ch, Action (ForwardPorts Set.empty) [(ch, millisecondInterval)])
+
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern
@@ -51,6 +160,10 @@ data Predicate = PrPattern Pattern
 data Policy = PoBasic Predicate Action
             | PoUnion Policy Policy
             | PoIntersect Policy Policy
+
+
+
+
               
 instance Show Predicate where
   show (PrPattern pat) = show pat  
@@ -63,32 +176,3 @@ instance Show Policy where
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
-
--- |Implements the denotation function for predicates.
-interpretPredicate :: FreneticImpl a
-                   => Predicate
-                   -> Transmission (PatternImpl a) (PacketImpl a)
-                   -> Bool
-interpretPredicate (PrPattern ptrn) tr = 
-  FreneticPkt (toPacket (trPkt tr)) `ptrnMatchPkt` FreneticPat ptrn
-interpretPredicate (PrTo sw) tr =
-  sw == trSwitch tr
-interpretPredicate (PrUnion pr1 pr2) tr = 
-  interpretPredicate pr1 tr || interpretPredicate pr2 tr
-interpretPredicate (PrIntersect pr1 pr2) tr = 
-   interpretPredicate pr1 tr && interpretPredicate pr2 tr
-interpretPredicate (PrNegate pr) tr =
-  not (interpretPredicate pr tr)
-
--- |Implements the denotation function for policies.
-interpretPolicy :: FreneticImpl a
-                => Policy
-                -> Transmission (PatternImpl a) (PacketImpl a)
-                -> Action
-interpretPolicy (PoBasic pred acts) tr = case interpretPredicate pred tr of
-  True -> acts 
-  False -> emptyAction
-interpretPolicy (PoUnion p1 p2) tr = 
-  interpretPolicy p1 tr `unionAction` interpretPolicy p2 tr
-interpretPolicy (PoIntersect p1 p2) tr = 
-  interpretPolicy p1 tr `interAction` interpretPolicy p2 tr

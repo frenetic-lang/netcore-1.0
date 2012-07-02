@@ -49,6 +49,7 @@ import Tests.Frenetic.ArbitraryPattern
 import Control.Newtype.TH
 import Control.Newtype
 import Frenetic.Switches.OpenFlow
+import Frenetic.NetCore.API
 
 buildWord48 w1 w2 w3 w4 w5 w6 = 
   LargeKey 

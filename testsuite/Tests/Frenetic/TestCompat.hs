@@ -43,6 +43,7 @@ import Frenetic.Pattern
 import Tests.Frenetic.ArbitraryCompat
 import Tests.Frenetic.ArbitraryPattern
 import Frenetic.LargeWord
+import Frenetic.NetCore.API
 
 compatTests = $(testGroupGenerator)
 
