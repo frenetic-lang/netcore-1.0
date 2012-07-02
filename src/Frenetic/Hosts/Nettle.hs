@@ -105,7 +105,7 @@ sendTransaction nettle@(Nettle _ _ _ txHandlers) sw reqs callback = do
             releaseTxId txId nettle
             callback resps
   atomicModifyIORef txHandlers (\hs -> (Map.insert txId handler hs, ()))
-  sendBatch sw (length reqs) (zip [txId ..] reqs)
+  mapM_ (sendToSwitch sw) (zip [txId ..] reqs)
   return ()
 
 mkFlowMod :: (Match, ActionSequence) 

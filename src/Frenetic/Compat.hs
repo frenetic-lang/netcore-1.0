@@ -164,10 +164,10 @@ flood = Action ForwardFlood []
 forward :: Port -> Action
 forward p = Action (ForwardPorts (Set.singleton p)) []
 
-query :: Int -> IO Action
+query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do
   ch <- newChan
-  return (Action (ForwardPorts Set.empty) [(ch, millisecondInterval)])
+  return (ch, Action (ForwardPorts Set.empty) [(ch, millisecondInterval)])
 
 -- |'FreneticImpl a' is a family of related abstract types that define a
 -- back-end for Frenetic. 
