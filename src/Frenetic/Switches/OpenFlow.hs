@@ -111,7 +111,7 @@ forwardToOpenFlowActions (ForwardPorts set) =
 forwardToOpenFlowActions ForwardFlood = [SendOutPort Flood]
 
 toController :: ActionSequence
-toController = sendToController 0
+toController = sendToController maxBound
 
 instance Matchable Match where
   top = Match { 

@@ -13,7 +13,7 @@ Library
                         newtype-th,
                         nettle-openflow == 0.2.*,
                         HList
-    exposed-modules:    Frenetic
+    exposed-modules:    Frenetic.NetCore,
                         Frenetic.Compat,
                         Frenetic.LargeWord,
                         Frenetic.Pattern,

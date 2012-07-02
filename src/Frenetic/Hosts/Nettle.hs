@@ -47,6 +47,9 @@ import Frenetic.Compat
 import Frenetic.NetCore.Action
 import Data.List (nub, find)
 
+sendToSwitch' sw msg = do
+  sendToSwitch sw msg
+
 -- |spin-lock until we acquire a 'TransactionID'
 reserveTxId :: Nettle -> IO TransactionID 
 reserveTxId nettle@(Nettle _ _ nextTxId _) = do
@@ -140,15 +143,21 @@ handleOFMsg nettle switch policy (xid, msg) = case msg of
                           switchID 
                           (toOFPkt pkt)
     let flowTbl = rawClassifier (specialize t policy)
+    let actions = interpretPolicy policy t'
+    let mod = mkFlowMod (frameToExactMatch inPort frame, 
+                         fromOFAct $ actnTranslate actions)
+                        65535
+    sendToSwitch' switch (1, mod)
+    {-
     let flowMods = zipWith mkFlowMod flowTbl [65535, 65534 ..]
-    mapM_ (sendToSwitch switch) (zip [1 ..] flowMods)
+    mapM_ (sendToSwitch' switch) (zip [1 ..] flowMods)
+    -}
     case bufferID pkt of
       Nothing -> return ()
       Just buf -> do
-        let actions = interpretPolicy policy t'
         let msg = PacketOut $ PacketOutRecord (Left buf) (Just inPort) $
                     (fromOFAct $ actnTranslate actions)
-        sendToSwitch switch (2, msg) 
+        sendToSwitch' switch (2, msg) 
   otherwise -> do
     handlers <- readIORef (txHandlers nettle)
     case Map.lookup xid handlers of
@@ -162,8 +171,9 @@ handleSwitch nettle switch policy aggregators = do
   let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
   let flowTbl = rawClassifier classifier
   runQueryOnSwitch nettle aggregators switch cl
-  let flowMods = zipWith mkFlowMod flowTbl [65535 ..]
-  mapM_ (sendToSwitch switch) (zip [0..] flowMods)
+  -- Priority 65535 is for microflow rules from reactive-specialization
+  let flowMods = zipWith mkFlowMod flowTbl [65534, 65533 ..]
+  mapM_ (sendToSwitch' switch) (zip [0..] flowMods)
   untilNothing (receiveFromSwitch switch) (handleOFMsg nettle switch policy)
 
 nettleServer :: Policy -> IO ()
@@ -183,7 +193,6 @@ nettleServer policy = do
     modifyIORef switches (Map.insert (handle2SwitchID switch) switch)
     forkIO (handleSwitch nettle switch policy aggregators)
   closeServer server
-
 
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
 -- The actions include queries that are not realizable on switches.
