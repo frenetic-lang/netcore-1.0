@@ -5,13 +5,42 @@ module Frenetic.NetCore.Semantics where
 import Frenetic.Compat
 import Frenetic.Pattern
 import Frenetic.Util
+import Frenetic.NetCore.API
+
+-- |Implements the denotation function for predicates.
+interpretPredicate :: FreneticImpl a
+                   => Predicate
+                   -> Transmission (PatternImpl a) (PacketImpl a)
+                   -> Bool
+interpretPredicate (PrPattern ptrn) tr = 
+  FreneticPkt (toPacket (trPkt tr)) `ptrnMatchPkt` FreneticPat ptrn
+interpretPredicate (PrTo sw) tr =
+  sw == trSwitch tr
+interpretPredicate (PrUnion pr1 pr2) tr = 
+  interpretPredicate pr1 tr || interpretPredicate pr2 tr
+interpretPredicate (PrIntersect pr1 pr2) tr = 
+   interpretPredicate pr1 tr && interpretPredicate pr2 tr
+interpretPredicate (PrNegate pr) tr =
+  not (interpretPredicate pr tr)
+
+-- |Implements the denotation function for policies.
+interpretPolicy :: FreneticImpl a
+                => Policy
+                -> Transmission (PatternImpl a) (PacketImpl a)
+                -> Action
+interpretPolicy (PoBasic pred acts) tr = case interpretPredicate pred tr of
+  True -> acts 
+  False -> emptyAction
+interpretPolicy (PoUnion p1 p2) tr = 
+  interpretPolicy p1 tr `unionAction` interpretPolicy p2 tr
+interpretPolicy (PoIntersect p1 p2) tr = 
+  interpretPolicy p1 tr `interAction` interpretPolicy p2 tr
 
 instance Matchable (PatternImpl ()) where
   top = FreneticPat top
   intersect (FreneticPat p1) (FreneticPat p2) = case intersect p1 p2 of
     Just p3 -> Just (FreneticPat p3)
     Nothing -> Nothing
-
 
 -- |
 instance FreneticImpl () where

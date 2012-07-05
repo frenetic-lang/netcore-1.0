@@ -70,7 +70,7 @@ freneticToOFAct :: ActionImpl () -> OFAction.ActionSequence
 freneticToOFAct = fromOFAct.actnTranslate.fromFreneticAct
 
 case_test_query_1 = do
-  act <- query 1000
+  (_, act) <- query 1000
   let policy = PoBasic (PrTo 0) act
   let (Classifier tbl) = compile 0 policy
   case tbl of
@@ -81,7 +81,7 @@ case_test_query_1 = do
       "query should create one entry in the flow table"
 
 test_query_2 = do
-  act <- query 1000
+  (_, act) <- query 1000
   let policy = 
         PoUnion (PoBasic (PrPattern top) flood)
                 (PoBasic (PrPattern $ top { ptrnDlDst = Wildcard 1 0 }) act)

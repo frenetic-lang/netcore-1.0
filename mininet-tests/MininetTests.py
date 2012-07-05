@@ -62,6 +62,26 @@ class Reactive1TestSanityCheck(unittest.TestCase):
     numPktIn = sum([1 for x in self.ctrl.stdout if "OFPT_PACKET_IN" in x])
     self.assertTrue(numPktIn > 5, "too few PACKET_IN messages")
 
+class Query1(unittest.TestCase):
+
+  def setUp(self):
+    kill_controllers()
+    self.ctrl = Popen([CONTROLLER_PATH, "--query1"],stdout=PIPE)
+    self.mn = MininetTest(TreeTopo(depth=1,fanout=2), self.ctrl)
+
+  def tearDown(self):
+    self.mn.destroy()
+
+  def testQuery(self):
+    src = self.mn.hosts[0]
+    dst = self.mn.hosts[1]
+    self.assertEqual(self.mn.ping(src, dst, 1, 5), 0)
+    sleep(2) # let the query pickup the last pair
+    self.ctrl.terminate()
+    output = list(self.ctrl.stdout)
+    # 2 for initial ARP and 10 from the pings
+    self.assertTrue("Counter is: 12" in output[-1], "expected 10 packets")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -34,7 +34,8 @@ import Test.QuickCheck
 import Nettle.OpenFlow
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
-import Frenetic.Compat hiding (Action)
+import Frenetic.Compat
+import Frenetic.NetCore.API hiding (Action)
 
 instance Arbitrary Match where
   arbitrary = do
