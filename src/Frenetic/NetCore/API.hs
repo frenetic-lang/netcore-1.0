@@ -46,14 +46,16 @@ module Frenetic.NetCore.API
   -- ** Inspecting actions
   , actionNumPktQueries
   , actionForwardsTo
-  -- * Combinators
-  , predDifference
   -- * Patterns
   , Pattern (..)
   -- * Predicates
   , Predicate (..)
+  -- ** Predicate composition
+  , predDifference
   -- * Policies
   , Policy (..)
+  -- ** Policy composition
+  , poRestrict
   ) where
 
 import Frenetic.Util
@@ -153,6 +155,14 @@ query millisecondInterval = do
 -- |Construct the set difference between p1 and p2
 predDifference :: Predicate -> Predicate -> Predicate
 predDifference p1 p2 = PrIntersect p1 (PrNegate p2)
+
+-- |Construct the policy restricted by the predicate
+poRestrict :: Policy -> Predicate -> Policy
+poRestrict policy pred=
+  case policy of
+    PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
+    PoUnion p1 p2 -> PoUnion (poRestrict p1 pred) (poRestrict p2 pred)
+    PoIntersect p1 p2 -> PoIntersect (poRestrict p1 pred) (poRestrict p2 pred)
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern
