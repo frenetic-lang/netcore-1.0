@@ -39,7 +39,7 @@ module Frenetic.NetCore.API
   , flood
   , forward
   , query
-  , emptyAction
+  , dropPkt
   -- ** Action composition
   , unionAction
   , interAction
@@ -111,8 +111,8 @@ actionForwardsTo (Action ForwardFlood _) = Nothing
 instance Show Action where
   show (Action fwd _) = "<fwd=" ++ show fwd ++ ">"
 
-emptyAction :: Action
-emptyAction = Action (ForwardPorts Set.empty) []
+dropPkt :: Action
+dropPkt = Action (ForwardPorts Set.empty) []
 
 unionForward :: Forward -> Forward -> Forward
 unionForward ForwardFlood _ = ForwardFlood

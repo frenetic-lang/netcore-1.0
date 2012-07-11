@@ -30,7 +30,7 @@ interpretPolicy :: FreneticImpl a
                 -> Action
 interpretPolicy (PoBasic pred acts) tr = case interpretPredicate pred tr of
   True -> acts 
-  False -> emptyAction
+  False -> dropPkt
 interpretPolicy (PoUnion p1 p2) tr = 
   interpretPolicy p1 tr `unionAction` interpretPolicy p2 tr
 interpretPolicy (PoIntersect p1 p2) tr = 
@@ -68,8 +68,8 @@ instance FreneticImpl () where
   -- We never need to underapproximate real patterns
   fromPatternUnderapprox pkt ptrn = Nothing 
   toPattern (FreneticPat x) = x
-  actnDefault = FreneticAct emptyAction
-  actnController = FreneticAct emptyAction
+  actnDefault = FreneticAct dropPkt
+  actnController = FreneticAct dropPkt
   actnTranslate x = FreneticAct x
 
 -- |Needed for Matchable (PatternImpl ())

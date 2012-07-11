@@ -241,7 +241,7 @@ compilePolicy :: FreneticImpl a
 compilePolicy s (PoBasic po as) = 
     skelMap f $ compilePredicate s po 
       where f True = as
-            f False = emptyAction
+            f False = dropPkt
 compilePolicy s (PoUnion po1 po2) =
    skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2' 
       where skel1 = compilePolicy s po1

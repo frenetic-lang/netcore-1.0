@@ -237,7 +237,7 @@ instance Arbitrary Action where
     -- TODO(arjun): queries
     oneof [ return flood,
             do ports <- listOf arbitrary
-               return $ foldr unionAction emptyAction (map forward ports)
+               return $ foldr unionAction dropPkt (map forward ports)
           ]
 
 instance Arbitrary (PatternImpl ()) where

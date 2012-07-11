@@ -127,8 +127,8 @@ prop_semanticEquivalence_compile_pattern :: Switch -> Policy
   -> PacketImpl () -> Bool
 prop_semanticEquivalence_compile_pattern sw po pk = 
   case fmap freneticToOFAct classActs of
-     Nothing -> polActs == emptyAction
-     Just [] -> polActs == emptyAction
+     Nothing -> polActs == dropPkt
+     Just [] -> polActs == dropPkt
      Just as -> as == fromOFAct (actnTranslate polActs)
   where topP = top
         polActs = interpretPolicy po $ Transmission {trPattern=topP, trSwitch=sw, trPkt=pk}
@@ -142,8 +142,8 @@ prop_semanticEquivalence_compile_OFpattern :: Switch -> Policy
   -> PacketImpl () -> Bool
 prop_semanticEquivalence_compile_OFpattern sw po pk = 
   case fmap freneticToOFAct classActs of
-    Nothing -> polActs == emptyAction
-    Just [] -> polActs == emptyAction
+    Nothing -> polActs == dropPkt
+    Just [] -> polActs == dropPkt
     Just as -> as == fromOFAct (actnTranslate polActs)
   where topP = top
         polActs = interpretPolicy po $ Transmission {trPattern=topP, trSwitch=sw, trPkt=pk}

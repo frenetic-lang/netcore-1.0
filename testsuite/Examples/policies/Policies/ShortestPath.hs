@@ -45,7 +45,7 @@ import qualified Data.Set as Set
 mkPolicy :: Topology -> Policy
 mkPolicy topo = combine paths
   where 
-    combine [] = PoBasic (PrPattern top) emptyAction
+    combine [] = PoBasic (PrPattern top) dropPkt
     combine [(h1,h2,[])] = combine []
     combine [(h1,h2,p)] = mkPathPolicy topo h1 h2 p
     combine ((h1,h2,[]):ps) = combine ps
@@ -65,7 +65,7 @@ mkPathPolicy topo src dst (h1:path) = mk path
     dstIp = Wildcard (ip topo dst) 0
     typ = Wildcard 0x800 0
     pat = top {ptrnNwSrc = srcIp, ptrnNwDst = dstIp, ptrnDlTyp = typ}
-    mk [] = PoBasic (PrPattern pat) emptyAction
+    mk [] = PoBasic (PrPattern pat) dropPkt
     mk (s:[dst]) = 
       let Just outPort = port topo s dst in
         PoBasic (PrPattern pat) (forward outPort)
