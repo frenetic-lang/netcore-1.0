@@ -27,7 +27,7 @@
 -- /src/Frenetic/NetCore/API.hs                                               --
 --------------------------------------------------------------------------------
 
-module Frenetic.NetCore.API 
+module Frenetic.NetCore.API
   ( -- * Basic types
     Switch
   , Port
@@ -46,6 +46,8 @@ module Frenetic.NetCore.API
   -- ** Inspecting actions
   , actionNumPktQueries
   , actionForwardsTo
+  -- * Combinators
+  , predDifference
   -- * Patterns
   , Pattern (..)
   -- * Predicates
@@ -70,9 +72,9 @@ type Port = Word16
 
 {-| Auxillary value for ethernet addresses.  -}
 type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
-             
+
 -- |Frenetic patterns
-data Pattern = Pattern { 
+data Pattern = Pattern {
   ptrnDlSrc :: Wildcard Word48
   , ptrnDlDst :: Wildcard Word48
   , ptrnDlTyp :: Wildcard Word16
@@ -89,7 +91,7 @@ data Pattern = Pattern {
 
 data Forward
   = ForwardPorts (Set Port)
-  | ForwardFlood 
+  | ForwardFlood
   deriving (Eq)
 
 instance Show Forward where
@@ -103,7 +105,7 @@ data Action = Action {
   actionNumPktQueries :: [NumPktQuery]
 } deriving (Eq)
 
-actionForwardsTo :: Action 
+actionForwardsTo :: Action
                  -> Maybe (Set Port) -- ^'Nothing' indicates flood
 actionForwardsTo (Action (ForwardPorts set) _) = Just set
 actionForwardsTo (Action ForwardFlood _) = Nothing
@@ -117,23 +119,23 @@ dropPkt = Action (ForwardPorts Set.empty) []
 unionForward :: Forward -> Forward -> Forward
 unionForward ForwardFlood _ = ForwardFlood
 unionForward _ ForwardFlood = ForwardFlood
-unionForward (ForwardPorts set1) (ForwardPorts set2) = 
+unionForward (ForwardPorts set1) (ForwardPorts set2) =
   ForwardPorts (set1 `Set.union` set2)
 
 interForward :: Forward -> Forward -> Forward
 interForward ForwardFlood ForwardFlood = ForwardFlood
 interForward ForwardFlood (ForwardPorts set2) = ForwardPorts set2
 interForward (ForwardPorts set1) ForwardFlood = ForwardPorts set1
-interForward (ForwardPorts set1) (ForwardPorts set2) = 
+interForward (ForwardPorts set1) (ForwardPorts set2) =
   ForwardPorts (set1 `Set.intersection` set2)
 
 unionAction :: Action -> Action -> Action
-unionAction (Action fwd1 q1) (Action fwd2 q2) = 
+unionAction (Action fwd1 q1) (Action fwd2 q2) =
   Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
     where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
 
 interAction :: Action -> Action -> Action
-interAction (Action fwd1 q1) (Action fwd2 q2) = 
+interAction (Action fwd1 q1) (Action fwd2 q2) =
   Action (interForward fwd1 fwd2) (interQuery q1 q2)
     where interQuery xs ys = filter (\x -> x `elem` ys) xs
 
@@ -148,10 +150,13 @@ query millisecondInterval = do
   ch <- newChan
   return (ch, Action (ForwardPorts Set.empty) [(ch, millisecondInterval)])
 
+-- |Construct the set difference between p1 and p2
+predDifference :: Predicate -> Predicate -> Predicate
+predDifference p1 p2 = PrIntersect p1 (PrNegate p2)
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern
-               | PrTo Switch 
+               | PrTo Switch
                | PrUnion Predicate Predicate
                | PrIntersect Predicate Predicate
                | PrNegate Predicate
@@ -161,17 +166,13 @@ data Policy = PoBasic Predicate Action
             | PoUnion Policy Policy
             | PoIntersect Policy Policy
 
-
-
-
-              
 instance Show Predicate where
-  show (PrPattern pat) = show pat  
+  show (PrPattern pat) = show pat
   show (PrTo s) = "switch(" ++ show s ++ ")"
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
   show (PrNegate pr) = "~(" ++ show pr ++ ")"
-              
+
 instance Show Policy where
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
