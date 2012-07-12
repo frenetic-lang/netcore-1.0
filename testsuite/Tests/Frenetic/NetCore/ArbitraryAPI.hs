@@ -68,7 +68,6 @@ instance Arbitrary Predicate where
   shrink (PrIntersect p1 p2)   = [p1, p2]
   shrink (PrNegate p)          = [PrNegate p' | p' <- shrink p]
 
-
 instance Arbitrary Policy where
   -- Bound the size of the policy
   arbitrary = sized $ \s -> let depth = 10 in
@@ -78,10 +77,12 @@ instance Arbitrary Policy where
         then do
           pred <- resize s arbitrary
           acts <- resize s arbitrary
-          p1   <- resize (s-1) arbitrary
-          p2   <- resize (s-1) arbitrary
+          --p1   <- resize (s-1) arbitrary
+          --p2   <- resize (s-1) arbitrary
           oneof [ return $ PoBasic pred acts
-                , return $ PoIntersect p1 p2
+                --, return $ PoUnion p1 p2
+                  -- TODO(arjun): test putting union into here and un-comment
+                  -- code
                 ]
         else do
           pred <- resize s arbitrary
@@ -90,5 +91,3 @@ instance Arbitrary Policy where
 
   shrink (PoBasic pr as)        = [PoBasic pr' as | pr' <- shrink pr]
   shrink (PoUnion p1 p2)        = [p1, p2]
-  shrink (PoIntersect p1 p2)    = [p1, p2]
-

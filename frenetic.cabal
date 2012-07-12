@@ -8,6 +8,7 @@ Build-Type:       Simple
 Library
     build-depends:      base >= 4 && < 5,
                         containers >= 0.4.2.1,
+                        multiset >= 0.2.1,
                         mtl >= 2.0.1.0,
                         newtype,
                         newtype-th,
@@ -33,6 +34,7 @@ Library
 Executable frenetic-example-suite
     build-depends:      base >= 4 && < 5,
                         containers >= 0.4.2.1,
+                        multiset >= 0.2.1,
                         mtl >= 2.0.1.0,
                         newtype,
                         newtype-th,
@@ -51,6 +53,7 @@ Test-Suite frenetic-tests
     main-is:          Main.hs
     build-depends:    base,
                       containers,
+                      multiset,
                       newtype,
                       newtype-th,
                       nettle-openflow == 0.2.*,

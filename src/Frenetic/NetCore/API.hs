@@ -44,7 +44,6 @@ module Frenetic.NetCore.API
   , dropPkt
   -- ** Action composition
   , unionAction
-  , interAction
   -- ** Inspecting actions
   , actionForwardsTo
   -- * Patterns
@@ -66,7 +65,7 @@ import qualified Data.List as List
 import Data.Bits
 import Data.Word
 import qualified Data.Set as Set
-import qualified Data.Map as Map
+import qualified Data.MultiSet as MS
 import Frenetic.LargeWord
 import Frenetic.Pattern
 
@@ -141,17 +140,17 @@ instance Matchable Pattern where
                          , ptrnInPort = ptrnInPort'
                          }
 
-type Rewrites = Set Pattern
+type Rewrite = Pattern
 
 -- | Forward represents a set of forwards with modifications on a switch,
 -- including forwarding multiple packets, so long as they are *different*
 -- packets (i.e., have a different modification applied to each).  Flood is
 -- encoded by using the PseudoPort Flood rather than
-data Forward = ForwardPorts (Map PseudoPort Rewrites)
+data Forward = ForwardPorts (MS.MultiSet (PseudoPort, Rewrite))
   deriving (Eq)
 
 instance Show Forward where
-  show (ForwardPorts m) = show (Map.keys m)
+  show (ForwardPorts m) = show . map fst $ MS.elems m
 
 type NumPktQuery = (Chan (Switch, Integer), Int)
 
@@ -160,46 +159,36 @@ data Action = Action {
   actionNumPktQueries :: [NumPktQuery]
 } deriving (Eq)
 
-actionForwardsTo :: Action
-                 -> Set PseudoPort -- ^'Nothing' indicates flood
-actionForwardsTo (Action (ForwardPorts m) _) = (Set.fromList . Map.keys $ m)
+-- TODO(astory): change output to multiset
+actionForwardsTo :: Action -> Set PseudoPort
+actionForwardsTo (Action (ForwardPorts m) _) =
+  Set.fromList . map fst . MS.elems $ m
 
 instance Show Action where
   show (Action fwd _) = "<fwd=" ++ show fwd ++ ">"
 
 dropPkt :: Action
-dropPkt = Action (ForwardPorts Map.empty) []
+dropPkt = Action (ForwardPorts MS.empty) []
 
 unionForward :: Forward -> Forward -> Forward
 unionForward (ForwardPorts m1) (ForwardPorts m2) =
-  ForwardPorts (Map.unionWith Set.union m1 m2)
-
-interForward :: Forward -> Forward -> Forward
-interForward (ForwardPorts m1) (ForwardPorts m2) =
-  ForwardPorts (Map.intersectionWith Set.intersection m1 m2)
+  ForwardPorts (MS.union m1 m2)
 
 unionAction :: Action -> Action -> Action
 unionAction (Action fwd1 q1) (Action fwd2 q2) =
   Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
     where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
 
-interAction :: Action -> Action -> Action
-interAction (Action fwd1 q1) (Action fwd2 q2) =
-  Action (interForward fwd1 fwd2) (interQuery q1 q2)
-    where interQuery xs ys = filter (\x -> x `elem` ys) xs
-
 flood :: Action
-flood = Action (ForwardPorts (Map.singleton PhysicalFlood
-                                            (Set.singleton top))) []
+flood = Action (ForwardPorts (MS.singleton (PhysicalFlood, top))) []
 
 forward :: Port -> Action
-forward p = Action (ForwardPorts (Map.singleton (Physical p)
-                                                (Set.singleton top))) []
+forward p = Action (ForwardPorts (MS.singleton (Physical p, top))) []
 
 query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do
   ch <- newChan
-  return (ch, Action (ForwardPorts Map.empty) [(ch, millisecondInterval)])
+  return (ch, Action (ForwardPorts MS.empty) [(ch, millisecondInterval)])
 
 -- |Construct the set difference between p1 and p2
 prDifference :: Predicate -> Predicate -> Predicate
@@ -216,7 +205,6 @@ poRestrict policy pred=
     PoBottom -> PoBottom
     PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
     PoUnion p1 p2 -> PoUnion (poRestrict p1 pred) (poRestrict p2 pred)
-    PoIntersect p1 p2 -> PoIntersect (poRestrict p1 pred) (poRestrict p2 pred)
 
 poNaryUnion :: [Policy] -> Policy
 poNaryUnion [] = PoBottom
@@ -234,7 +222,6 @@ data Predicate = PrPattern Pattern
 data Policy = PoBottom
             | PoBasic Predicate Action
             | PoUnion Policy Policy
-            | PoIntersect Policy Policy
 
 instance Show Predicate where
   show (PrPattern pat) = show pat
@@ -247,7 +234,6 @@ instance Show Policy where
   show PoBottom = "(PoBottom)"
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
-  show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
 
 instance Matchable Predicate where
   top = PrPattern top

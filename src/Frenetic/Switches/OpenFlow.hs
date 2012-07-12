@@ -325,4 +325,3 @@ policyQueries :: Policy -> [NumPktQuery]
 policyQueries PoBottom = []
 policyQueries (PoBasic _ action) = actionNumPktQueries action
 policyQueries (PoUnion p1 p2) = policyQueries p1 ++ policyQueries p2
-policyQueries (PoIntersect p1 p2) = policyQueries p1 ++ policyQueries p2
