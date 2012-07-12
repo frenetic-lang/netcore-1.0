@@ -28,6 +28,7 @@ interpretPolicy :: FreneticImpl a
                 => Policy
                 -> Transmission (PatternImpl a) (PacketImpl a)
                 -> Action
+interpretPolicy PoBottom tr = dropPkt
 interpretPolicy (PoBasic pred acts) tr = case interpretPredicate pred tr of
   True -> acts
   False -> dropPkt

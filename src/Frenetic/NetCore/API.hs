@@ -34,7 +34,8 @@ module Frenetic.NetCore.API
   , PseudoPort (..)
   , Word48
   -- * Actions
-  , Action
+  , Action (..)
+  , Forward (..)
   , NumPktQuery
   -- ** Basic actions
   , flood
@@ -45,18 +46,19 @@ module Frenetic.NetCore.API
   , unionAction
   , interAction
   -- ** Inspecting actions
-  , actionNumPktQueries
   , actionForwardsTo
   -- * Patterns
   , Pattern (..)
   -- * Predicates
   , Predicate (..)
   -- ** Predicate composition
-  , predDifference
+  , prDifference
+  , prNaryUnion
   -- * Policies
   , Policy (..)
   -- ** Policy composition
   , poRestrict
+  , poNaryUnion
   ) where
 
 import Frenetic.Util
@@ -200,16 +202,25 @@ query millisecondInterval = do
   return (ch, Action (ForwardPorts Map.empty) [(ch, millisecondInterval)])
 
 -- |Construct the set difference between p1 and p2
-predDifference :: Predicate -> Predicate -> Predicate
-predDifference p1 p2 = PrIntersect p1 (PrNegate p2)
+prDifference :: Predicate -> Predicate -> Predicate
+prDifference p1 p2 = PrIntersect p1 (PrNegate p2)
+
+prNaryUnion :: [Predicate] -> Predicate
+prNaryUnion [] = PrNegate top
+prNaryUnion ps = List.foldr1 (\ p1 p2 -> PrUnion p1 p2) ps
 
 -- |Construct the policy restricted by the predicate
 poRestrict :: Policy -> Predicate -> Policy
 poRestrict policy pred=
   case policy of
+    PoBottom -> PoBottom
     PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
     PoUnion p1 p2 -> PoUnion (poRestrict p1 pred) (poRestrict p2 pred)
     PoIntersect p1 p2 -> PoIntersect (poRestrict p1 pred) (poRestrict p2 pred)
+
+poNaryUnion :: [Policy] -> Policy
+poNaryUnion [] = PoBottom
+poNaryUnion ps = List.foldr1 (\ p1 p2 -> PoUnion p1 p2) ps
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern
@@ -217,9 +228,11 @@ data Predicate = PrPattern Pattern
                | PrUnion Predicate Predicate
                | PrIntersect Predicate Predicate
                | PrNegate Predicate
+  deriving (Eq)
 
 {-| Policies denote functions from (switch, packet) to packets. -}
-data Policy = PoBasic Predicate Action
+data Policy = PoBottom
+            | PoBasic Predicate Action
             | PoUnion Policy Policy
             | PoIntersect Policy Policy
 
@@ -231,6 +244,11 @@ instance Show Predicate where
   show (PrNegate pr) = "~(" ++ show pr ++ ")"
 
 instance Show Policy where
+  show PoBottom = "(PoBottom)"
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
   show (PoIntersect po1 po2) = "(" ++ show po1 ++ ") /\\ (" ++ show po2 ++ ")"
+
+instance Matchable Predicate where
+  top = PrPattern top
+  intersect p1 p2 = Just (PrIntersect p1 p2)

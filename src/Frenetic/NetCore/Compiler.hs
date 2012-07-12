@@ -238,6 +238,7 @@ compilePredicate s (PrNegate pr) =
 {-| Compile a policy to intermediate form -}
 compilePolicy :: FreneticImpl a
               => Switch -> Policy -> Skeleton (PatternImpl a) Action
+compilePolicy _ PoBottom = Skeleton []
 compilePolicy s (PoBasic po as) =
     skelMap f $ compilePredicate s po
       where f True = as
