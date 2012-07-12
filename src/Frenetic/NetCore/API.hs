@@ -50,6 +50,11 @@ module Frenetic.NetCore.API
   , Pattern (..)
   -- * Predicates
   , Predicate (..)
+  -- ** Predicate constructor shortcuts
+  , inport
+  , (<|>)
+  , (<&>)
+  , neg
   -- ** Predicate composition
   , prDifference
   , prNaryUnion
@@ -58,6 +63,9 @@ module Frenetic.NetCore.API
   -- ** Policy composition
   , poRestrict
   , poNaryUnion
+  -- ** Policy constructor shortcuts
+  , (%)
+  , (<+>)
   ) where
 
 import Frenetic.Util
@@ -202,6 +210,18 @@ poRestrict policy pred=
     PoBottom -> PoBottom
     PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
     PoUnion p1 p2 -> PoUnion (poRestrict p1 pred) (poRestrict p2 pred)
+
+-- |Construct the predicate matching packets on this switch and port
+inport :: Switch -> Port -> Predicate
+inport switch port = PrIntersect (PrTo switch)
+                                 (PrPattern (top {ptrnInPort = Just port}))
+
+pr1 <|> pr2 = PrUnion pr1 pr2
+pr1 <&> pr2 = PrIntersect pr1 pr2
+neg pr = PrNegate pr
+
+(%) = poRestrict
+po1 <+> po2 = PoUnion po1 po2
 
 poNaryUnion :: [Policy] -> Policy
 poNaryUnion [] = PoBottom
