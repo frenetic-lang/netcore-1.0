@@ -35,7 +35,7 @@ module Frenetic.NetCore.API
   , Word48
   -- * Actions
   , Action (..)
-  , Forward (..)
+  , Forward
   , NumPktQuery
   -- ** Basic actions
   , flood
@@ -146,11 +146,7 @@ type Rewrite = Pattern
 -- including forwarding multiple packets, so long as they are *different*
 -- packets (i.e., have a different modification applied to each).  Flood is
 -- encoded by using the PseudoPort Flood rather than
-data Forward = ForwardPorts (MS.MultiSet (PseudoPort, Rewrite))
-  deriving (Eq)
-
-instance Show Forward where
-  show (ForwardPorts m) = show . map fst $ MS.elems m
+type Forward = MS.MultiSet (PseudoPort, Rewrite)
 
 type NumPktQuery = (Chan (Switch, Integer), Int)
 
@@ -161,18 +157,18 @@ data Action = Action {
 
 -- TODO(astory): change output to multiset
 actionForwardsTo :: Action -> Set PseudoPort
-actionForwardsTo (Action (ForwardPorts m) _) =
+actionForwardsTo (Action m _) =
   Set.fromList . map fst . MS.elems $ m
 
 instance Show Action where
   show (Action fwd _) = "<fwd=" ++ show fwd ++ ">"
 
 dropPkt :: Action
-dropPkt = Action (ForwardPorts MS.empty) []
+dropPkt = Action MS.empty []
 
 unionForward :: Forward -> Forward -> Forward
-unionForward (ForwardPorts m1) (ForwardPorts m2) =
-  ForwardPorts (MS.union m1 m2)
+unionForward m1 m2 =
+  MS.union m1 m2
 
 unionAction :: Action -> Action -> Action
 unionAction (Action fwd1 q1) (Action fwd2 q2) =
@@ -180,20 +176,21 @@ unionAction (Action fwd1 q1) (Action fwd2 q2) =
     where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
 
 flood :: Action
-flood = Action (ForwardPorts (MS.singleton (PhysicalFlood, top))) []
+flood = Action (MS.singleton (PhysicalFlood, top)) []
 
 forward :: Port -> Action
-forward p = Action (ForwardPorts (MS.singleton (Physical p, top))) []
+forward p = Action (MS.singleton (Physical p, top)) []
 
 query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do
   ch <- newChan
-  return (ch, Action (ForwardPorts MS.empty) [(ch, millisecondInterval)])
+  return (ch, Action MS.empty [(ch, millisecondInterval)])
 
 -- |Construct the set difference between p1 and p2
 prDifference :: Predicate -> Predicate -> Predicate
 prDifference p1 p2 = PrIntersect p1 (PrNegate p2)
 
+-- |Construct the nary union of a list of predicates
 prNaryUnion :: [Predicate] -> Predicate
 prNaryUnion [] = PrNegate top
 prNaryUnion ps = List.foldr1 (\ p1 p2 -> PrUnion p1 p2) ps
