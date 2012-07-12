@@ -21,6 +21,7 @@ Library
                         Frenetic.Pattern,
                         Frenetic.NetCore.API,
                         Frenetic.Server
+                        Frenetic.Slices.Compile
     other-modules:      Frenetic.Util,
                         Frenetic.Switches.OpenFlow,
                         Frenetic.NetCore.Compiler,
