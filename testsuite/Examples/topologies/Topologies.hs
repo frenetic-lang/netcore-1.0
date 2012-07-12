@@ -53,7 +53,7 @@ labels on edges. -}
 type Topology = Gr NodeLabel EdgeLabel
 
 instance Show Topology where
-    show t = 
+    show t =
       foldl (\s (e1,e2) -> s ++ "\n" ++ show e1 ++ " <-> " ++ show e2) "" $ links t
 
 hosts :: Topology -> [Node]
@@ -89,14 +89,14 @@ parseTopo input = mkGraph nodes edges
 
 -- Parse a textual representation of a topology and return a pair
 -- of lists representing the nodes and edges.
--- 
+--
 -- Each line has the following format:
 --
 -- node L: (n1, p1), (n2, p2), ..., (nn, pn)
 --
 -- where this denotes labeled edges (node, neighbor1, port1), ...,
 -- and a labeled node (node, L).
--- 
+--
 -- More precisely,
 --
 -- line         ::= nodeLabel node ':' neighborList

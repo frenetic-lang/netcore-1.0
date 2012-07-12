@@ -7,7 +7,7 @@ import Tests.Frenetic.TestCompat
 import Test.HUnit
 import Test.Framework
 
-main = defaultMain 
+main = defaultMain
   [ compilerTests
   , netCoreTests
   , switchTests

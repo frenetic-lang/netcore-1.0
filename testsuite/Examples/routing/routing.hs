@@ -45,6 +45,6 @@ main = do
   let policy = SP.mkPolicy topo
   hPutStrLn stderr ("COLE: " ++ show policy)
   freneticServer (PoUnion policy arpFlood)
-  
+
 arpFlood :: Policy
 arpFlood = PoBasic (PrPattern top{ptrnDlTyp = Wildcard 0x806 0}) flood

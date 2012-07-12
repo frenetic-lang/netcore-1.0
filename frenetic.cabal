@@ -45,11 +45,11 @@ Executable frenetic-example-suite
     hs-source-dirs:     src
                         mininet-tests
    Main-Is:             Main.hs
-    
+
 Test-Suite frenetic-tests
     type:             exitcode-stdio-1.0
     main-is:          Main.hs
-    build-depends:    base, 
+    build-depends:    base,
                       containers,
                       newtype,
                       newtype-th,

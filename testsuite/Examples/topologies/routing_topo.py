@@ -37,7 +37,7 @@ class Topology( Topo ):
         h1 -- switch -- switch -- h2
                   \      /
                    \    /
-                   switch 
+                   switch
                      |
                      h3
 

@@ -28,7 +28,7 @@
 -- OpenFlow classifiers                                                       --
 --------------------------------------------------------------------------------
 
-module Frenetic.Switches.OpenFlow 
+module Frenetic.Switches.OpenFlow
   ( prefixToIPAddressPrefix
   , ipAddressPrefixToPrefix
   , OpenFlow (..)
@@ -73,12 +73,12 @@ data Nettle = Nettle {
   txHandlers :: IORef (Map TransactionID (SCMessage -> IO ()))
 }
 
-{-| Convert an EthernetAddress to a Word48. -}    
-ethToWord48 eth = 
+{-| Convert an EthernetAddress to a Word48. -}
+ethToWord48 eth =
   LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
     where (a, b, c, d, e, f) = unpack eth
-             
-{-| Convert a Word48 to an EthernetAddress. -}    
+
+{-| Convert a Word48 to an EthernetAddress. -}
 word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
     ethernetAddress a b c d e f
 
@@ -93,7 +93,7 @@ prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
 
 {-| Convert an IPAddressPrefix to a pattern Prefix. -}
 ipAddressPrefixToPrefix :: IPAddressPrefix -> Prefix Word32
-ipAddressPrefixToPrefix (IPAddress x, len) = 
+ipAddressPrefixToPrefix (IPAddress x, len) =
   Prefix (Wildcard x (foldl setBit 0 [0 .. tailLen - 1]))
   where tailLen = wordLen - (fromIntegral len)
         wordLen = 32
@@ -112,7 +112,7 @@ toController :: ActionSequence
 toController = sendToController maxBound
 
 instance Matchable Match where
-  top = Match { 
+  top = Match {
           inPort = top,
           srcEthAddress = top,
           dstEthAddress = top,
@@ -125,8 +125,8 @@ instance Matchable Match where
           dstIPAddress = top,
           srcTransportPort = top,
           dstTransportPort = top }
-        
-  intersect ofm1 ofm2 = 
+
+  intersect ofm1 ofm2 =
       do inport <- intersect (inPort ofm1) (inPort ofm2)
          srcethaddress <- intersect (srcEthAddress ofm1) (srcEthAddress ofm2)
          dstethaddress <- intersect (dstEthAddress ofm1) (dstEthAddress ofm2)
@@ -139,7 +139,7 @@ instance Matchable Match where
          dstipaddress <- intersect (dstIPAddress ofm1) (dstIPAddress ofm2)
          srctransportport <- intersect (srcTransportPort ofm1) (srcTransportPort ofm2)
          dsttransportport <- intersect (dstTransportPort ofm1) (dstTransportPort ofm2)
-         return Match { 
+         return Match {
            inPort = inport,
            srcEthAddress = srcethaddress,
            dstEthAddress = dstethaddress,
@@ -154,7 +154,7 @@ instance Matchable Match where
            dstTransportPort = dsttransportport }
 
 
-                   
+
 nettleEthernetFrame pkt = case enclosedFrame pkt of
     Left err -> error ("Expected an Ethernet frame: " ++ err)
     Right ef -> ef
@@ -199,60 +199,60 @@ instance FreneticImpl OpenFlow where
   data ActionImpl OpenFlow = OFAct { fromOFAct :: ActionSequence,
                                      actQueries :: [NumPktQuery] }
     deriving (Eq)
-  
-  ptrnMatchPkt (OFPkt pkt) (OFPat ptrn) = 
+
+  ptrnMatchPkt (OFPkt pkt) (OFPat ptrn) =
     matches (receivedOnPort pkt, nettleEthernetFrame pkt) ptrn
 
   toPacket (OFPkt pkt) = Packet {
       pktInPort = receivedOnPort pkt,
-      pktDlSrc = 
+      pktDlSrc =
         ethToWord48 $ sourceMACAddress $ nettleEthernetHeaders pkt,
-      pktDlDst = 
+      pktDlDst =
         ethToWord48 $ destMACAddress $ nettleEthernetHeaders pkt,
-      pktDlTyp = 
+      pktDlTyp =
         typeCode $ nettleEthernetHeaders pkt,
-      pktDlVlan = 
+      pktDlVlan =
         case nettleEthernetHeaders pkt of
-          EthernetHeader _ _ _ -> 0xfffff 
+          EthernetHeader _ _ _ -> 0xfffff
           Ethernet8021Q _ _ _ _ _ vlan -> vlan,
-      pktDlVlanPcp = 
+      pktDlVlanPcp =
         case nettleEthernetHeaders pkt of
-          EthernetHeader _ _ _ -> 0 
+          EthernetHeader _ _ _ -> 0
           Ethernet8021Q _ _ _ pri _ _ -> pri,
-      pktNwSrc = 
+      pktNwSrc =
         stripIPAddr $ case nettleEthernetBody pkt of
           IPInEthernet (HCons hdr _) -> ipSrcAddress hdr
           ARPInEthernet (ARPQuery q) -> querySenderIPAddress q
           ARPInEthernet (ARPReply r) -> replySenderIPAddress r
           _ -> ipAddress 0 0 0 0,
-      pktNwDst = 
+      pktNwDst =
         stripIPAddr $ case nettleEthernetBody pkt of
           IPInEthernet (HCons hdr _) -> ipDstAddress hdr
           ARPInEthernet (ARPQuery q) -> queryTargetIPAddress q
           ARPInEthernet (ARPReply r) -> replyTargetIPAddress r
           _ -> ipAddress 0 0 0 0,
-      pktNwProto = 
+      pktNwProto =
         case nettleEthernetBody pkt of
           IPInEthernet (HCons hdr _) -> ipProtocol hdr
           ARPInEthernet (ARPQuery _) -> 1
           ARPInEthernet (ARPReply _) -> 2
           _ -> 0,
-      pktNwTos = 
+      pktNwTos =
           case nettleEthernetBody pkt of
             IPInEthernet (HCons hdr _) -> dscp hdr
             _ -> 0 ,
-      pktTpSrc = 
-        case nettleEthernetBody pkt of 
+      pktTpSrc =
+        case nettleEthernetBody pkt of
           IPInEthernet (HCons _ (HCons (TCPInIP (src,dst)) _)) -> src
           IPInEthernet (HCons _ (HCons (UDPInIP (src,dst) _) _)) -> src
-          IPInEthernet (HCons _ (HCons (ICMPInIP (typ,cod)) _)) -> 
+          IPInEthernet (HCons _ (HCons (ICMPInIP (typ,cod)) _)) ->
             fromIntegral typ
           _ -> 0,
       pktTpDst =
-        case nettleEthernetBody pkt of 
+        case nettleEthernetBody pkt of
           IPInEthernet (HCons _ (HCons (TCPInIP (src,dst)) _)) -> dst
           IPInEthernet (HCons _ (HCons (UDPInIP (src,dst) _) _)) -> dst
-          IPInEthernet (HCons _ (HCons (ICMPInIP (typ,cod)) _)) -> 
+          IPInEthernet (HCons _ (HCons (ICMPInIP (typ,cod)) _)) ->
             fromIntegral cod
           _ -> 0
           }
@@ -270,11 +270,11 @@ instance FreneticImpl OpenFlow where
     matchIPProtocol = overapprox $ ptrnNwProto ptrn,
     ipTypeOfService = overapprox $ ptrnNwTos ptrn,
     srcTransportPort = overapprox $ ptrnTpSrc ptrn,
-    dstTransportPort = overapprox $ ptrnTpDst ptrn, 
+    dstTransportPort = overapprox $ ptrnTpDst ptrn,
     inPort = ptrnInPort ptrn
     }
-    
-  fromPatternUnderapprox pkt ptrn = do 
+
+  fromPatternUnderapprox pkt ptrn = do
     ptrnDlSrc' <- underapprox (ptrnDlSrc ptrn) (pktDlSrc pkt)
     ptrnDlDst' <- underapprox (ptrnDlDst ptrn) (pktDlDst pkt)
     ptrnDlTyp' <- underapprox (ptrnDlTyp ptrn) (pktDlTyp pkt)
@@ -297,7 +297,7 @@ instance FreneticImpl OpenFlow where
       matchIPProtocol = ptrnNwProto',
       ipTypeOfService = ptrnNwTos',
       srcTransportPort = ptrnTpSrc',
-      dstTransportPort = ptrnTpDst',   
+      dstTransportPort = ptrnTpDst',
       inPort = ptrnInPort ptrn
       }
 

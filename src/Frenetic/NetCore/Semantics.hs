@@ -12,13 +12,13 @@ interpretPredicate :: FreneticImpl a
                    => Predicate
                    -> Transmission (PatternImpl a) (PacketImpl a)
                    -> Bool
-interpretPredicate (PrPattern ptrn) tr = 
+interpretPredicate (PrPattern ptrn) tr =
   FreneticPkt (toPacket (trPkt tr)) `ptrnMatchPkt` FreneticPat ptrn
 interpretPredicate (PrTo sw) tr =
   sw == trSwitch tr
-interpretPredicate (PrUnion pr1 pr2) tr = 
+interpretPredicate (PrUnion pr1 pr2) tr =
   interpretPredicate pr1 tr || interpretPredicate pr2 tr
-interpretPredicate (PrIntersect pr1 pr2) tr = 
+interpretPredicate (PrIntersect pr1 pr2) tr =
    interpretPredicate pr1 tr && interpretPredicate pr2 tr
 interpretPredicate (PrNegate pr) tr =
   not (interpretPredicate pr tr)
@@ -29,11 +29,11 @@ interpretPolicy :: FreneticImpl a
                 -> Transmission (PatternImpl a) (PacketImpl a)
                 -> Action
 interpretPolicy (PoBasic pred acts) tr = case interpretPredicate pred tr of
-  True -> acts 
+  True -> acts
   False -> dropPkt
-interpretPolicy (PoUnion p1 p2) tr = 
+interpretPolicy (PoUnion p1 p2) tr =
   interpretPolicy p1 tr `unionAction` interpretPolicy p2 tr
-interpretPolicy (PoIntersect p1 p2) tr = 
+interpretPolicy (PoIntersect p1 p2) tr =
   interpretPolicy p1 tr `interAction` interpretPolicy p2 tr
 
 instance Matchable (PatternImpl ()) where
@@ -47,11 +47,11 @@ instance FreneticImpl () where
   data PacketImpl () = FreneticPkt Packet deriving (Show, Eq)
   data PatternImpl () = FreneticPat Pattern deriving (Show, Eq)
   data ActionImpl () = FreneticAct { fromFreneticAct :: Action }
-    deriving (Show, Eq)   
+    deriving (Show, Eq)
 
   toPacket (FreneticPkt x) = x
   updatePacket pkt1 pkt2 = FreneticPkt pkt2
-  ptrnMatchPkt (FreneticPkt pkt) (FreneticPat ptrn) = 
+  ptrnMatchPkt (FreneticPkt pkt) (FreneticPat ptrn) =
     wMatch (pktDlSrc pkt) (ptrnDlSrc ptrn)
     && wMatch (pktDlDst pkt) (ptrnDlDst ptrn)
     && wMatch (pktDlTyp pkt) (ptrnDlTyp ptrn)
@@ -63,10 +63,10 @@ instance FreneticImpl () where
     && wMatch (pktNwTos pkt) (ptrnNwTos ptrn)
     && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
     && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
-    && Just (pktInPort pkt) `match` ptrnInPort ptrn  
+    && Just (pktInPort pkt) `match` ptrnInPort ptrn
   fromPatternOverapprox pat = FreneticPat pat
   -- We never need to underapproximate real patterns
-  fromPatternUnderapprox pkt ptrn = Nothing 
+  fromPatternUnderapprox pkt ptrn = Nothing
   toPattern (FreneticPat x) = x
   actnDefault = FreneticAct dropPkt
   actnController = FreneticAct dropPkt

@@ -48,18 +48,18 @@ main = freneticServer $ PoUnion policy3 arp_policy
 
 dlTypIP = Wildcard 0x800 0
 
-policy2 = PoUnion 
+policy2 = PoUnion
            (PoBasic (PrPattern top{ptrnInPort = (Just 1)})
                     (forward 2))
            (PoBasic (PrPattern top{ptrnInPort = (Just 2)})
                     (forward 1))
 
-policy3 = PoUnion 
-           (PoBasic (PrPattern top{ptrnNwSrc = h1, 
+policy3 = PoUnion
+           (PoBasic (PrPattern top{ptrnNwSrc = h1,
                                    ptrnNwDst = h2,
                                    ptrnDlTyp = dlTypIP})
                     (forward 2))
-           (PoBasic (PrPattern top{ptrnNwSrc = h2, 
+           (PoBasic (PrPattern top{ptrnNwSrc = h2,
                                    ptrnNwDst = h1,
                                    ptrnDlTyp = dlTypIP})
                     (forward 1))

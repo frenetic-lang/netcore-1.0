@@ -52,7 +52,7 @@ prop_ExactishWildcard_is_exactish w_in = let w@(Wildcard x m) = unW w_in in
     w == top || m == (complement 0)
 
 prop_ExactishPattern_is_exactish :: ExactishPattern -> Bool
-prop_ExactishPattern_is_exactish p_in = 
+prop_ExactishPattern_is_exactish p_in =
   let p = unpack p_in
       fields = [
           f $ ptrnDlSrc p

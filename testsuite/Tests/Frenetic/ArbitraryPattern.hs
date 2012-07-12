@@ -48,7 +48,7 @@ instance (Arbitrary a) => Arbitrary (Wildcard a) where
     m <- arbitrary
     return $ Wildcard x m
 
-  shrink (Wildcard x m) = 
+  shrink (Wildcard x m) =
     [Wildcard x' m | x' <- shrink x] ++
     [Wildcard x m' | m' <- shrink m]
 

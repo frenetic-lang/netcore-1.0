@@ -62,6 +62,6 @@ def printTopology(topo, filename):
         else:
             nodeLabel = 'Host'
         f.write('%s %s: %s\n' % (nodeLabel, topo.name(k), edges))
-    
+
     f.close()
 

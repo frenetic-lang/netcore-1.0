@@ -28,11 +28,11 @@
 -- NetCore compiler                                                           --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE 
+{-# LANGUAGE
     TemplateHaskell,
     MultiParamTypeClasses
  #-}
-module Frenetic.NetCore.Compiler 
+module Frenetic.NetCore.Compiler
   ( compile
   , compilePredicate
   , Bone (..) -- TODO(arjun): do not export
@@ -79,21 +79,21 @@ selfMap f ctxt c (x : xs) =
 {-| Input: a function, a value, and two lists. Apply the function to each pair from the two lists and the current value. The function may modify the two lists and modify the current value. -}
 cartMap :: (c -> a -> b -> (c, Maybe a, Maybe b)) -> c -> [a] -> [b] -> (c, [a], [b])
 cartMap f c [] ys = (c, [], ys)
-cartMap f c (x:xs) ys = 
-  let (c', xo, ys') = cartMap' c x ys in 
-  let (c'', xs', ys'') = cartMap f c' xs ys' in 
-  let xs'' = case xo of { Just x' -> x' : xs'; Nothing -> xs' } in 
+cartMap f c (x:xs) ys =
+  let (c', xo, ys') = cartMap' c x ys in
+  let (c'', xs', ys'') = cartMap f c' xs ys' in
+  let xs'' = case xo of { Just x' -> x' : xs'; Nothing -> xs' } in
   (c'',xs'',ys'')
   where
     cartMap' c x [] = (c, Just x, [])
-    cartMap' c x (y:ys) = 
+    cartMap' c x (y:ys) =
       case f c x y of
-        (c', Just x', Just y') -> 
-           let (c'', xo', ys') = cartMap' c' x' ys in 
+        (c', Just x', Just y') ->
+           let (c'', xo', ys') = cartMap' c' x' ys in
            (c'', xo', y':ys')
         (c', Nothing, Just y') -> (c', Nothing, y':ys)
         (c', Just x', Nothing) -> cartMap' c' x' ys
-        (c', Nothing, Nothing) -> (c', Nothing, ys)        
+        (c', Nothing, Nothing) -> (c', Nothing, ys)
 
 {-| Classifiers are the target of compilation. -}
 newtype Classifier ptrn a = Classifier [(ptrn, a)]
@@ -101,35 +101,35 @@ $(mkNewTypes [''Classifier])
 
 -- We can show classifiers. TODO: Make the display nicer.
 instance (Show ptrn, Show actn) => Show (Classifier ptrn actn) where
-  show = List.intercalate "\n" . List.map show . unpack 
+  show = List.intercalate "\n" . List.map show . unpack
 
 classify :: FreneticImpl a
-         => Switch 
-         -> PacketImpl a 
-         -> Classifier (PatternImpl a) actn 
+         => Switch
+         -> PacketImpl a
+         -> Classifier (PatternImpl a) actn
          -> Maybe actn
-classify switch pkt (Classifier rules) = foldl f Nothing rules where 
+classify switch pkt (Classifier rules) = foldl f Nothing rules where
     f (Just a) (ptrn, actn) = Just a
     f Nothing (ptrn, actn) = if ptrnMatchPkt pkt ptrn
                              then Just actn
                              else Nothing
 
-{-| Attempt to reduce the number of rules in the classifier. 
-    
+{-| Attempt to reduce the number of rules in the classifier.
+
       1. Remove a rule if it is a subset of a higher-priority rule: O(n^2).
       2. NYI
 
 |-}
 minimizeShadowing :: FreneticImpl a
-                  => (b -> PatternImpl a) 
-                  -> [b] 
+                  => (b -> PatternImpl a)
+                  -> [b]
                   -> [b]
 minimizeShadowing getPat rules = reverse $ f $ reverse rules
   where f []     = []
         f (x:xs) = if any (shadows x) xs
                    then f xs
                    else x:(f xs)
-        shadows a1 a2 = 
+        shadows a1 a2 =
           let p1 = getPat a1
               p2 = getPat a2
           in case intersect p1 p2 of
@@ -137,22 +137,22 @@ minimizeShadowing getPat rules = reverse $ f $ reverse rules
             Just p3 -> match p1 p3
 
 minimizeClassifier :: FreneticImpl a
-                   => Classifier (PatternImpl a) (ActionImpl a) 
+                   => Classifier (PatternImpl a) (ActionImpl a)
                    -> Classifier (PatternImpl a) (ActionImpl a)
 minimizeClassifier (Classifier rules) = Classifier $ minimizeShadowing fst rules
 
-{-| Remove any rules that 
-    (1) have controller actions, 
+{-| Remove any rules that
+    (1) have controller actions,
     (2) don't match the packet, or
     (3) overlap with rules previously removed. -}
 prune :: FreneticImpl a
       => PacketImpl a
-      -> Classifier (PatternImpl a) (ActionImpl a) 
+      -> Classifier (PatternImpl a) (ActionImpl a)
       -> Classifier (PatternImpl a) (ActionImpl a)
 prune pkt = newLift $ removeControllers []
     where
       removeControllers prefix [] = []
-      removeControllers prefix ((ptrn, actn) : rules) 
+      removeControllers prefix ((ptrn, actn) : rules)
           | not $ ptrnMatchPkt pkt ptrn  = removeControllers prefix rules
           | actn == actnController = removeControllers (ptrn : prefix) rules
           | any (overlap ptrn) prefix = removeControllers (ptrn : prefix) rules
@@ -162,63 +162,63 @@ prune pkt = newLift $ removeControllers []
 data Bone ptrn actn = Bone ptrn Pattern actn
   deriving (Show, Eq)
 
-{-| Skeletons are the intermediate form. -} 
+{-| Skeletons are the intermediate form. -}
 newtype Skeleton ptrn actn = Skeleton [Bone ptrn actn]
                            deriving (Eq)
-$(mkNewTypes [''Skeleton])                    
+$(mkNewTypes [''Skeleton])
 
 -- TODO: make this nicer.
 instance (Show ptrn, Show actn) => Show (Skeleton ptrn actn) where
-  show = List.intercalate "\n" . List.map show . unpack 
+  show = List.intercalate "\n" . List.map show . unpack
 
 {-| Concatenate two intermediate forms. -}
 skelAppend :: Skeleton ptrn actn -> Skeleton ptrn actn -> Skeleton ptrn actn
 skelAppend = newLift2 (++)
 
 {-| Map the actions. |-}
-skelMap :: (a -> b) -> Skeleton ptrn a -> Skeleton ptrn b 
-skelMap f (Skeleton bones) = 
-  Skeleton $ map (\(Bone ptrn pr actns) -> Bone ptrn pr (f actns)) bones 
+skelMap :: (a -> b) -> Skeleton ptrn a -> Skeleton ptrn b
+skelMap f (Skeleton bones) =
+  Skeleton $ map (\(Bone ptrn pr actns) -> Bone ptrn pr (f actns)) bones
 
 {-| Cartesian combine two skeletons given a combination function for the actions. -}
 skelCart :: FreneticImpl a
          => (actn -> actn -> actn)
          -> Skeleton (PatternImpl a) actn
          -> Skeleton (PatternImpl a) actn
-         -> (Skeleton (PatternImpl a) actn, 
-             Skeleton (PatternImpl a) actn, 
+         -> (Skeleton (PatternImpl a) actn,
+             Skeleton (PatternImpl a) actn,
              Skeleton (PatternImpl a) actn)
-skelCart f (Skeleton bs1) (Skeleton bs2) = 
-  let 
-    (bs1',bs2',bs3') = cartMap h [] bs1 bs2 
-  in 
+skelCart f (Skeleton bs1) (Skeleton bs2) =
+  let
+    (bs1',bs2',bs3') = cartMap h [] bs1 bs2
+  in
    (Skeleton bs1', Skeleton bs2', Skeleton bs3')
   where
-    h bs x@(Bone ptrn1 iptrn1 actns1) y@(Bone ptrn2 iptrn2 actns2) = 
-        case intersect ptrn1 ptrn2 of 
-          Just ptrn12 -> 
+    h bs x@(Bone ptrn1 iptrn1 actns1) y@(Bone ptrn2 iptrn2 actns2) =
+        case intersect ptrn1 ptrn2 of
+          Just ptrn12 ->
             case intersect iptrn1 iptrn2 of
-              Just iptrn12 -> 
+              Just iptrn12 ->
                 (bs ++ [Bone ptrn12 iptrn12 (f actns1 actns2)],
                  if ptrn12 == ptrn1 then Nothing else Just x,
                  if ptrn12 == ptrn2 then Nothing else Just y)
               Nothing -> error "skelCart: i-pattern intersection failed."
-          Nothing -> 
-            (bs, Just x, Just y) 
-      
+          Nothing ->
+            (bs, Just x, Just y)
+
 {-| Attempt to reduce the number of rules in a Skeleton. -}
 skelMinimize :: FreneticImpl a
-             => Skeleton (PatternImpl a) actn 
+             => Skeleton (PatternImpl a) actn
              -> Skeleton (PatternImpl a) actn
 skelMinimize (Skeleton bones) = Skeleton $ minimizeShadowing getPat bones
   where getPat (Bone p1 p2 as) = FreneticPat p2
 
 {-| Compile a predicate to intermediate form. -}
 compilePredicate :: FreneticImpl a
-                 => Switch 
-                 -> Predicate 
-                 -> Skeleton (PatternImpl a) Bool 
-compilePredicate s (PrPattern pat) = 
+                 => Switch
+                 -> Predicate
+                 -> Skeleton (PatternImpl a) Bool
+compilePredicate s (PrPattern pat) =
   Skeleton [Bone (fromPatternOverapprox pat) pat True]
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top True]
                              | otherwise = Skeleton []
@@ -232,43 +232,43 @@ compilePredicate s (PrUnion pr1 pr2) = skelMinimize $ skel12' `skelAppend` skel1
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
       (skel12', skel1', skel2') = skelCart (||) skel1 skel2
-compilePredicate s (PrNegate pr) = 
+compilePredicate s (PrNegate pr) =
   skelMap not (compilePredicate s pr) `skelAppend` Skeleton [Bone top top True]
 
 {-| Compile a policy to intermediate form -}
 compilePolicy :: FreneticImpl a
               => Switch -> Policy -> Skeleton (PatternImpl a) Action
-compilePolicy s (PoBasic po as) = 
-    skelMap f $ compilePredicate s po 
+compilePolicy s (PoBasic po as) =
+    skelMap f $ compilePredicate s po
       where f True = as
             f False = dropPkt
 compilePolicy s (PoUnion po1 po2) =
-   skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2' 
+   skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2'
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
-            (skel12', skel1', skel2') = 
+            (skel12', skel1', skel2') =
               skelCart unionAction skel1 skel2
 compilePolicy s (PoIntersect po1 po2) = skelMinimize skel12'
   where skel1 = compilePolicy s po1
         skel2 = compilePolicy s po2
-        (skel12', skel1', skel2') = 
+        (skel12', skel1', skel2') =
           skelCart interAction skel1 skel2
 
 {-| Compile a policy to a classifier. -}
 compile :: FreneticImpl a
-        => Switch 
-        -> Policy 
+        => Switch
+        -> Policy
         -> Classifier (PatternImpl a) (ActionImpl a)
 compile s po = Classifier $ map f $ unpack skel
   where
-    f (Bone sptrn iptrn actn) 
+    f (Bone sptrn iptrn actn)
       | toPattern sptrn `match` iptrn = (sptrn, actnTranslate actn)
       | otherwise = (sptrn, actnController)
     skel = compilePolicy s po
-    
+
 {-| Return a supplemental classifier obtained from specializing the policy with the transmission. |-}
 specialize :: FreneticImpl a
-           => Transmission (PatternImpl a) (PacketImpl a) 
-           -> Policy 
+           => Transmission (PatternImpl a) (PacketImpl a)
+           -> Policy
            -> Classifier (PatternImpl a) (ActionImpl a)
 specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) po

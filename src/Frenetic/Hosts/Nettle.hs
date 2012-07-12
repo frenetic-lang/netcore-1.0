@@ -51,7 +51,7 @@ sendToSwitch' sw msg = do
   sendToSwitch sw msg
 
 -- |spin-lock until we acquire a 'TransactionID'
-reserveTxId :: Nettle -> IO TransactionID 
+reserveTxId :: Nettle -> IO TransactionID
 reserveTxId nettle@(Nettle _ _ nextTxId _) = do
   let getNoWrap n = case n == maxBound of
         False -> (n + 1, Just n)
@@ -76,7 +76,7 @@ csMsgWithResponse msg = case msg of
   StatsRequest _ -> True
   BarrierRequest -> True
   GetQueueConfig _ -> True
-  otherwise -> False 
+  otherwise -> False
 
 hasMoreReplies :: SCMessage -> Bool
 hasMoreReplies msg = case msg of
@@ -109,30 +109,30 @@ sendTransaction nettle@(Nettle _ _ _ txHandlers) sw reqs callback = do
   mapM_ (sendToSwitch sw) (zip [txId ..] reqs)
   return ()
 
-mkFlowMod :: (Match, ActionSequence) 
+mkFlowMod :: (Match, ActionSequence)
           -> Priority
           -> CSMessage
 mkFlowMod (pat, acts) pri = FlowMod AddFlow {
-  match=pat, 
-  priority=pri, 
-  actions=acts, 
-  cookie=0, 
-  notifyWhenRemoved=False, 
+  match=pat,
+  priority=pri,
+  actions=acts,
+  cookie=0,
+  notifyWhenRemoved=False,
   idleTimeOut=Permanent,
   hardTimeOut=Permanent,
   applyToPacket=Nothing,
-  overlapAllowed=True 
+  overlapAllowed=True
 }
 
 rawClassifier :: Classifier (PatternImpl OpenFlow) (ActionImpl OpenFlow)
               -> [(Match, ActionSequence)]
-rawClassifier (Classifier rules) = 
+rawClassifier (Classifier rules) =
   map (\(p, a) -> (fromOFPat p, fromOFAct a)) rules
 
-handleOFMsg :: Nettle 
-            -> SwitchHandle 
-            -> Policy 
-            -> (TransactionID, SCMessage)  
+handleOFMsg :: Nettle
+            -> SwitchHandle
+            -> Policy
+            -> (TransactionID, SCMessage)
             -> IO ()
 handleOFMsg nettle switch policy (xid, msg) = case msg of
   PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
@@ -141,12 +141,12 @@ handleOFMsg nettle switch policy (xid, msg) = case msg of
     hFlush stdout
     let switchID = handle2SwitchID switch
     let t = Transmission undefined switchID (toOFPkt pkt)
-    let t' = Transmission (toOFPat (frameToExactMatch inPort frame)) 
-                          switchID 
+    let t' = Transmission (toOFPat (frameToExactMatch inPort frame))
+                          switchID
                           (toOFPkt pkt)
     let flowTbl = rawClassifier (specialize t policy)
     let actions = interpretPolicy policy t'
-    let mod = mkFlowMod (frameToExactMatch inPort frame, 
+    let mod = mkFlowMod (frameToExactMatch inPort frame,
                          fromOFAct $ actnTranslate actions)
                         65535
     sendToSwitch' switch (1, mod)
@@ -159,13 +159,13 @@ handleOFMsg nettle switch policy (xid, msg) = case msg of
       Just buf -> do
         let msg = PacketOut $ PacketOutRecord (Left buf) (Just inPort) $
                     (fromOFAct $ actnTranslate actions)
-        sendToSwitch' switch (2, msg) 
+        sendToSwitch' switch (2, msg)
   otherwise -> do
     handlers <- readIORef (txHandlers nettle)
     case Map.lookup xid handlers of
       Just handler -> handler msg
       Nothing -> putStrLn $ "Unhandled message " ++ show msg
-      
+
 -- |Installs the static portion of the policy, then react.
 handleSwitch :: Nettle -> SwitchHandle -> Policy -> IO ()
 handleSwitch nettle switch policy = do
@@ -179,7 +179,7 @@ handleSwitch nettle switch policy = do
   untilNothing (receiveFromSwitch switch) (handleOFMsg nettle switch policy)
 
 nettleServer :: Policy -> IO ()
-nettleServer policy = do 
+nettleServer policy = do
   hPutStrLn stderr "--- Welcome to Frenetic ---"
   server <- startOpenFlowServer Nothing -- bind to this address
                                 6633    -- port to listen on
@@ -208,7 +208,7 @@ runQueryOnSwitch :: Nettle
                  -> SwitchHandle
                  -> [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
                  -> IO ()
-runQueryOnSwitch nettle switch classifier = 
+runQueryOnSwitch nettle switch classifier =
   mapM_ runQuery (classifierQueries classifier)
     where mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
           switchID = handle2SwitchID switch

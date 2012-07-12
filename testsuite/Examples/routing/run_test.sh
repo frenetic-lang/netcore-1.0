@@ -95,8 +95,8 @@ for i; do
 done
 
 build_controller
-if [ $justBuild -eq 1 ]; then 
-    exit; 
+if [ $justBuild -eq 1 ]; then
+    exit;
 fi
 generate_topology
 start_controller

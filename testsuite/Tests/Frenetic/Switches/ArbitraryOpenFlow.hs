@@ -91,7 +91,7 @@ instance Arbitrary Action where
     return $ SendOutPort p
 
 instance Arbitrary PseudoPort where
-  arbitrary = do 
+  arbitrary = do
     let maxLenToSendController = 65535
     p <- arbitrary
     oneof [ return $ PhysicalPort p
@@ -105,7 +105,7 @@ instance Arbitrary PseudoPort where
           ]
 
 instance (Arbitrary ptrn, Arbitrary actn) => Arbitrary (Classifier ptrn actn) where
-  arbitrary = do 
+  arbitrary = do
     l <- listOf arbitrary
     return $ Classifier l
 

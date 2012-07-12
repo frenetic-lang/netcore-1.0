@@ -14,7 +14,7 @@ def main():
       help='path to a python file that defines a Topology class')
     args = parser.parse_args()
     topoGenerator = args.topology[0]
-    
+
     topologyDir = os.path.abspath(os.path.dirname(sys.argv[0]))
     topologyFile = '%s.top' % (os.path.splitext(topoGenerator)[0])
     topologyPath = os.path.join(topologyDir, topologyFile)

@@ -136,7 +136,7 @@ instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
       largeWordShift w 0 = w
       largeWordShift (LargeKey lo hi) x =
          if bitSize lo < bitSize hi
-            then LargeKey (shift lo x) 
+            then LargeKey (shift lo x)
                           (shift hi x .|. (shift (conv lo) (x - (bitSize lo))))
             else LargeKey (shift lo x)
                           (shift hi x .|. (conv $ shift lo (x - (bitSize lo))))
@@ -147,18 +147,18 @@ instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
 instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) => Show (LargeKey a b) where
    showsPrec p = showInt . largeWordToInteger
 
-instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) => 
+instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
    Num (LargeKey a b) where
       (+) = largeWordPlus
-      fromInteger = integerToLargeWord 
+      fromInteger = integerToLargeWord
       abs = undefined
       (*) = undefined
       signum = undefined
-            
+
 
 -- Larger keys are instances of Bits provided their constituents are keys.
 
-instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) => 
+instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
    Bits (LargeKey a b) where
       (.&.) = largeWordAnd
       (.|.) = largeWordOr
@@ -166,10 +166,10 @@ instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
       shift = largeWordShift
       bitSize = largeBitSize
       complement = largeWordComplement
-      isSigned = undefined 
+      isSigned = undefined
 
-instance (Ord a, Bits a, Bounded a, Integral a, LargeWord a, 
-                 Bits b, Bounded b, Integral b, LargeWord b) => 
+instance (Ord a, Bits a, Bounded a, Integral a, LargeWord a,
+                 Bits b, Bounded b, Integral b, LargeWord b) =>
    Bounded (LargeKey a b) where
       minBound = 0
       maxBound =

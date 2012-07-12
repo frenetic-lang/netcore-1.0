@@ -65,11 +65,11 @@ import Control.Newtype
 switchTests = $(testGroupGenerator)
 
 prop_fromPatternOverapprox_toPattern :: PatternImpl OpenFlow -> Bool
-prop_fromPatternOverapprox_toPattern sptrn = 
+prop_fromPatternOverapprox_toPattern sptrn =
   sptrn == (fromPatternOverapprox $ toPattern sptrn)
 
 prop_fromPatternOverapprox_toPattern_match :: PatternImpl OpenFlow -> Bool
-prop_fromPatternOverapprox_toPattern_match sptrn = 
+prop_fromPatternOverapprox_toPattern_match sptrn =
   p1 `match` p2
     where
       p1 = toPattern sptrn
@@ -80,7 +80,7 @@ prop_fromPatternOverapprox_toPattern_match sptrn =
 -- forall exact Pattern p, p `match` toPattern $ fromPatternOverapprox p
 -- where "exact" means all fields are either concrete or *.
 prop_exact_1 :: ExactishPattern -> Bool
-prop_exact_1 ptrn_in = 
+prop_exact_1 ptrn_in =
   let ptrn :: Pattern
       ptrn = Control.Newtype.unpack ptrn_in
       approx :: PatternImpl OpenFlow

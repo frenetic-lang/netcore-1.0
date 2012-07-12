@@ -51,9 +51,9 @@ import Control.Newtype
 import Frenetic.Switches.OpenFlow
 import Frenetic.NetCore.API
 
-buildWord48 w1 w2 w3 w4 w5 w6 = 
-  LargeKey 
-    w1 
+buildWord48 w1 w2 w3 w4 w5 w6 =
+  LargeKey
+    w1
     (LargeKey w2 (LargeKey w3 (LargeKey w4 (LargeKey w5 w6))))
 
 instance Arbitrary Word48 where
@@ -66,8 +66,8 @@ instance Arbitrary Word48 where
     w6 <- arbitrary
     return $ buildWord48 w1 w2 w3 w4 w5 w6
 
-  shrink (LargeKey 
-           w1 
+  shrink (LargeKey
+           w1
            (LargeKey w2 (LargeKey w3 (LargeKey w4 (LargeKey w5 w6))))) =
     [buildWord48 s w2 w3 w4 w5 w6 | s <- shrink w1] ++
     [buildWord48 w1 s w3 w4 w5 w6 | s <- shrink w2] ++
@@ -91,11 +91,11 @@ instance Arbitrary Packet where
     tpsrc       <- arbitrary
     tpdst       <- arbitrary
     inport      <- arbitrary
-    return $ Packet 
-               dlsrc dldst dltyp dlvlan dlvlanpcp nwsrc nwdst nwproto nwtos 
+    return $ Packet
+               dlsrc dldst dltyp dlvlan dlvlanpcp nwsrc nwdst nwproto nwtos
                tpsrc tpdst inport
 
-  shrink p = 
+  shrink p =
     [p {pktDlSrc = s}       | s <- shrink (pktDlSrc p)] ++
     [p {pktDlDst = s}       | s <- shrink (pktDlDst p)] ++
     [p {pktDlTyp = s}       | s <- shrink (pktDlTyp p)] ++
@@ -129,8 +129,8 @@ instance Arbitrary Pattern where
     ptrnTpSrc       <- arbitrary
     ptrnTpDst       <- arbitrary
     ptrnInPort      <- arbitrary
-    return $ Pattern ptrnDlSrc ptrnDlDst ptrnDlTyp ptrnDlVlan ptrnDlVlanPcp 
-                     ptrnNwSrc ptrnNwDst ptrnNwProto ptrnNwTos ptrnTpSrc 
+    return $ Pattern ptrnDlSrc ptrnDlDst ptrnDlTyp ptrnDlVlan ptrnDlVlanPcp
+                     ptrnNwSrc ptrnNwDst ptrnNwProto ptrnNwTos ptrnTpSrc
                      ptrnTpDst ptrnInPort
 
   shrink p =
@@ -187,8 +187,8 @@ instance Arbitrary ExactishPattern where
         ptrnNwTos = unW ptrnNwTos_in
         ptrnTpSrc = unW ptrnTpSrc_in
         ptrnTpDst = unW ptrnTpDst_in
-    return $ pack $ Pattern ptrnDlSrc ptrnDlDst ptrnDlTyp ptrnDlVlan ptrnDlVlanPcp 
-                            ptrnNwSrc ptrnNwDst ptrnNwProto ptrnNwTos ptrnTpSrc 
+    return $ pack $ Pattern ptrnDlSrc ptrnDlDst ptrnDlTyp ptrnDlVlan ptrnDlVlanPcp
+                            ptrnNwSrc ptrnNwDst ptrnNwProto ptrnNwTos ptrnTpSrc
                             ptrnTpDst ptrnInPort
 
   shrink p_in =
@@ -213,11 +213,11 @@ instance (Arbitrary a, Ord a) => Arbitrary (Set.Set a) where
     l <- listOf arbitrary
     return $ Set.fromList l
 
-  shrink s = 
-    let f a b = let shrunkElems = shrink a 
+  shrink s =
+    let f a b = let shrunkElems = shrink a
                 in case shrunkElems of
                      [] -> b
-                     _  -> Set.union (Set.fromList shrunkElems) b 
+                     _  -> Set.union (Set.fromList shrunkElems) b
     in [Set.fold f Set.empty s]
 
 instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) where
@@ -227,7 +227,7 @@ instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) wh
     pk <- arbitrary
     return $ Transmission pt sw pk
 
-  shrink t = 
+  shrink t =
     [t {trPattern = s} | s <- shrink (trPattern t)] ++
     [t {trSwitch = s} | s <- shrink (trSwitch t)] ++
     [t {trPkt = s} | s <- shrink (trPkt t)]
