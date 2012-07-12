@@ -29,12 +29,14 @@
 -- Patterns                                                                   --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE 
+{-# LANGUAGE
              ParallelListComp,
              GeneralizedNewtypeDeriving #-}
-module Frenetic.Pattern 
+module Frenetic.Pattern
   ( Matchable (..)
   , Wildcard (..)
+  , matchAll
+  , exact
   , Approx (..)
   , Prefix (..)
   , wMatch
@@ -45,7 +47,7 @@ import Data.Bits
 import Data.Word
 import Data.Maybe
 import Numeric (showHex)
-    
+
 {-|
 A class for types that compose similar to wildcards.
 
@@ -69,8 +71,14 @@ class (Eq a) => Matchable a where
     overlap x y = isJust $ intersect x y
     disjoint x y = isNothing $ intersect x y
 
-                   
-data Wildcard a = Wildcard a a  -- Data and mask, respectively.
+matchAll :: (Bits a) => Wildcard a
+matchAll = Wildcard 0 0
+
+-- |Wildcard that only matches this value
+exact :: (Bits a) => a -> Wildcard a
+exact value = Wildcard value (complement 0)
+
+data Wildcard a = Wildcard a a deriving (Ord)  -- Data and mask, respectively.
 
 instance (Bits a) => Eq (Wildcard a) where
     (Wildcard x m) == (Wildcard x' m') =
@@ -82,7 +90,7 @@ instance (Bits a, Integral a, Show a) => Show (Wildcard a) where
                                       then s
                                       else ("0x" ++ showHex x "")
         where
-          s = [f i | i <- reverse [0 .. n-1]] 
+          s = [f i | i <- reverse [0 .. n-1]]
           n = bitSize x
 
           f i | testBit m i = '?'
@@ -109,18 +117,18 @@ instance (Bits a) => Matchable (Wildcard a) where
     overlap (Wildcard x m) (Wildcard x' m') = x .|. m'' == x' .|. m''
         where
           m'' = m .|. m'
-          
+
     match (Wildcard x m) (Wildcard x' m') =
-        m .&. m' == m  &&  x .|. m' == x' .|. m' 
-         
+        m .&. m' == m  &&  x .|. m' == x' .|. m'
+
     disjoint w w' = not $ overlap w w'
-    
+
 wMatch :: (Bits a) => a -> Wildcard a -> Bool
 wMatch b w = wBitsMake b `match` w
 
 wBitsMake :: (Bits a) => a -> Wildcard a
-wBitsMake b = Wildcard b 0 
-                    
+wBitsMake b = Wildcard b 0
+
 wMake :: forall a. (Bits a) => String -> Wildcard a
 wMake s = foldl' intersectWildcard top mds
     where
@@ -135,7 +143,7 @@ wMake s = foldl' intersectWildcard top mds
 
 wReplaceData :: a -> Wildcard a -> Wildcard a
 wReplaceData x (Wildcard x' m) = Wildcard x m
-              
+
 wReplaceMask :: a -> Wildcard a -> Wildcard a
 wReplaceMask m (Wildcard x m') = Wildcard x m
 
@@ -144,7 +152,7 @@ wMake8  = wMake
 
 wMake16 :: String -> Wildcard Word16
 wMake16 = wMake
-              
+
 wMake32 :: String -> Wildcard Word32
 wMake32 = wMake
 
@@ -212,9 +220,9 @@ instance Approx Prefix where
           m' = case elemIndex False $ map (testBit m) [0 .. n - 1] of
                  Just i -> foldl' clearBit m [i + 1 .. n - 1]
                  Nothing -> m
- 
+
     inverseapprox (Prefix w) = w
-                            
+
 -- Exact patterns
 
 instance Approx Maybe where

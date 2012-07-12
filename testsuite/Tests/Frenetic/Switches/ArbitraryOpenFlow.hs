@@ -35,7 +35,7 @@ import Nettle.OpenFlow
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
-import Frenetic.NetCore.API hiding (Action)
+import Frenetic.NetCore.API hiding (Action, PseudoPort)
 
 instance Arbitrary Match where
   arbitrary = do

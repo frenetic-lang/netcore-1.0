@@ -102,9 +102,11 @@ instance Matchable IPAddressPrefix where
   top = defaultIPPrefix
   intersect = IPAddr.intersect
 
-forwardToOpenFlowActions (Just set) =
-  map (\p -> SendOutPort (PhysicalPort p)) (Set.toList set)
-forwardToOpenFlowActions Nothing = [SendOutPort Flood]
+physicalPortOfPseudoPort (Physical p) = PhysicalPort p
+physicalPortOfPseudoPort PhysicalFlood = Flood
+
+forwardToOpenFlowActions set =
+  map (\pp -> SendOutPort . physicalPortOfPseudoPort $ pp) (Set.toList set)
 
 toController :: ActionSequence
 toController = sendToController maxBound

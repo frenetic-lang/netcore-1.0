@@ -31,6 +31,7 @@ module Frenetic.NetCore.API
   ( -- * Basic types
     Switch
   , Port
+  , PseudoPort (..)
   , Word48
   -- * Actions
   , Action
@@ -63,6 +64,7 @@ import qualified Data.List as List
 import Data.Bits
 import Data.Word
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import Frenetic.LargeWord
 import Frenetic.Pattern
 
@@ -71,6 +73,9 @@ type Switch = Word64
 
 {-| The type of switch ports. -}
 type Port = Word16
+
+{-| The type of logical switch ports. -}
+data PseudoPort = Physical Port | PhysicalFlood deriving (Ord, Eq, Show)
 
 {-| Auxillary value for ethernet addresses.  -}
 type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
@@ -89,16 +94,62 @@ data Pattern = Pattern {
   , ptrnTpSrc :: Wildcard Word16
   , ptrnTpDst :: Wildcard Word16
   , ptrnInPort :: Maybe Port
-  } deriving (Show, Eq)
+  } deriving (Ord, Show, Eq)
 
-data Forward
-  = ForwardPorts (Set Port)
-  | ForwardFlood
+instance Matchable Pattern where
+  top = Pattern {
+    ptrnDlSrc = top
+    , ptrnDlDst = top
+    , ptrnDlTyp = top
+    , ptrnDlVlan = top
+    , ptrnDlVlanPcp = top
+    , ptrnNwSrc = top
+    , ptrnNwDst = top
+    , ptrnNwProto = top
+    , ptrnNwTos = top
+    , ptrnTpSrc = top
+    , ptrnTpDst = top
+    , ptrnInPort = top
+    }
+
+  intersect p1 p2 = do ptrnDlSrc' <- intersect (ptrnDlSrc p1) (ptrnDlSrc p2)
+                       ptrnDlDst' <- intersect (ptrnDlDst p1) (ptrnDlDst p2)
+                       ptrnDlTyp' <- intersect (ptrnDlTyp p1) (ptrnDlTyp p2)
+                       ptrnDlVlan' <- intersect (ptrnDlVlan p1) (ptrnDlVlan p2)
+                       ptrnDlVlanPcp' <- intersect (ptrnDlVlanPcp p1) (ptrnDlVlanPcp p2)
+                       ptrnNwSrc' <- intersect (ptrnNwSrc p1) (ptrnNwSrc p2)
+                       ptrnNwDst' <- intersect (ptrnNwDst p1) (ptrnNwDst p2)
+                       ptrnNwProto' <- intersect (ptrnNwProto p1) (ptrnNwProto p2)
+                       ptrnNwTos' <- intersect (ptrnNwTos p1) (ptrnNwTos p2)
+                       ptrnTpSrc' <- intersect (ptrnTpSrc p1) (ptrnTpSrc p2)
+                       ptrnTpDst' <- intersect (ptrnTpDst p1) (ptrnTpDst p2)
+                       ptrnInPort' <- intersect (ptrnInPort p1) (ptrnInPort p2)
+                       return Pattern {
+                         ptrnDlSrc = ptrnDlSrc'
+                         , ptrnDlDst = ptrnDlDst'
+                         , ptrnDlTyp = ptrnDlTyp'
+                         , ptrnDlVlan = ptrnDlVlan'
+                         , ptrnDlVlanPcp = ptrnDlVlanPcp'
+                         , ptrnNwSrc = ptrnNwSrc'
+                         , ptrnNwDst = ptrnNwDst'
+                         , ptrnNwProto = ptrnNwProto'
+                         , ptrnNwTos = ptrnNwTos'
+                         , ptrnTpSrc = ptrnTpSrc'
+                         , ptrnTpDst = ptrnTpDst'
+                         , ptrnInPort = ptrnInPort'
+                         }
+
+type Rewrites = Set Pattern
+
+-- | Forward represents a set of forwards with modifications on a switch,
+-- including forwarding multiple packets, so long as they are *different*
+-- packets (i.e., have a different modification applied to each).  Flood is
+-- encoded by using the PseudoPort Flood rather than
+data Forward = ForwardPorts (Map PseudoPort Rewrites)
   deriving (Eq)
 
 instance Show Forward where
-  show (ForwardPorts set) = show (Set.toList set)
-  show ForwardFlood = "Flood"
+  show (ForwardPorts m) = show (Map.keys m)
 
 type NumPktQuery = (Chan (Switch, Integer), Int)
 
@@ -108,28 +159,22 @@ data Action = Action {
 } deriving (Eq)
 
 actionForwardsTo :: Action
-                 -> Maybe (Set Port) -- ^'Nothing' indicates flood
-actionForwardsTo (Action (ForwardPorts set) _) = Just set
-actionForwardsTo (Action ForwardFlood _) = Nothing
+                 -> Set PseudoPort -- ^'Nothing' indicates flood
+actionForwardsTo (Action (ForwardPorts m) _) = (Set.fromList . Map.keys $ m)
 
 instance Show Action where
   show (Action fwd _) = "<fwd=" ++ show fwd ++ ">"
 
 dropPkt :: Action
-dropPkt = Action (ForwardPorts Set.empty) []
+dropPkt = Action (ForwardPorts Map.empty) []
 
 unionForward :: Forward -> Forward -> Forward
-unionForward ForwardFlood _ = ForwardFlood
-unionForward _ ForwardFlood = ForwardFlood
-unionForward (ForwardPorts set1) (ForwardPorts set2) =
-  ForwardPorts (set1 `Set.union` set2)
+unionForward (ForwardPorts m1) (ForwardPorts m2) =
+  ForwardPorts (Map.unionWith Set.union m1 m2)
 
 interForward :: Forward -> Forward -> Forward
-interForward ForwardFlood ForwardFlood = ForwardFlood
-interForward ForwardFlood (ForwardPorts set2) = ForwardPorts set2
-interForward (ForwardPorts set1) ForwardFlood = ForwardPorts set1
-interForward (ForwardPorts set1) (ForwardPorts set2) =
-  ForwardPorts (set1 `Set.intersection` set2)
+interForward (ForwardPorts m1) (ForwardPorts m2) =
+  ForwardPorts (Map.intersectionWith Set.intersection m1 m2)
 
 unionAction :: Action -> Action -> Action
 unionAction (Action fwd1 q1) (Action fwd2 q2) =
@@ -142,15 +187,17 @@ interAction (Action fwd1 q1) (Action fwd2 q2) =
     where interQuery xs ys = filter (\x -> x `elem` ys) xs
 
 flood :: Action
-flood = Action ForwardFlood []
+flood = Action (ForwardPorts (Map.singleton PhysicalFlood
+                                            (Set.singleton top))) []
 
 forward :: Port -> Action
-forward p = Action (ForwardPorts (Set.singleton p)) []
+forward p = Action (ForwardPorts (Map.singleton (Physical p)
+                                                (Set.singleton top))) []
 
 query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do
   ch <- newChan
-  return (ch, Action (ForwardPorts Set.empty) [(ch, millisecondInterval)])
+  return (ch, Action (ForwardPorts Map.empty) [(ch, millisecondInterval)])
 
 -- |Construct the set difference between p1 and p2
 predDifference :: Predicate -> Predicate -> Predicate
