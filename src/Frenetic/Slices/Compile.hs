@@ -1,5 +1,9 @@
 module Frenetic.Slices.Compile
-  (compileSlice
+  ( -- * Compilation
+    transform
+  , compileSlice
+  -- * Internal tools
+  , isolate
   ) where
 
 import Data.Word
@@ -24,26 +28,30 @@ transform combined =
     policies = map (\(vlan, (slice, policy)) -> compileSlice slice vlan policy)
                    tagged
 
--- TODO(astory): validate policies against their slice, or maybe just restrict
--- them.
+-- TODO(astory): egress predicates, restrict policy switches and ports to slice
 -- |Compile a slice with a vlan key
 compileSlice :: Slice -> Vlan -> Policy -> Policy
 compileSlice slice vlan policy =
   let safePolicy = isolate vlan policy in
-  let inportPolicy = inport slice vlan policy in
+  let inportPolicy = inportPo slice vlan policy in
   let safeInportPolicy = PoUnion safePolicy inportPolicy in
   outport slice safeInportPolicy
 
--- |Produce a policy that only considers traffic on this vlan
--- Note that if the policy does not modify vlans, then it also only emits
--- traffic on this vlan.
+-- |Produce a policy that only considers traffic on this vlan and on internal
+-- ports.  Note that if the policy does not modify vlans, then it also only
+-- emits traffic on this vlan.
 isolate :: Vlan -> Policy -> Policy
-isolate vlan policy = policy `poRestrict` (vlanMatch vlan)
+isolate vlan policy = policy `poRestrict` (vlPred)
+  where
+    vlPred = vlanMatch vlan
+
+locToPred :: Loc -> Predicate
+locToPred (Loc switch port) = inport switch port
 
 -- |Produce a policy that moves packets into the vlan as defined by the slice's
 -- input policy.
-inport :: Slice -> Vlan -> Policy -> Policy
-inport slice vlan policy =
+inportPo :: Slice -> Vlan -> Policy -> Policy
+inportPo slice vlan policy =
   let incoming = ingressPredicate slice in
   let policyIntoVlan = modifyVlan vlan policy in
   policyIntoVlan `poRestrict` incoming
@@ -62,17 +70,14 @@ ingressPredicate slice =
 
 -- |Produce a predicate matching the ingress predicate at a particular location
 ingressSpecToPred :: (Loc, Predicate) -> Predicate
-ingressSpecToPred (Loc switch port, pred) = PrIntersect swPred pred'
-  where
-    swPred = PrTo switch
-    pred' = PrIntersect (PrPattern (top {ptrnInPort = Just port})) pred
+ingressSpecToPred (loc, pred) = PrIntersect pred (locToPred loc)
 
 -- |Walk through the policy and globally set VLAN to vlan at each forwarding
 -- action
 modifyVlan :: Vlan -> Policy -> Policy
 modifyVlan _ PoBottom = PoBottom
-modifyVlan vlan (PoBasic pred (Action (ForwardPorts m) obs)) =
-  PoBasic pred (Action (ForwardPorts m') obs)
+modifyVlan vlan (PoBasic pred (Action m obs)) =
+  PoBasic pred (Action m' obs)
     where
       m' = MS.map setVlans m
       setVlans (p, mod) = (p, setVlan mod)
@@ -87,8 +92,8 @@ stripVlan = setVlan 0
 -- |Set vlan tag for packets forwarded to location (without link transfer)
 setVlan :: Vlan -> Loc -> Policy -> Policy
 setVlan _ _ PoBottom = PoBottom
-setVlan vlan (Loc switch port) (PoBasic pred (Action (ForwardPorts m) obs)) =
-  PoBasic pred (Action (ForwardPorts m') obs)
+setVlan vlan (Loc switch port) (PoBasic pred (Action m obs)) =
+  PoBasic pred (Action m' obs)
   where
     m' = MS.map setVlanOnPort m
     setVlanOnPort (Physical p, mod) = (Physical p, mod{ptrnDlVlan = exact vlan})

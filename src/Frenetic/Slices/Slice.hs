@@ -1,5 +1,6 @@
 module Frenetic.Slices.Slice
-  ( Slice (..)
+  ( -- * Data Structures
+    Slice (..)
   , Loc (..)
   ) where
 
