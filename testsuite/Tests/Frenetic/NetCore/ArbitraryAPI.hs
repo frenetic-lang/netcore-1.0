@@ -88,6 +88,6 @@ instance Arbitrary Policy where
           pred <- resize s arbitrary
           acts <- resize s arbitrary
           return $ PoBasic pred acts
-
+  shrink (PoBottom)             = [PoBottom]
   shrink (PoBasic pr as)        = [PoBasic pr' as | pr' <- shrink pr]
   shrink (PoUnion p1 p2)        = [p1, p2]
