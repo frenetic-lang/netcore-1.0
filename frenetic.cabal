@@ -16,6 +16,7 @@ Library
                         HList
     exposed-modules:    Frenetic.NetCore,
                         Frenetic.NetCore.Semantics,
+                        Frenetic.NetCore.Short
                         Frenetic.Compat,
                         Frenetic.LargeWord,
                         Frenetic.Pattern,

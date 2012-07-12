@@ -9,6 +9,7 @@ module Frenetic.Slices.Compile
 import Data.Word
 import Frenetic.NetCore
 import Frenetic.Slices.Slice
+import Frenetic.NetCore.Short
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -17,7 +18,7 @@ type Vlan = Word16
 
 -- |Match a specific vlan tag
 vlanMatch :: Vlan -> Predicate
-vlanMatch vlan = PrPattern (top {ptrnDlVlan = exact vlan})
+vlanMatch vlan = PrPattern (dlVlan vlan)
 
 transform :: [(Slice, Policy)] -> Policy
 transform combined = 
@@ -96,7 +97,7 @@ setVlan vlan (Loc switch port) (PoBasic pred (Action m obs)) =
   PoBasic pred (Action m' obs)
   where
     m' = MS.map setVlanOnPort m
-    setVlanOnPort (Physical p, mod) = (Physical p, mod{ptrnDlVlan = exact vlan})
+    setVlanOnPort (Physical p, mod) = (Physical p, mod {ptrnDlVlan = exact vlan})
     setVlanOnPort (PhysicalFlood, mod) =
       error "Cannot compile slices with FLOOD."
 setVlan value loc (PoUnion p1 p2) = PoUnion (setVlan value loc p1)

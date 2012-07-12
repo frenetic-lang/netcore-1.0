@@ -64,6 +64,7 @@ module Frenetic.NetCore.API
   , poRestrict
   , poNaryUnion
   -- ** Policy constructor shortcuts
+  , (==>)
   , (%)
   , (<+>)
   ) where
@@ -220,6 +221,7 @@ pr1 <|> pr2 = PrUnion pr1 pr2
 pr1 <&> pr2 = PrIntersect pr1 pr2
 neg pr = PrNegate pr
 
+pr ==> action = PoBasic pr action
 (%) = poRestrict
 po1 <+> po2 = PoUnion po1 po2
 
