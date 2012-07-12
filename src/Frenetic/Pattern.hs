@@ -35,7 +35,6 @@
 module Frenetic.Pattern
   ( Matchable (..)
   , Wildcard (..)
-  , matchAll
   , exact
   , Approx (..)
   , Prefix (..)
@@ -71,12 +70,9 @@ class (Eq a) => Matchable a where
     overlap x y = isJust $ intersect x y
     disjoint x y = isNothing $ intersect x y
 
-matchAll :: (Bits a) => Wildcard a
-matchAll = Wildcard 0 0
-
 -- |Wildcard that only matches this value
 exact :: (Bits a) => a -> Wildcard a
-exact value = Wildcard value (complement 0)
+exact value = Wildcard value 0
 
 data Wildcard a = Wildcard a a deriving (Ord)  -- Data and mask, respectively.
 

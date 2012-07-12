@@ -3,7 +3,7 @@ module Frenetic.Slices.Compile
     transform
   , compileSlice
   -- * Internal tools
-  , isolate
+  , modifyVlan
   ) where
 
 import Data.Word
