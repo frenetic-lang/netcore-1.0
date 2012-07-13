@@ -35,6 +35,7 @@ module Frenetic.NetCore.API
   , Word48
   -- * Actions
   , Action (..)
+  , Rewrite
   , Forward
   , NumPktQuery
   -- ** Basic actions
