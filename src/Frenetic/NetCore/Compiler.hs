@@ -37,7 +37,6 @@ module Frenetic.NetCore.Compiler
   , compilePredicate
   , Bone (..) -- TODO(arjun): do not export
   , Skeleton (..) -- TODO(arjun): do not export
-  , specialize
   , Classifier (..)
   , classify
   , minimizeClassifier
@@ -140,23 +139,6 @@ minimizeClassifier :: FreneticImpl a
                    => Classifier (PatternImpl a) (ActionImpl a)
                    -> Classifier (PatternImpl a) (ActionImpl a)
 minimizeClassifier (Classifier rules) = Classifier $ minimizeShadowing fst rules
-
-{-| Remove any rules that
-    (1) have controller actions,
-    (2) don't match the packet, or
-    (3) overlap with rules previously removed. -}
-prune :: FreneticImpl a
-      => PacketImpl a
-      -> Classifier (PatternImpl a) (ActionImpl a)
-      -> Classifier (PatternImpl a) (ActionImpl a)
-prune pkt = newLift $ removeControllers []
-    where
-      removeControllers prefix [] = []
-      removeControllers prefix ((ptrn, actn) : rules)
-          | not $ ptrnMatchPkt pkt ptrn  = removeControllers prefix rules
-          | actn == actnController = removeControllers (ptrn : prefix) rules
-          | any (overlap ptrn) prefix = removeControllers (ptrn : prefix) rules
-          | otherwise = (ptrn, actn) : removeControllers prefix rules
 
 {-| Each rule of the intermediate form is called a Bone. -}
 data Bone ptrn actn = Bone ptrn Pattern actn
@@ -262,9 +244,3 @@ compile s po = Classifier $ map f $ unpack skel
       | otherwise = (sptrn, actnController)
     skel = compilePolicy s po
 
-{-| Return a supplemental classifier obtained from specializing the policy with the transmission. |-}
-specialize :: FreneticImpl a
-           => Transmission (PatternImpl a) (PacketImpl a)
-           -> Policy
-           -> Classifier (PatternImpl a) (ActionImpl a)
-specialize tr po = prune (trPkt tr) $ compile (trSwitch tr) po

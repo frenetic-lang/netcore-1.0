@@ -137,23 +137,14 @@ handleOFMsg :: Nettle
 handleOFMsg nettle switch policy (xid, msg) = case msg of
   PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                              enclosedFrame=Right frame})) -> do
-    putStrLn "Controller received OFPT_PACKET_IN"
-    hFlush stdout
     let switchID = handle2SwitchID switch
-    let t = Transmission undefined switchID (toOFPkt pkt)
-    let t' = Transmission (toOFPat (frameToExactMatch inPort frame))
-                          switchID
-                          (toOFPkt pkt)
-    let flowTbl = rawClassifier (specialize t policy)
-    let actions = interpretPolicy policy t'
+    let t = Transmission (toOFPat (frameToExactMatch inPort frame))  switchID
+                         (toOFPkt pkt)
+    let actions = interpretPolicy policy t
     let mod = mkFlowMod (frameToExactMatch inPort frame,
                          fromOFAct $ actnTranslate actions)
                         65535
     sendToSwitch' switch (1, mod)
-    {-
-    let flowMods = zipWith mkFlowMod flowTbl [65535, 65534 ..]
-    mapM_ (sendToSwitch' switch) (zip [1 ..] flowMods)
-    -}
     case bufferID pkt of
       Nothing -> return ()
       Just buf -> do
