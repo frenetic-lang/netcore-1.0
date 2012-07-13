@@ -83,19 +83,11 @@ word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
 
 {-| Convert a pattern Prefix to an IPAddressPrefix. -}
 prefixToIPAddressPrefix :: Prefix Word32 -> IPAddressPrefix
-prefixToIPAddressPrefix (Prefix (Wildcard x m)) =
-    (IPAddress x, prefLen)
-    where
-      prefLen = wordLen - measuredLen
-      wordLen = 32
-      measuredLen = fromIntegral $ length $ filter (testBit m) [0 .. 31]
+prefixToIPAddressPrefix (Prefix x len) = (IPAddress x, fromIntegral len)
 
 {-| Convert an IPAddressPrefix to a pattern Prefix. -}
 ipAddressPrefixToPrefix :: IPAddressPrefix -> Prefix Word32
-ipAddressPrefixToPrefix (IPAddress x, len) =
-  Prefix (Wildcard x (foldl setBit 0 [0 .. tailLen - 1]))
-  where tailLen = wordLen - (fromIntegral len)
-        wordLen = 32
+ipAddressPrefixToPrefix (IPAddress x, len) = Prefix x (fromIntegral len)
 
 instance Matchable IPAddressPrefix where
   top = defaultIPPrefix
@@ -110,9 +102,24 @@ forwardToOpenFlowActions set =
 toController :: ActionSequence
 toController = sendToController maxBound
 
+instance Eq a => Matchable (Maybe a) where
+  top = Nothing
+  intersect (Just a) (Just b) = case a == b of
+    True  -> Just (Just a)
+    False -> Nothing
+  intersect (Just a) Nothing = Just (Just a)
+  intersect Nothing (Just b) = Just (Just b)
+  intersect Nothing Nothing  = Just Nothing
+
+wildcardToMaybe (Exact a) = Just a
+wildcardToMaybe Wildcard  = Nothing
+
+maybeToWildcard (Just a) = Exact a
+maybeToWildcard Nothing  = Wildcard
+
 instance Matchable Match where
   top = Match {
-          inPort = top,
+          inPort = Nothing,
           srcEthAddress = top,
           dstEthAddress = top,
           vLANID = top,
@@ -151,7 +158,6 @@ instance Matchable Match where
            dstIPAddress = dstipaddress,
            srcTransportPort = srctransportport,
            dstTransportPort = dsttransportport }
-
 
 
 nettleEthernetFrame pkt = case enclosedFrame pkt of
@@ -258,61 +264,34 @@ instance FreneticImpl OpenFlow where
     where
       stripIPAddr (IPAddress a) = a
 
-  fromPatternOverapprox ptrn = OFPat $ top {
-    srcEthAddress = fmap word48ToEth $ overapprox $ ptrnDlSrc ptrn,
-    dstEthAddress = fmap word48ToEth $ overapprox $ ptrnDlDst ptrn,
-    ethFrameType = overapprox $ ptrnDlTyp ptrn,
-    vLANID = overapprox $ ptrnDlVlan ptrn,
-    vLANPriority = overapprox $ ptrnDlVlanPcp ptrn,
-    srcIPAddress = prefixToIPAddressPrefix $ overapprox $ ptrnNwSrc ptrn ,
-    dstIPAddress = prefixToIPAddressPrefix $ overapprox $ ptrnNwDst ptrn ,
-    matchIPProtocol = overapprox $ ptrnNwProto ptrn,
-    ipTypeOfService = overapprox $ ptrnNwTos ptrn,
-    srcTransportPort = overapprox $ ptrnTpSrc ptrn,
-    dstTransportPort = overapprox $ ptrnTpDst ptrn,
-    inPort = ptrnInPort ptrn
-    }
-
-  fromPatternUnderapprox pkt ptrn = do
-    ptrnDlSrc' <- underapprox (ptrnDlSrc ptrn) (pktDlSrc pkt)
-    ptrnDlDst' <- underapprox (ptrnDlDst ptrn) (pktDlDst pkt)
-    ptrnDlTyp' <- underapprox (ptrnDlTyp ptrn) (pktDlTyp pkt)
-    ptrnDlVlan' <- underapprox (ptrnDlVlan ptrn) (pktDlVlan pkt)
-    ptrnDlVlanPcp' <- underapprox (ptrnDlVlanPcp ptrn) (pktDlVlanPcp pkt)
-    ptrnNwSrc' <- underapprox (ptrnNwSrc ptrn) (pktNwSrc pkt)
-    ptrnNwDst' <- underapprox (ptrnNwDst ptrn) (pktNwDst pkt)
-    ptrnNwProto' <- underapprox (ptrnNwProto ptrn) (pktNwProto pkt)
-    ptrnNwTos' <- underapprox (ptrnNwTos ptrn) (pktNwTos pkt)
-    ptrnTpSrc' <- underapprox (ptrnTpSrc ptrn) (pktTpSrc pkt)
-    ptrnTpDst' <- underapprox (ptrnTpDst ptrn) (pktTpDst pkt)
-    return $ OFPat $ top {
-      srcEthAddress = fmap word48ToEth ptrnDlSrc',
-      dstEthAddress = fmap word48ToEth ptrnDlDst',
-      ethFrameType = ptrnDlTyp',
-      vLANID = ptrnDlVlan',
-      vLANPriority = ptrnDlVlanPcp',
-      srcIPAddress = prefixToIPAddressPrefix ptrnNwSrc' ,
-      dstIPAddress = prefixToIPAddressPrefix ptrnNwDst' ,
-      matchIPProtocol = ptrnNwProto',
-      ipTypeOfService = ptrnNwTos',
-      srcTransportPort = ptrnTpSrc',
-      dstTransportPort = ptrnTpDst',
-      inPort = ptrnInPort ptrn
-      }
+  fromPattern ptrn = OFPat $ Match {
+    srcEthAddress = wildcardToMaybe $ fmap word48ToEth (ptrnDlSrc ptrn),
+    dstEthAddress = wildcardToMaybe $ fmap word48ToEth (ptrnDlDst ptrn),
+    ethFrameType = wildcardToMaybe $ ptrnDlTyp ptrn,
+    vLANID = wildcardToMaybe $ ptrnDlVlan ptrn,
+    vLANPriority = wildcardToMaybe $ ptrnDlVlanPcp ptrn,
+    srcIPAddress = prefixToIPAddressPrefix (ptrnNwSrc ptrn),
+    dstIPAddress = prefixToIPAddressPrefix (ptrnNwDst ptrn),
+    matchIPProtocol = wildcardToMaybe $ ptrnNwProto ptrn,
+    ipTypeOfService = wildcardToMaybe $ ptrnNwTos ptrn,
+    srcTransportPort = wildcardToMaybe $ ptrnTpSrc ptrn,
+    dstTransportPort = wildcardToMaybe $ ptrnTpDst ptrn,
+    inPort = wildcardToMaybe $ ptrnInPort ptrn
+  }
 
   toPattern (OFPat ptrn) = Pattern {
-    ptrnDlSrc     = inverseapprox $ fmap ethToWord48 $ srcEthAddress ptrn,
-    ptrnDlDst     = inverseapprox $ fmap ethToWord48 $ dstEthAddress ptrn,
-    ptrnDlTyp     = inverseapprox $ ethFrameType ptrn,
-    ptrnDlVlan    = inverseapprox $ vLANID ptrn,
-    ptrnDlVlanPcp = inverseapprox $ vLANPriority ptrn,
-    ptrnNwSrc     = inverseapprox $ ipAddressPrefixToPrefix $ srcIPAddress ptrn,
-    ptrnNwDst     = inverseapprox $ ipAddressPrefixToPrefix $ dstIPAddress ptrn,
-    ptrnNwProto   = inverseapprox $ matchIPProtocol ptrn,
-    ptrnNwTos     = inverseapprox $ ipTypeOfService ptrn,
-    ptrnTpSrc     = inverseapprox $ srcTransportPort ptrn,
-    ptrnTpDst     = inverseapprox $ dstTransportPort ptrn,
-    ptrnInPort    = inPort ptrn
+    ptrnDlSrc     = maybeToWildcard $ fmap ethToWord48 $ srcEthAddress ptrn,
+    ptrnDlDst     = maybeToWildcard $ fmap ethToWord48 $ dstEthAddress ptrn,
+    ptrnDlTyp     = maybeToWildcard $ ethFrameType ptrn,
+    ptrnDlVlan    = maybeToWildcard $ vLANID ptrn,
+    ptrnDlVlanPcp = maybeToWildcard $ vLANPriority ptrn,
+    ptrnNwSrc     = ipAddressPrefixToPrefix $ srcIPAddress ptrn,
+    ptrnNwDst     = ipAddressPrefixToPrefix $ dstIPAddress ptrn,
+    ptrnNwProto   = maybeToWildcard $ matchIPProtocol ptrn,
+    ptrnNwTos     = maybeToWildcard $ ipTypeOfService ptrn,
+    ptrnTpSrc     = maybeToWildcard $ srcTransportPort ptrn,
+    ptrnTpDst     = maybeToWildcard $ dstTransportPort ptrn,
+    ptrnInPort    = maybeToWildcard $ inPort ptrn
     }
 
   actnController = OFAct toController []

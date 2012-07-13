@@ -84,7 +84,7 @@ test_query_2 = do
   (_, act) <- query 1000
   let policy =
         PoUnion (PoBasic (PrPattern top) flood)
-                (PoBasic (PrPattern $ top { ptrnDlDst = Wildcard 1 0 }) act)
+                (PoBasic (PrPattern $ top { ptrnDlDst = Exact 1 }) act)
   let (Classifier tbl) = compile 0 policy
   case tbl of
     [(_, act1), (_, act2)] -> do
@@ -162,7 +162,7 @@ case_quiescence_bug_1 = do
       Transmission { trPattern=topP, trSwitch=0, trPkt= packet }
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
-    policy = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) flood
+    policy = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) flood
     packet = FreneticPkt $ Packet {
         pktDlSrc = 0
       , pktDlDst = 0
@@ -189,8 +189,8 @@ case_quiescence_bug_2 = do
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
     policy = PoUnion p1 p2
-    p1 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) flood
-    p2 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000002 0}) flood
+    p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) flood
+    p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix  0x5000002 32}) flood
     packet = FreneticPkt $ Packet {
         pktDlSrc = 0
       , pktDlDst = 0
@@ -217,8 +217,8 @@ case_quiescence_bug_3 = do
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
     policy = PoUnion p1 p2
-    p1 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000001 0}) flood
-    p2 = PoBasic (PrPattern top{ptrnNwSrc = Wildcard 0x5000002 0}) flood
+    p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) flood
+    p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000002 32}) flood
     packet = FreneticPkt $ Packet {
         pktDlSrc = 0
       , pktDlDst = 0
@@ -247,18 +247,18 @@ case_quiescence_bug_4 = do
     policy = PoBasic (PrUnion (PrPattern pattern) (PrTo switch)) flood
     switch = 0
     pattern = Pattern {
-        ptrnDlSrc = Wildcard 0 0
-      , ptrnDlDst = Wildcard 0 0
-      , ptrnDlTyp = Wildcard 0 0
-      , ptrnDlVlan = Wildcard 0 0
-      , ptrnDlVlanPcp = Wildcard 0 0
-      , ptrnNwSrc = Wildcard 0 0
-      , ptrnNwDst = Wildcard 0 0
-      , ptrnNwProto = Wildcard 0 0
-      , ptrnNwTos = Wildcard 0 0
-      , ptrnTpSrc = Wildcard 0 0
-      , ptrnTpDst = Wildcard 0 0
-      , ptrnInPort = Nothing
+        ptrnDlSrc = Exact 0
+      , ptrnDlDst = Exact 0
+      , ptrnDlTyp = Exact 0
+      , ptrnDlVlan = Exact 0
+      , ptrnDlVlanPcp = Exact 0
+      , ptrnNwSrc = Prefix 0 32
+      , ptrnNwDst = Prefix 0 32
+      , ptrnNwProto = Exact 0
+      , ptrnNwTos = Exact 0
+      , ptrnTpSrc = Exact 0
+      , ptrnTpDst = Exact 0
+      , ptrnInPort = Wildcard
       }
     packet = FreneticPkt $ Packet {
         pktDlSrc = 0
@@ -284,7 +284,7 @@ case_quiescence_bug_5 = do
     (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
   where
     topP = top
-    polActs = interpretPolicy policy $ Transmission {trPattern=topP, trSwitch=0, trPkt=packet}
+    polActs = interpretPolicy policy $ Transmission topP 0 packet
     classifier = compile switch policy
     classActs = classify switch packet classifier
     policy = PoBasic (PrTo switch) $ (forward 1)

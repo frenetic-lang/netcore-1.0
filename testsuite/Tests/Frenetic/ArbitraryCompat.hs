@@ -147,67 +147,6 @@ instance Arbitrary Pattern where
     [p {ptrnTpDst = s}	    | s <- shrink (ptrnTpDst p)] ++
     [p {ptrnInPort = s}	    | s <- shrink (ptrnInPort p)]
 
-newtype ExactishPattern = ExactishPattern Pattern
-    deriving (Show, Eq)
-$(mkNewTypes[''ExactishPattern])
-
-instance Arbitrary ExactishPattern where
-  arbitrary = do
-    ptrnDlSrc_in      <- arbitrary
-    ptrnDlDst_in      <- arbitrary
-    ptrnDlTyp_in      <- arbitrary
-    ptrnDlVlan_in     <- arbitrary
-    ptrnDlVlanPcp_in  <- arbitrary
-    ptrnNwSrc_in      <- arbitrary
-    ptrnNwDst_in      <- arbitrary
-    ptrnNwProto_in    <- arbitrary
-    ptrnNwTos_in      <- arbitrary
-    ptrnTpSrc_in      <- arbitrary
-    ptrnTpDst_in      <- arbitrary
-    ptrnInPort        <- arbitrary
-    let ptrnDlSrc :: Wildcard Word48
-        ptrnDlDst :: Wildcard Word48
-        ptrnDlTyp :: Wildcard Word16
-        ptrnDlVlan :: Wildcard Word16
-        ptrnDlVlanPcp :: Wildcard Word8
-        ptrnNwSrc :: Wildcard Word32
-        ptrnNwDst :: Wildcard Word32
-        ptrnNwProto :: Wildcard Word8
-        ptrnNwTos :: Wildcard Word8
-        ptrnTpSrc :: Wildcard Word16
-        ptrnTpDst :: Wildcard Word16
-        ptrnDlSrc = unW ptrnDlSrc_in
-        ptrnDlDst = unW ptrnDlDst_in
-        ptrnDlTyp = unW ptrnDlTyp_in
-        ptrnDlVlan = unW ptrnDlVlan_in
-        ptrnDlVlanPcp = unW ptrnDlVlanPcp_in
-        ptrnNwSrc = unW ptrnNwSrc_in
-        ptrnNwDst = unW ptrnNwDst_in
-        ptrnNwProto = unW ptrnNwProto_in
-        ptrnNwTos = unW ptrnNwTos_in
-        ptrnTpSrc = unW ptrnTpSrc_in
-        ptrnTpDst = unW ptrnTpDst_in
-    return $ pack $ Pattern ptrnDlSrc ptrnDlDst ptrnDlTyp ptrnDlVlan ptrnDlVlanPcp
-                            ptrnNwSrc ptrnNwDst ptrnNwProto ptrnNwTos ptrnTpSrc
-                            ptrnTpDst ptrnInPort
-
-  shrink p_in =
-    let p = unpack p_in
-        r = [p {ptrnDlSrc = s}	    | s <- shrink (ptrnDlSrc p)] ++
-            [p {ptrnDlDst = s}	    | s <- shrink (ptrnDlDst p)] ++
-            [p {ptrnDlTyp = s}	    | s <- shrink (ptrnDlTyp p)] ++
-            [p {ptrnDlVlan = s}	    | s <- shrink (ptrnDlVlan p)] ++
-            [p {ptrnDlVlanPcp = s}	| s <- shrink (ptrnDlVlanPcp p)] ++
-            [p {ptrnNwSrc = s}	    | s <- shrink (ptrnNwSrc p)] ++
-            [p {ptrnNwDst = s}	    | s <- shrink (ptrnNwDst p)] ++
-            [p {ptrnNwProto = s}	| s <- shrink (ptrnNwProto p)] ++
-            [p {ptrnNwTos = s}	    | s <- shrink (ptrnNwTos p)] ++
-            [p {ptrnTpSrc = s}	    | s <- shrink (ptrnTpSrc p)] ++
-            [p {ptrnTpDst = s}	    | s <- shrink (ptrnTpDst p)] ++
-            [p {ptrnInPort = s}	    | s <- shrink (ptrnInPort p)]
-    in Prelude.map pack r
-
-
 instance (Arbitrary a, Ord a) => Arbitrary (Set.Set a) where
   arbitrary = do
     l <- listOf arbitrary

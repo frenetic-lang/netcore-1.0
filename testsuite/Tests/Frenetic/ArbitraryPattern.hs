@@ -29,12 +29,6 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE
-    TypeSynonymInstances,
-    TemplateHaskell,
-    MultiParamTypeClasses
- #-}
-
 module Tests.Frenetic.ArbitraryPattern where
 import Data.Bits
 import Frenetic.Pattern
@@ -43,23 +37,17 @@ import Control.Newtype.TH
 import Control.Newtype
 
 instance (Arbitrary a) => Arbitrary (Wildcard a) where
+  arbitrary = oneof [ do { v <- arbitrary; return (Exact v) }
+                    , return Wildcard
+                    ]
+
+  shrink (Exact v) = [Exact v' | v' <- shrink v]
+  shrink Wildcard  = [Wildcard]
+
+instance (Num a, Bits a, Arbitrary a) => Arbitrary (Prefix a) where
   arbitrary = do
-    x <- arbitrary
-    m <- arbitrary
-    return $ Wildcard x m
+    val <- arbitrary 
+    len <- oneof (map return [ 0 .. bitSize val ])
+    return (Prefix val len)
 
-  shrink (Wildcard x m) =
-    [Wildcard x' m | x' <- shrink x] ++
-    [Wildcard x m' | m' <- shrink m]
-
-newtype ExactishWildcard a = ExactishWildcard { unW :: Wildcard a }
-    deriving (Show, Eq)
-
-instance (Arbitrary a, Num a, Bits a) => Arbitrary (ExactishWildcard a) where
-  arbitrary = do
-    let m = complement 0
-    x <- arbitrary
-    oneof [ return $ ExactishWildcard $ Wildcard x m
-          , return $ ExactishWildcard top
-          ]
-
+  shrink v = [v]

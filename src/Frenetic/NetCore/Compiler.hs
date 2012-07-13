@@ -201,7 +201,7 @@ compilePredicate :: FreneticImpl a
                  -> Predicate
                  -> Skeleton (PatternImpl a) Bool
 compilePredicate s (PrPattern pat) =
-  Skeleton [Bone (fromPatternOverapprox pat) pat True]
+  Skeleton [Bone (fromPattern pat) pat True]
 compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top True]
                              | otherwise = Skeleton []
 compilePredicate s (PrIntersect pr1 pr2) = skelMinimize skel12'

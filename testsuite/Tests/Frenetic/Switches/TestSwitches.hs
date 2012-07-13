@@ -64,28 +64,18 @@ import Control.Newtype
 
 switchTests = $(testGroupGenerator)
 
-prop_fromPatternOverapprox_toPattern :: PatternImpl OpenFlow -> Bool
-prop_fromPatternOverapprox_toPattern sptrn =
-  sptrn == (fromPatternOverapprox $ toPattern sptrn)
+prop_fromPattern_toPattern :: PatternImpl OpenFlow -> Bool
+prop_fromPattern_toPattern sptrn =
+  sptrn == (fromPattern $ toPattern sptrn)
 
-prop_fromPatternOverapprox_toPattern_match :: PatternImpl OpenFlow -> Bool
-prop_fromPatternOverapprox_toPattern_match sptrn =
+prop_fromPattern_toPattern_match :: PatternImpl OpenFlow -> Bool
+prop_fromPattern_toPattern_match sptrn =
   p1 `match` p2
     where
       p1 = toPattern sptrn
       p2 = toPattern p2'
       p2' :: PatternImpl OpenFlow
-      p2' = fromPatternOverapprox $ toPattern sptrn
-
--- forall exact Pattern p, p `match` toPattern $ fromPatternOverapprox p
--- where "exact" means all fields are either concrete or *.
-prop_exact_1 :: ExactishPattern -> Bool
-prop_exact_1 ptrn_in =
-  let ptrn :: Pattern
-      ptrn = Control.Newtype.unpack ptrn_in
-      approx :: PatternImpl OpenFlow
-      approx = fromPatternOverapprox ptrn
-  in ptrn `match` (toPattern approx)
+      p2' = fromPattern $ toPattern sptrn
 
 prop_ipAddressPrefix :: Word32 -> Word8 -> Bool
 prop_ipAddressPrefix ip len_in = prefix == idPrefix
@@ -97,7 +87,7 @@ prop_ipAddressPrefix ip len_in = prefix == idPrefix
 
 -- The following tests pinpoint values that have failed at some
 -- point in the past.
-case_fromPatternOverapprox_toPattern_regression_1 = do
+case_fromPattern_toPattern_regression_1 = do
   let p = toOFPat $ Match {
       inPort = Just 27
     , srcEthAddress = Nothing
@@ -112,14 +102,14 @@ case_fromPatternOverapprox_toPattern_regression_1 = do
     , srcTransportPort = Just 28
     , dstTransportPort = Nothing
     }
-  p @=? (fromPatternOverapprox $ toPattern p)
+  p @=? (fromPattern $ toPattern p)
 
 case_exact_regression_1 = p @=? (toPattern p')
   where
     p :: Pattern
     p' :: PatternImpl OpenFlow
-    p = top{ptrnNwSrc = Wildcard 0x5000001 0}
-    p' = fromPatternOverapprox p
+    p = top{ptrnNwSrc = Prefix 0x5000001 0}
+    p' = fromPattern p
 
 -- case_OFMatch_fail_1 = (matches (0, ethFrame) match) @=? True
 --   where
@@ -155,17 +145,17 @@ case_exact_regression_1 = p @=? (toPattern p')
 --       }
 --     ipBody = IP.UninterpretedIPBody 0
 
-case_prefix_1 = (Prefix (Wildcard 0 (complement 0))) @=? p1
+case_prefix_1 = (Prefix 0 0) @=? p1
   where
     p1 = ipAddressPrefixToPrefix (IPAddress 0, 0)
 
-case_prefix_2 = (Prefix (Wildcard 0xFFFF0000 0x0000FFFF)) @=? p1
+case_prefix_2 = (Prefix 0xFFFF0000 16) @=? p1
   where
     p1 = ipAddressPrefixToPrefix (IPAddress 0xFFFF0000, 16)
 
 case_prefix_3 = (IPAddress 0xFFFF0000, 16) @=? p1
   where
-    p1 = prefixToIPAddressPrefix $ Prefix (Wildcard 0xFFFF0000 0x0000FFFF)
+    p1 = prefixToIPAddressPrefix $ Prefix 0xFFFF0000 16
 
 case_ipAddressPrefix_1 = prefix @=? idPrefix
   where

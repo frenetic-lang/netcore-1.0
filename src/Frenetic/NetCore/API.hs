@@ -116,13 +116,13 @@ data Pattern = Pattern {
   , ptrnDlTyp :: Wildcard Word16
   , ptrnDlVlan :: Wildcard Word16
   , ptrnDlVlanPcp :: Wildcard Word8
-  , ptrnNwSrc :: Wildcard Word32
-  , ptrnNwDst :: Wildcard Word32
+  , ptrnNwSrc :: Prefix Word32
+  , ptrnNwDst :: Prefix Word32
   , ptrnNwProto :: Wildcard Word8
   , ptrnNwTos :: Wildcard Word8
   , ptrnTpSrc :: Wildcard Word16
   , ptrnTpDst :: Wildcard Word16
-  , ptrnInPort :: Maybe Port
+  , ptrnInPort :: Wildcard Port
   } deriving (Ord, Show, Eq)
 
 instance Matchable Pattern where
@@ -237,7 +237,7 @@ poRestrict policy pred=
 -- |Construct the predicate matching packets on this switch and port
 inport :: Switch -> Port -> Predicate
 inport switch port = PrIntersect (PrTo switch)
-                                 (PrPattern (top {ptrnInPort = Just port}))
+                                 (PrPattern (top {ptrnInPort = Exact port}))
 
 pr1 <|> pr2 = PrUnion pr1 pr2
 pr1 <&> pr2 = PrIntersect pr1 pr2

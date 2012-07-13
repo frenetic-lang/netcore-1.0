@@ -4,7 +4,6 @@ import System.Console.GetOpt
 import System.Environment
 import Control.Monad
 import qualified Repeater
-import qualified Reactive1
 import qualified Query1
 
 data Arg
@@ -14,8 +13,6 @@ data Arg
 argSpec =
   [ Option ['r'] ["repeater"] (NoArg (Example Repeater.main)) 
       "a simple repeater"
-  , Option [] ["reactive1"] (NoArg (Example Reactive1.main)) 
-      "a repeater that only forwards packets with odd-numbered protocols"
   , Option [] ["query1"] (NoArg (Example Query1.main)) 
       "a repeater that also counts packets"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"

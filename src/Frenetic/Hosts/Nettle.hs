@@ -210,7 +210,7 @@ runQueryOnSwitch nettle switch classifier =
               sendTransaction nettle switch statReqs $ \replies -> do
               writeChan outChan (switchID, sum (map getPktCount replies))
             return ()
-          runQuery (PktQuery _) = do
+          runQuery (PktQuery _, pats) = do
             -- nothing to do on the controller until a PacketIn
             return ()
 

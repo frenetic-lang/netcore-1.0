@@ -56,16 +56,14 @@ instance FreneticImpl () where
     && wMatch (pktDlTyp pkt) (ptrnDlTyp ptrn)
     && wMatch (pktDlVlan pkt) (ptrnDlVlan ptrn)
     && wMatch (pktDlVlanPcp pkt) (ptrnDlVlanPcp ptrn)
-    && wMatch (pktNwSrc pkt) (ptrnNwSrc ptrn)
-    && wMatch (pktNwDst pkt) (ptrnNwDst ptrn)
+    && (Prefix (pktNwSrc pkt) 32) `match` (ptrnNwSrc ptrn)
+    && (Prefix (pktNwDst pkt) 32) `match` (ptrnNwDst ptrn)
     && wMatch (pktNwProto pkt) (ptrnNwProto ptrn)
     && wMatch (pktNwTos pkt) (ptrnNwTos ptrn)
     && wMatch (pktTpSrc pkt) (ptrnTpSrc ptrn)
     && wMatch (pktTpDst pkt) (ptrnTpDst ptrn)
-    && Just (pktInPort pkt) `match` ptrnInPort ptrn
-  fromPatternOverapprox pat = FreneticPat pat
-  -- We never need to underapproximate real patterns
-  fromPatternUnderapprox pkt ptrn = Nothing
+    && wMatch (pktInPort pkt) (ptrnInPort ptrn)
+  fromPattern pat = FreneticPat pat
   toPattern (FreneticPat x) = x
   actnDefault = FreneticAct dropPkt
   actnController = FreneticAct dropPkt

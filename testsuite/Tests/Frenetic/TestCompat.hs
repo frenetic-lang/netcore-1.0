@@ -47,28 +47,3 @@ import Frenetic.NetCore.API
 
 compatTests = $(testGroupGenerator)
 
-prop_ExactishWildcard_is_exactish :: ExactishWildcard Word8 -> Bool
-prop_ExactishWildcard_is_exactish w_in = let w@(Wildcard x m) = unW w_in in
-    w == top || m == (complement 0)
-
-prop_ExactishPattern_is_exactish :: ExactishPattern -> Bool
-prop_ExactishPattern_is_exactish p_in =
-  let p = unpack p_in
-      fields = [
-          f $ ptrnDlSrc p
-        , f $ ptrnDlDst p
-        , f $ ptrnDlTyp p
-        , f $ ptrnDlVlan p
-        , f $ ptrnDlVlanPcp p
-        , f $ ptrnNwSrc p
-        , f $ ptrnNwDst p
-        , f $ ptrnNwProto p
-        , f $ ptrnNwTos p
-        , f $ ptrnTpSrc p
-        , f $ ptrnTpDst p
-        ]
-  in foldl (&&) True fields
-    where
-      f :: (Eq a, Bits a, Num a) => Wildcard a -> Bool
-      f w@(Wildcard x m) = (w == top || m == (complement 0))
-

@@ -78,8 +78,7 @@ class (Show (PatternImpl a),
 
   updatePacket :: PacketImpl a -> Packet -> PacketImpl a
 
-  fromPatternOverapprox :: Pattern -> PatternImpl a
-  fromPatternUnderapprox :: Packet -> Pattern -> Maybe (PatternImpl a)
+  fromPattern :: Pattern -> PatternImpl a
   toPattern :: PatternImpl a -> Pattern
 
   actnDefault :: ActionImpl a

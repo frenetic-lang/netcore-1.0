@@ -36,10 +36,10 @@ dlDst     value = top {ptrnDlDst = exact value}
 dlTyp     value = top {ptrnDlTyp = exact value}
 dlVlan    value = top {ptrnDlVlan = exact value}
 dlVlanPcp value = top {ptrnDlVlanPcp = exact value}
-nwSrc     value = top {ptrnNwSrc = exact value}
-nwDst     value = top {ptrnNwDst = exact value}
+nwSrc     value = top {ptrnNwSrc = Prefix value 32}
+nwDst     value = top {ptrnNwDst = Prefix value 32}
 nwProto   value = top {ptrnNwProto = exact value}
 nwTos     value = top {ptrnNwTos = exact value}
 tpSrc     value = top {ptrnTpSrc = exact value}
 tpDst     value = top {ptrnTpDst = exact value}
-inPort    value = top {ptrnInPort = Just value}
+inPort    value = top {ptrnInPort = Exact value}

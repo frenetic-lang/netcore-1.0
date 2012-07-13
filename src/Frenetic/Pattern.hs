@@ -35,10 +35,9 @@
 module Frenetic.Pattern
   ( Matchable (..)
   , Wildcard (..)
+  , Prefix (..)
   , exact
   , wild
-  , Approx (..)
-  , Prefix (..)
   , wMatch
   ) where
 
@@ -73,165 +72,52 @@ class (Eq a) => Matchable a where
 
 -- |Wildcard that only matches this value
 exact :: (Bits a) => a -> Wildcard a
-exact value = Wildcard value 0
+exact value = Exact value
 
 wild :: (Bits a) => Wildcard a
-wild = Wildcard 0 (complement 0)
+wild = Wildcard
 
-data Wildcard a = Wildcard a a deriving (Ord)  -- Data and mask, respectively.
+data Wildcard a
+  = Exact a
+  | Wildcard
+  deriving (Ord, Eq)
 
-instance (Bits a) => Eq (Wildcard a) where
-    (Wildcard x m) == (Wildcard x' m') =
-        m == m' && x .|. m == x' .|. m
+data Prefix a = Prefix a Int
+  deriving (Ord, Eq)
 
-instance (Bits a, Integral a, Show a) => Show (Wildcard a) where
-    show (Wildcard x m) | m == (complement 0) = "*"
-                        | otherwise = if any (\c -> c == '?') s
-                                      then s
-                                      else ("0x" ++ showHex x "")
-        where
-          s = [f i | i <- reverse [0 .. n-1]]
-          n = bitSize x
+instance Show a => Show (Wildcard a) where
+  show Wildcard  = "*"
+  show (Exact a) = show a
 
-          f i | testBit m i = '?'
-              | testBit x i = '1'
-              | otherwise = '0'
+instance Functor Wildcard where
+  fmap f (Exact a) = Exact (f a)
+  fmap _ Wildcard  = Wildcard
 
--- "Maybe" for exact matches. Don't be confused.
-instance (Eq a) => Matchable (Maybe a) where
-  top = Nothing
-  intersect x Nothing = Just x
-  intersect Nothing x = Just x
-  intersect m1 m2 | m1 == m2 = Just m1
-                  | otherwise = Nothing
+instance (Bits a, Show a) => Show (Prefix a) where
+  show (Prefix val significantBits) = case bitSize val == significantBits of
+    True -> show val
+    False -> "Prefix " ++ show val ++ " " ++ show significantBits
 
-intersectWildcard :: (Bits a) => Wildcard a -> Wildcard a -> Wildcard a
-intersectWildcard (Wildcard x m) (Wildcard x' m') =
-    Wildcard ((x .|. m) .&. (x' .|. m')) (m .&. m')
-
-instance (Bits a) => Matchable (Wildcard a) where
-    top = Wildcard 0 (complement 0)
-
-    intersect a b = Just $ intersectWildcard a b
-
-    overlap (Wildcard x m) (Wildcard x' m') = x .|. m'' == x' .|. m''
-        where
-          m'' = m .|. m'
-
-    match (Wildcard x m) (Wildcard x' m') =
-        m .&. m' == m  &&  x .|. m' == x' .|. m'
-
-    disjoint w w' = not $ overlap w w'
+instance Bits a => Matchable (Prefix a) where
+  top = Prefix 0 0
+  intersect (Prefix v1 sig1) (Prefix v2 sig2) = 
+    let sig = min sig1 sig2 -- shorter prefix
+        width = bitSize v1 -- value ignored
+        mask = complement (bit (width - sig) - 1) in -- mask out lower bits 
+      case v1 .&. mask == v2 .&. mask of
+        True -> case sig1 > sig2 of
+                  True  -> Just (Prefix v1 sig1)
+                  False -> Just (Prefix v2 sig2)
+        False -> Nothing
+    
+instance Eq a => Matchable (Wildcard a) where
+  top = Wildcard
+  intersect (Exact a) (Exact b) = case a == b of
+    True  -> Just (Exact a)
+    False -> Nothing
+  intersect (Exact a) Wildcard = Just (Exact a)
+  intersect Wildcard (Exact b) = Just (Exact b)
+  intersect Wildcard Wildcard  = Just Wildcard
 
 wMatch :: (Bits a) => a -> Wildcard a -> Bool
-wMatch b w = wBitsMake b `match` w
-
-wBitsMake :: (Bits a) => a -> Wildcard a
-wBitsMake b = Wildcard b 0
-
-wMake :: forall a. (Bits a) => String -> Wildcard a
-wMake s = foldl' intersectWildcard top mds
-    where
-      n = bitSize (undefined :: a)
-
-      mds = [f i c | c <- s | i <- reverse [0 .. n - 1]]
-
-      f i '0' = Wildcard (complement $ bit i) (complement $ bit i)
-      f i '1' = Wildcard (complement 0) (complement $ bit i)
-      f i '?' = top
-      f i _ = error "Bit other than {0, 1, ?}"
-
-wReplaceData :: a -> Wildcard a -> Wildcard a
-wReplaceData x (Wildcard x' m) = Wildcard x m
-
-wReplaceMask :: a -> Wildcard a -> Wildcard a
-wReplaceMask m (Wildcard x m') = Wildcard x m
-
-wMake8 :: String -> Wildcard Word8
-wMake8  = wMake
-
-wMake16 :: String -> Wildcard Word16
-wMake16 = wMake
-
-wMake32 :: String -> Wildcard Word32
-wMake32 = wMake
-
-wMake64 :: String -> Wildcard Word64
-wMake64 = wMake
-
-showAbridged :: String -> String
-showAbridged = reverse . ('*' :) . dropWhile (== '?') . reverse
-
--- Arbitrary "tuples"
-{-
-instance Matchable HNil where
-    top = HNil
-    intersect _ _ = Just HNil
-
-instance (Matchable a, Matchable b) => Matchable (HCons a b) where
-    top = HCons top top
-    intersect (HCons x y) (HCons x' y') = do x'' <- intersect x x'
-                                             y'' <- intersect y y'
-                                             Just $ HCons x'' y''
--}
--- Restricted wildcards
-
-{-|
-This class allows one to approximate wildcards with restricted variants.
-
-All instances must obey the laws!
-
-* /Approximations/: For all @x@, we have @match x (overapprox x)@ and
-  @match (underapprox x) x@.
-
-* /Tightest/: There is no @y@ such that (1) @match x y@ and
-   @match y (overapprox x)@ and (2) @match (underapprox x) y@ and
-   @match y x@.
-
-* /Monotonic/: If @match x y@, then (1) @match (overapprox x) (overapprox y)@
-  and (2) if the data of x and y are the same, then
-  @match (underapprox x) (underapprox y).
--}
-class Approx a where
-    overapprox :: (Bits b) => Wildcard b -> a b
-    underapprox :: (Bits b) => Wildcard b -> b -> Maybe (a b)
-    inverseapprox :: (Bits b) => a b -> Wildcard b
-
--- Prefix patterns
-
-newtype Prefix a = Prefix (Wildcard a)
-    deriving (Eq, Matchable)
-
-instance (Bits a, Integral a, Show a) => Show (Prefix a) where
-    show (Prefix w) = show w
-
-instance Approx Prefix where
-    overapprox w@(Wildcard x m) = Prefix (Wildcard x m')
-        where
-          n = bitSize m
-          m' = case elemIndex True $ map (testBit m) $ reverse [0 .. n - 1] of
-                 Just i -> foldl' setBit m $ reverse [0 .. (n - i - 2)]
-                 Nothing -> m
-
-    underapprox w@(Wildcard x m) x' | match (wBitsMake x') w = Just $ Prefix (Wildcard x' m')
-                                    | otherwise = Nothing
-        where
-          n = bitSize m
-          m' = case elemIndex False $ map (testBit m) [0 .. n - 1] of
-                 Just i -> foldl' clearBit m [i + 1 .. n - 1]
-                 Nothing -> m
-
-    inverseapprox (Prefix w) = w
-
--- Exact patterns
-
-instance Approx Maybe where
-    overapprox (Wildcard x m) | m == 0 = Just x
-                              | otherwise = Nothing
-    underapprox (Wildcard x m) x' | m == complement 0 && x == x' = Just (Just x)
-                                  | otherwise = Nothing
-    inverseapprox (Just x) = wBitsMake x
-    inverseapprox Nothing = top
-
-
-
+wMatch b w = (Exact b) `match` w
