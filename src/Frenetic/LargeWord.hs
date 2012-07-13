@@ -151,9 +151,9 @@ instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
    Num (LargeKey a b) where
       (+) = largeWordPlus
       fromInteger = integerToLargeWord
-      abs = undefined
-      (*) = undefined
-      signum = undefined
+      abs = error "abs undefined over LargeKey."
+      (*) = error "* undefined over LargeKey."
+      signum = error "signum undefined over LargeKey."
 
 
 -- Larger keys are instances of Bits provided their constituents are keys.
@@ -166,7 +166,7 @@ instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
       shift = largeWordShift
       bitSize = largeBitSize
       complement = largeWordComplement
-      isSigned = undefined
+      isSigned = error "isSigned undefined over LargeKey."
 
 instance (Ord a, Bits a, Bounded a, Integral a, LargeWord a,
                  Bits b, Bounded b, Integral b, LargeWord b) =>
@@ -180,22 +180,25 @@ instance (Ord a, Bits a, Bounded a, Integral a, LargeWord a,
                   (1 + fromIntegral (maxBound `asTypeOf` (aoflk result))) - 1
 
 aoflk :: (LargeKey a b) -> a
-aoflk = undefined
+aoflk = error "aoflk undefined."
 boflk :: (LargeKey a b) -> b
-boflk = undefined
+boflk = error "boflk undefined."
 
+-- TODO(astory): properly derive Ord so that sets don't suck
 instance (Ord a, Bits a, LargeWord a, Ord b, Bits b, LargeWord b) =>
    Integral (LargeKey a b) where
       toInteger = largeWordToInteger
-      quotRem = undefined
+      quotRem a b = (fromInteger q, fromInteger r) where
+        -- This quotRem is Integer quotRem, so we don't have an infinite loop.
+        (q, r) = quotRem (toInteger a) (toInteger b)
 
 instance (Ord a, Bits a, LargeWord a, Ord b, Bits b, LargeWord b) =>
    Real (LargeKey a b) where
-   toRational = undefined
+   toRational = error "toRational undefined over LargeKey."
 
 instance Enum (LargeKey a b) where
-  toEnum = undefined
-  fromEnum = undefined
+  toEnum = error "toEnum undefined over LargeKey."
+  fromEnum = error "fromEnum undefined over LargeKey."
 
 type Word96  = LargeKey Word32 Word64
 type Word128 = LargeKey Word64 Word64
