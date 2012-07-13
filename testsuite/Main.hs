@@ -5,6 +5,7 @@ import Tests.Frenetic.NetCore.TestNetCore
 import Tests.Frenetic.Switches.TestSwitches
 import Tests.Frenetic.Slices.TestCompile
 import Tests.Frenetic.Slices.TestSlice
+import Tests.Frenetic.Slices.TestVerification
 import Tests.Frenetic.TestCompat
 import Test.HUnit
 import Test.Framework
@@ -16,4 +17,5 @@ main = defaultMain
   , compatTests
   , sliceCompileTests
   , sliceTests
+  , sliceVerificationTests
   ]
