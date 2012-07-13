@@ -38,7 +38,6 @@ module Frenetic.Switches.OpenFlow
   , fromOFPat
   , toOFAct
   , fromOFAct
-  , policyQueries
   , Nettle (..)
   , actQueries
   ) where
@@ -197,7 +196,7 @@ instance FreneticImpl OpenFlow where
   data PacketImpl OpenFlow = OFPkt PacketInfo deriving (Show, Eq)
   data PatternImpl OpenFlow = OFPat Match deriving (Show, Eq)
   data ActionImpl OpenFlow = OFAct { fromOFAct :: ActionSequence,
-                                     actQueries :: [NumPktQuery] }
+                                     actQueries :: [Query] }
     deriving (Eq)
 
   ptrnMatchPkt (OFPkt pkt) (OFPat ptrn) =
@@ -319,9 +318,4 @@ instance FreneticImpl OpenFlow where
   actnController = OFAct toController []
   actnDefault = OFAct toController []
   actnTranslate a = OFAct (forwardToOpenFlowActions (actionForwardsTo a))
-                          (actionNumPktQueries a)
-
-policyQueries :: Policy -> [NumPktQuery]
-policyQueries PoBottom = []
-policyQueries (PoBasic _ action) = actionNumPktQueries action
-policyQueries (PoUnion p1 p2) = policyQueries p1 ++ policyQueries p2
+                          (actionQueries a)

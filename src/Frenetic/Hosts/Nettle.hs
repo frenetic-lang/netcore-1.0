@@ -189,7 +189,7 @@ nettleServer policy = do
 -- The actions include queries that are not realizable on switches.
 -- We assume the classifier does not have any fully-shadowed patterns.
 classifierQueries :: [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
-                  -> [(NumPktQuery, [Match])]
+                  -> [(Query, [Match])]
 classifierQueries classifier = map sel queries where
   queries = nub (concatMap (actQueries.snd) classifier)
   sel query = (query, map (fromOFPat.fst) (filter (hasQuery query) classifier))
@@ -203,12 +203,15 @@ runQueryOnSwitch nettle switch classifier =
   mapM_ runQuery (classifierQueries classifier)
     where mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
           switchID = handle2SwitchID switch
-          runQuery ((outChan, millisecondDelay), pats) = do
+          runQuery (NumPktQuery outChan millisecondDelay, pats) = do
             let statReqs = map mkReq pats
             forkIO $ forever $ do
               threadDelay (millisecondDelay * 1000)
               sendTransaction nettle switch statReqs $ \replies -> do
               writeChan outChan (switchID, sum (map getPktCount replies))
+            return ()
+          runQuery (PktQuery _) = do
+            -- nothing to do on the controller until a PacketIn
             return ()
 
 getPktCount :: SCMessage -> Integer

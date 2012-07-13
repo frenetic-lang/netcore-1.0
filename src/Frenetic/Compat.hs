@@ -42,21 +42,6 @@ import           Data.Word
 import qualified Data.Set           as Set
 import           Frenetic.Pattern
 
--- |Frenetic packets
-data Packet = Packet {
-    pktDlSrc :: Word48
-  , pktDlDst :: Word48
-  , pktDlTyp :: Word16
-  , pktDlVlan :: Word16
-  , pktDlVlanPcp :: Word8
-  , pktNwSrc :: Word32
-  , pktNwDst :: Word32
-  , pktNwProto :: Word8
-  , pktNwTos :: Word8
-  , pktTpSrc :: Word16
-  , pktTpDst :: Word16
-  , pktInPort :: Port
-  } deriving (Show, Eq, Ord)
 
 {-| Data that was sent. -}
 data Transmission ptrn pkt = Transmission {
@@ -64,7 +49,6 @@ data Transmission ptrn pkt = Transmission {
       trSwitch :: Switch,
       trPkt :: pkt
     } deriving (Eq)
-
 
 -- |'FreneticImpl a' is a family of related abstract types that define a
 -- back-end for Frenetic.

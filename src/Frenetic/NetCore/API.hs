@@ -37,7 +37,7 @@ module Frenetic.NetCore.API
   , Action (..)
   , Rewrite
   , Forward
-  , NumPktQuery
+  , Query (..)
   -- ** Basic actions
   , flood
   , forward
@@ -59,6 +59,8 @@ module Frenetic.NetCore.API
   -- ** Predicate composition
   , prDifference
   , prNaryUnion
+  -- * Packets
+  , Packet (..)
   -- * Policies
   , Policy (..)
   -- ** Policy composition
@@ -90,6 +92,22 @@ data PseudoPort = Physical Port | PhysicalFlood deriving (Ord, Eq, Show)
 
 {-| Auxillary value for ethernet addresses.  -}
 type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
+
+-- |Frenetic packets
+data Packet = Packet {
+  pktDlSrc :: Word48,
+  pktDlDst :: Word48,
+  pktDlTyp :: Word16,
+  pktDlVlan :: Word16,
+  pktDlVlanPcp :: Word8,
+  pktNwSrc :: Word32,
+  pktNwDst :: Word32,
+  pktNwProto :: Word8,
+  pktNwTos :: Word8,
+  pktTpSrc :: Word16,
+  pktTpDst :: Word16,
+  pktInPort :: Port
+} deriving (Show, Eq, Ord)
 
 -- |Frenetic patterns
 data Pattern = Pattern {
@@ -158,11 +176,14 @@ type Rewrite = Pattern
 -- encoded by using the PseudoPort Flood rather than
 type Forward = MS.MultiSet (PseudoPort, Rewrite)
 
-type NumPktQuery = (Chan (Switch, Integer), Int)
+data Query
+  = NumPktQuery (Chan (Switch, Integer)) Int
+  | PktQuery (Chan (Switch, Packet))
+  deriving (Eq)
 
 data Action = Action {
   actionForwards :: Forward,
-  actionNumPktQueries :: [NumPktQuery]
+  actionQueries :: [Query]
 } deriving (Eq)
 
 -- TODO(astory): change output to multiset
@@ -194,7 +215,7 @@ forward p = Action (MS.singleton (Physical p, top)) []
 query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do
   ch <- newChan
-  return (ch, Action MS.empty [(ch, millisecondInterval)])
+  return (ch, Action MS.empty [NumPktQuery ch millisecondInterval])
 
 -- |Construct the set difference between p1 and p2
 prDifference :: Predicate -> Predicate -> Predicate
