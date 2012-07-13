@@ -55,6 +55,11 @@ case_testSwitchesOfPredicate = do
   Set.fromList [3] @=? sop switches pr4
   Set.fromList [] @=? sop switches (inport 1 0 <&> inport 2 0)
 
+case_testPoUsesVlans = do
+  False @=? poUsesVlans (po1 <+> po2 <+> po3 <+> po4)
+  True @=? poUsesVlans (PrPattern (dlVlan 3) ==> Action MS.empty [])
+  True @=? poUsesVlans (top ==> Action (MS.singleton (Physical 1, dlVlan 3)) [])
+
 slice = Slice (Set.fromList [ Loc 1 1
                             , Loc 1 2
                             , Loc 2 3

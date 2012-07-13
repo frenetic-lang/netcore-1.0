@@ -36,6 +36,7 @@ module Frenetic.Pattern
   ( Matchable (..)
   , Wildcard (..)
   , exact
+  , wild
   , Approx (..)
   , Prefix (..)
   , wMatch
@@ -73,6 +74,9 @@ class (Eq a) => Matchable a where
 -- |Wildcard that only matches this value
 exact :: (Bits a) => a -> Wildcard a
 exact value = Wildcard value 0
+
+wild :: (Bits a) => Wildcard a
+wild = Wildcard 0 (complement 0)
 
 data Wildcard a = Wildcard a a deriving (Ord)  -- Data and mask, respectively.
 

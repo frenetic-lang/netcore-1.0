@@ -18,23 +18,28 @@ import qualified Data.Map as Map
 
 type Vlan = Word16
 
+maxVlan :: Vlan
+maxVlan = maxBound
+
 -- |Match a specific vlan tag
 vlanMatch :: Vlan -> Predicate
 vlanMatch vlan = PrPattern (dlVlan vlan)
 
 transform :: [(Slice, Policy)] -> Policy
 transform combined = 
-  poNaryUnion policies
+  if length combined > fromIntegral maxVlan
+    then error "Too many VLANs to compile"
+    else poNaryUnion policies
   where
-    -- TODO(astory): throw error on running out of VLANs
-    tagged = zip [1..4095] combined
+    tagged = zip [1..maxVlan] combined
     policies = map (\(vlan, (slice, policy)) -> compileSlice slice vlan policy)
                    tagged
 
--- TODO(astory): egress predicates, restrict policy switches and ports to slice
+-- TODO(astory): egress predicates
 -- |Compile a slice with a vlan key
 compileSlice :: Slice -> Vlan -> Policy -> Policy
 compileSlice slice vlan policy =
+  if not (poUsesVlans policy) then error "input policy uses VLANs." else
   let localPolicy = localize slice policy in
   -- A postcondition of localize is that all the forwarding actions of the
   -- policy make sense wrt the slice, and that every PoBasic matches at most one

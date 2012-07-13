@@ -5,6 +5,7 @@ module Frenetic.Slices.Slice
   -- * Utilities
   , localize
   , switchesOfPredicate
+  , poUsesVlans
   ) where
 
 import Data.Word
@@ -12,16 +13,17 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import Frenetic.NetCore.API
+import Frenetic.Pattern
 
 -- |Fully qualified port locations
 data Loc = Loc Switch Port deriving (Eq, Ord, Show)
 
 data Slice = Slice {
-  -- |Ports internal to the slice
+  -- |Ports internal to the slice.
   internalPorts :: Set.Set Loc
-  -- |External ports, and restrictions on inbound packets
+  -- |External ports, and restrictions on inbound packets.
 , ingress :: Map.Map Loc Predicate
-  -- |External ports, and restrictions on outbound packets
+  -- |External ports, and restrictions on outbound packets.
 , egress  :: Map.Map Loc Predicate
 }
 
@@ -29,7 +31,7 @@ data Slice = Slice {
 -- every port has an unambiguous switch associated with it) version with the
 -- same semantics, assuming it runs on the subgraph described by the slice.  In
 -- the returned policy, all forwarding actions within the slice, or to one of
--- its egress ports
+-- its egress ports.
 localize :: Slice -> Policy -> Policy
 localize slice policy = case policy of
   PoBottom -> PoBottom
@@ -47,7 +49,7 @@ localize slice policy = case policy of
                           (Set.fromList . Map.keys $ egress slice)
 
 -- |Transform potentially non-local forwarding actions into explicitly local
--- ones on the switch
+-- ones on the switch.
 localizeMods :: Forward -> Map.Map Switch (Set.Set Port) -> Switch -> Forward
 localizeMods m ports switch = MS.unionsMap localizeMod m where
   localizeMod (port, mods) =
@@ -67,3 +69,21 @@ switchesOfPredicate switches pred = case pred of
   PrIntersect p1 p2 -> Set.intersection (switchesOfPredicate switches p1)
                                         (switchesOfPredicate switches p2)
   PrNegate _        -> switches
+
+-- |Determine if a policy ever matches on or sets VLAN tags.
+poUsesVlans :: Policy -> Bool
+poUsesVlans PoBottom = False
+poUsesVlans (PoUnion p1 p2) = poUsesVlans p1 || poUsesVlans p2
+poUsesVlans (PoBasic pred action) = prUsesVlans pred || actUsesVlans action
+
+-- |Determine if a predicate matches on VLAN tags
+prUsesVlans :: Predicate -> Bool
+prUsesVlans (PrPattern pat) = pat {ptrnDlVlan = wild} /= pat
+prUsesVlans (PrTo _) = False
+prUsesVlans (PrUnion p1 p2) = prUsesVlans p1 || prUsesVlans p2
+prUsesVlans (PrIntersect p1 p2) = prUsesVlans p1 || prUsesVlans p2
+prUsesVlans (PrNegate p) = prUsesVlans p
+
+actUsesVlans :: Action -> Bool
+actUsesVlans (Action ms _) =
+  MS.fold (\ (_, m) accum -> accum || m {ptrnDlVlan = wild} /= m) False ms
