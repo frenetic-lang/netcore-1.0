@@ -38,76 +38,17 @@ import Control.Exception.Base
 import Control.Concurrent
 import Control.Monad.State
 import System.IO
-import Nettle.OpenFlow
-import Nettle.Servers.Server
 import Frenetic.NetCore.API
 import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
 import Data.List (nub, find)
+import Frenetic.NettleEx
 
 sendToSwitch' sw msg = do
   sendToSwitch sw msg
 
--- |spin-lock until we acquire a 'TransactionID'
-reserveTxId :: Nettle -> IO TransactionID
-reserveTxId nettle@(Nettle _ _ nextTxId _) = do
-  let getNoWrap n = case n == maxBound of
-        False -> (n + 1, Just n)
-        True -> (n, Nothing)
-  r <- atomicModifyIORef nextTxId getNoWrap
-  case r of
-    Just n -> return n
-    Nothing -> reserveTxId nettle
-
-releaseTxId :: TransactionID -> Nettle -> IO ()
-releaseTxId n (Nettle _ _ nextTxId _) = do
-  let release m = case m == n of
-        False -> (m, ())
-        True -> (m - 1, ())
-  atomicModifyIORef nextTxId release
-
-csMsgWithResponse :: CSMessage -> Bool
-csMsgWithResponse msg = case msg of
-  CSHello -> True
-  CSEchoRequest _ -> True
-  FeaturesRequest -> True
-  StatsRequest _ -> True
-  BarrierRequest -> True
-  GetQueueConfig _ -> True
-  otherwise -> False
-
-hasMoreReplies :: SCMessage -> Bool
-hasMoreReplies msg = case msg of
-  StatsReply (FlowStatsReply True _) -> True
-  StatsReply (TableStatsReply True _) -> True
-  StatsReply (PortStatsReply True _) -> True
-  StatsReply (QueueStatsReply True _) -> True
-  otherwise -> False
-
-sendTransaction :: Nettle
-                -> SwitchHandle -- ^target switch
-                -> [CSMessage] -- ^related messages
-                -> ([SCMessage] -> IO ()) -- ^callback
-                -> IO ()
-sendTransaction nettle@(Nettle _ _ _ txHandlers) sw reqs callback = do
-  txId <- reserveTxId nettle
-  resps <- newIORef ([] :: [SCMessage])
-  remainingResps  <- newIORef (length (filter csMsgWithResponse reqs))
-  let handler msg = do
-        modifyIORef resps (msg:) -- Nettle client operates in one thread
-        unless (hasMoreReplies msg) $ do
-          modifyIORef remainingResps (\x -> x - 1)
-          n <- readIORef remainingResps
-          when (n == 0) $ do
-            resps <- readIORef resps
-            atomicModifyIORef txHandlers (\hs -> (Map.delete txId hs, ()))
-            releaseTxId txId nettle
-            callback resps
-  atomicModifyIORef txHandlers (\hs -> (Map.insert txId handler hs, ()))
-  mapM_ (sendToSwitch sw) (zip [txId ..] reqs)
-  return ()
 
 mkFlowMod :: (Match, ActionSequence)
           -> Priority
@@ -174,17 +115,11 @@ handleSwitch nettle switch policy = do
 nettleServer :: Policy -> IO ()
 nettleServer policy = do
   hPutStrLn stderr "--- Welcome to Frenetic ---"
-  server <- startOpenFlowServer Nothing -- bind to this address
-                                6633    -- port to listen on
-  switches <- newIORef Map.empty
-  nextTxId <- newIORef 10
-  txHandlers <- newIORef Map.empty
-  let nettle = Nettle server switches nextTxId txHandlers
+  server <- startOpenFlowServerEx Nothing 6633
   forever $ do
     -- Nettle does the OpenFlow handshake
     (switch, switchFeatures) <- acceptSwitch server
-    modifyIORef switches (Map.insert (handle2SwitchID switch) switch)
-    forkIO (handleSwitch nettle switch policy)
+    forkIO (handleSwitch server switch policy)
   closeServer server
 
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.

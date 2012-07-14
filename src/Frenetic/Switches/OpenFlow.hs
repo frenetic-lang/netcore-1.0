@@ -52,25 +52,13 @@ import           Frenetic.LargeWord
 import qualified Data.Set                        as Set
 import           Data.Word
 import Data.List (nub, find)
-import Nettle.OpenFlow hiding (intersect)
 import qualified Nettle.IPv4.IPAddress as IPAddr
-import Nettle.Servers.Server
 import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
 import Frenetic.Compat
 import Frenetic.NetCore.API
 import Control.Concurrent
-
-data Nettle = Nettle {
-  server :: OpenFlowServer,
-  switches :: IORef (Map SwitchID SwitchHandle),
-  nextTxId :: IORef TransactionID,
-  -- ^ Transaction IDs in the semi-open interval '[0, nextTxId)' are in use.
-  -- @sendTransaction@ tries to reserve 'nextTxId' atomically. There could be
-  -- available transaction IDs within the range, but we will miss them
-  -- until 'nextTxId' changes.
-  txHandlers :: IORef (Map TransactionID (SCMessage -> IO ()))
-}
+import Frenetic.NettleEx
 
 {-| Convert an EthernetAddress to a Word48. -}
 ethToWord48 eth =
