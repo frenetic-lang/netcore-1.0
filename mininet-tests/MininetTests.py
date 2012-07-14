@@ -14,6 +14,7 @@ class RepeaterTest(unittest.TestCase):
     self.mn.destroy()
 
   def testPing(self):
+    sleep(2)
     for src in self.mn.hosts:
       for dst in self.mn.hosts:
         if src == dst:

@@ -31,11 +31,8 @@ module Frenetic.Hosts.Nettle where
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.Set (Set)
 import Frenetic.LargeWord
 import Control.Exception.Base
-import Control.Concurrent
 import Control.Monad.State
 import System.IO
 import Frenetic.NetCore.API
@@ -45,6 +42,7 @@ import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
 import Data.List (nub, find)
 import Frenetic.NettleEx
+import Frenetic.Util
 
 sendToSwitch' sw msg = do
   sendToSwitch sw msg
@@ -70,56 +68,71 @@ rawClassifier :: Classifier (PatternImpl OpenFlow) (ActionImpl OpenFlow)
 rawClassifier (Classifier rules) =
   map (\(p, a) -> (fromOFPat p, fromOFAct a)) rules
 
-handleOFMsg :: Nettle
-            -> SwitchHandle
-            -> Policy
-            -> (TransactionID, SCMessage)
-            -> IO ()
-handleOFMsg nettle switch policy (xid, msg) = case msg of
-  PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
-                             enclosedFrame=Right frame})) -> do
-    let switchID = handle2SwitchID switch
-    let t = Transmission (toOFPat (frameToExactMatch inPort frame))  switchID
-                         (toOFPkt pkt)
-    let actions = interpretPolicy policy t
-    actnControllerPart (actnTranslate actions) switchID (toOFPkt pkt)
-    let mod = mkFlowMod (frameToExactMatch inPort frame,
-                         fromOFAct $ actnTranslate actions)
-                        65535
-    
-    sendToSwitch' switch (1, mod)
-    case bufferID pkt of
-      Nothing -> return ()
-      Just buf -> do
-        let msg = PacketOut $ PacketOutRecord (Left buf) (Just inPort) $
-                    (fromOFAct $ actnTranslate actions)
-        sendToSwitch' switch (2, msg)
-  otherwise -> do
-    handlers <- readIORef (txHandlers nettle)
-    case Map.lookup xid handlers of
-      Just handler -> handler msg
-      Nothing -> putStrLn $ "Unhandled message " ++ show msg
-
 -- |Installs the static portion of the policy, then react.
-handleSwitch :: Nettle -> SwitchHandle -> Policy -> IO ()
-handleSwitch nettle switch policy = do
-  -- Nettle handles keep alive
-  let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
-  let flowTbl = rawClassifier classifier
-  runQueryOnSwitch nettle switch cl
-  -- Priority 65535 is for microflow rules from reactive-specialization
-  let flowMods = zipWith mkFlowMod flowTbl [65534, 65533 ..]
-  mapM_ (sendToSwitch' switch) (zip [0..] flowMods)
-  untilNothing (receiveFromSwitch switch) (handleOFMsg nettle switch policy)
+handleSwitch :: Nettle 
+             -> SwitchHandle
+             -> Policy 
+             -> Chan Policy
+             -> Chan (TransactionID, SCMessage)
+             -> IO ()
+handleSwitch nettle switch initPolicy policyChan msgChan = do
+  -- 1. Clear the flow table
+  -- 2. In parallel:
+  --    a. Receive a message from the switch
+  --    b. Receive a policy
+  -- 3. Keep the last policy in an accumulator
+  -- 4. On new message, evaluate it with the last policy (not consistent 
+  --    update!)
+  -- 5. On new policy, update the switch and accumulator
+  let switchID = handle2SwitchID switch
+  policiesAndMessages <- mergeChan policyChan msgChan
+  let loop oldPolicy (Left policy) = do
+        sendToSwitch' switch (0, FlowMod (DeleteFlows matchAny Nothing))
+        let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
+        let flowTbl = rawClassifier classifier
+        runQueryOnSwitch nettle switch cl
+        -- Priority 65535 is for microflow rules from reactive-specialization
+        let flowMods = zipWith mkFlowMod flowTbl [65534, 65533 ..]
+        mapM_ (sendToSwitch' switch) (zip [0..] flowMods)
+        nextMsg <- readChan policiesAndMessages
 
-nettleServer :: Policy -> IO ()
-nettleServer policy = do
-  hPutStrLn stderr "--- Welcome to Frenetic ---"
+        loop policy nextMsg
+      loop policy (Right (xid, msg)) = case msg of
+        PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
+                                   enclosedFrame=Right frame})) -> do
+          let t = Transmission (toOFPat (frameToExactMatch inPort frame))
+                               switchID
+                               (toOFPkt pkt)
+          let actions = interpretPolicy policy t
+          actnControllerPart (actnTranslate actions) switchID (toOFPkt pkt)
+          case bufferID pkt of
+            Nothing -> return ()
+            Just buf -> do
+              let msg = PacketOut $ PacketOutRecord (Left buf) (Just inPort) $
+                          (fromOFAct $ actnTranslate actions)
+              sendToSwitch' switch (2, msg)
+          nextMsg <- readChan policiesAndMessages
+          loop policy nextMsg
+        otherwise -> do
+          nextMsg <- readChan policiesAndMessages
+          loop policy nextMsg
+  loop PoBottom (Left initPolicy)
+
+nettleServer :: Chan Policy -> IO ()
+nettleServer policyChan' = do
   server <- startOpenFlowServerEx Nothing 6633
+  currentPolicy <- newIORef PoBottom
+  forkIO $ forever $ do
+    pol <- readChan policyChan
+    writeIORef currentPolicy pol
   forever $ do
     -- Nettle does the OpenFlow handshake
-    (switch, switchFeatures) <- acceptSwitch server
-    forkIO (handleSwitch server switch policy)
+    (switch, switchFeatures, msgChan) <- acceptSwitch server
+    -- reading from a channel removes the messages. We need to dupChan for
+    -- each switch.
+    switchPolicyChan <- dupChan policyChan
+    initPolicy <- readIORef currentPolicy
+    forkIO (handleSwitch server switch initPolicy switchPolicyChan msgChan)
   closeServer server
 
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.

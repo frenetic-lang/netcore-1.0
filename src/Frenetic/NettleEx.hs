@@ -7,13 +7,9 @@ module Frenetic.NettleEx
   , closeServer
   , acceptSwitch
   , startOpenFlowServerEx
-  -- TODO(arjun): should not be exported, IMO.
-  , txHandlers 
   ) where
 
--- Do not commingle with Frenetic. Do not import Frenetic.Util.
-import Control.Concurrent.Chan
-import Data.Map (Map)
+import Frenetic.Util
 import qualified Data.Map as Map
 import Nettle.OpenFlow hiding (intersect)
 import qualified Nettle.Servers.Server as Server
@@ -39,11 +35,21 @@ startOpenFlowServerEx host port = do
   txHandlers <- newIORef Map.empty
   return (Nettle server switches nextTxId txHandlers)
 
-acceptSwitch :: Nettle -> IO (SwitchHandle, SwitchFeatures)
+acceptSwitch :: Nettle 
+             -> IO (SwitchHandle, 
+                    SwitchFeatures,
+                    Chan (TransactionID, SCMessage))
 acceptSwitch nettle = do
   (switch, switchFeatures) <- Server.acceptSwitch (server nettle)
   modifyIORef (switches nettle) (Map.insert (handle2SwitchID switch) switch)
-  return (switch, switchFeatures)
+  switchMessages <- newChan
+  let handleSwitch (xid, msg) = do
+        handlers <- readIORef (txHandlers nettle)
+        case Map.lookup xid handlers of
+          Just handler -> handler msg
+          Nothing      -> writeChan switchMessages (xid, msg)
+  threadId <- forkIO $ untilNothing (receiveFromSwitch switch) handleSwitch
+  return (switch, switchFeatures, switchMessages)
 
 closeServer :: Nettle -> IO ()
 closeServer nettle = Server.closeServer (server nettle)
