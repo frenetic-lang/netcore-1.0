@@ -119,7 +119,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   loop PoBottom (Left initPolicy)
 
 nettleServer :: Chan Policy -> IO ()
-nettleServer policyChan' = do
+nettleServer policyChan = do
   server <- startOpenFlowServerEx Nothing 6633
   currentPolicy <- newIORef PoBottom
   forkIO $ forever $ do
