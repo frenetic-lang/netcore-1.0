@@ -38,6 +38,7 @@ module Frenetic.NetCore.API
   , Rewrite
   , Forward
   , Query (..)
+  , isPktQuery
   -- ** Basic actions
   , flood
   , forward
@@ -178,13 +179,16 @@ type Forward = MS.MultiSet (PseudoPort, Rewrite)
 
 data Query
   = NumPktQuery (Chan (Switch, Integer)) Int
-  | PktQuery (Chan (Switch, Packet))
+  | PktQuery { pktQueryChan :: (Chan (Switch, Packet)) }
   deriving (Eq)
 
 data Action = Action {
   actionForwards :: Forward,
   actionQueries :: [Query]
 } deriving (Eq)
+
+isPktQuery (PktQuery _) = True
+isPktQuery _               = False
 
 -- TODO(astory): change output to multiset
 actionForwardsTo :: Action -> Set PseudoPort

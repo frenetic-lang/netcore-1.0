@@ -96,9 +96,6 @@ instance Matchable IPAddressPrefix where
 physicalPortOfPseudoPort (Physical p) = PhysicalPort p
 physicalPortOfPseudoPort PhysicalFlood = Flood
 
-forwardToOpenFlowActions set =
-  map (\pp -> SendOutPort . physicalPortOfPseudoPort $ pp) (Set.toList set)
-
 toController :: ActionSequence
 toController = sendToController maxBound
 
@@ -296,5 +293,17 @@ instance FreneticImpl OpenFlow where
 
   actnController = OFAct toController []
   actnDefault = OFAct toController []
-  actnTranslate a = OFAct (forwardToOpenFlowActions (actionForwardsTo a))
-                          (actionQueries a)
+
+  actnTranslate act@(Action fwd queries) = OFAct (toCtrl ++ ofFwd) queries
+    where ofFwd = map (\pp -> SendOutPort (physicalPortOfPseudoPort pp)) 
+                      (Set.toList (actionForwardsTo act))
+          toCtrl = case find isPktQuery queries of
+            -- sends as much of the packet as possible to the controller
+            Just _  -> [SendOutPort (ToController maxBound)]
+            Nothing -> []
+  
+  actnControllerPart (OFAct _ queries) switchID ofPkt  = do
+    let pktChans = map pktQueryChan . filter isPktQuery $ queries
+    let pkt = toPacket ofPkt
+    mapM_ (\chan -> writeChan chan (switchID, pkt)) pktChans
+    

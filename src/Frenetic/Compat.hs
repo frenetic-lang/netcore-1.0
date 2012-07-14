@@ -85,3 +85,5 @@ class (Show (PatternImpl a),
   actnController :: ActionImpl a
   actnTranslate :: Action -> ActionImpl a
 
+  actnControllerPart :: ActionImpl a -> Switch -> PacketImpl a -> IO ()
+

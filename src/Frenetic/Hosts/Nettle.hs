@@ -141,9 +141,11 @@ handleOFMsg nettle switch policy (xid, msg) = case msg of
     let t = Transmission (toOFPat (frameToExactMatch inPort frame))  switchID
                          (toOFPkt pkt)
     let actions = interpretPolicy policy t
+    actnControllerPart (actnTranslate actions) switchID (toOFPkt pkt)
     let mod = mkFlowMod (frameToExactMatch inPort frame,
                          fromOFAct $ actnTranslate actions)
                         65535
+    
     sendToSwitch' switch (1, mod)
     case bufferID pkt of
       Nothing -> return ()
