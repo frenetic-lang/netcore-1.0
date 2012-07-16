@@ -94,7 +94,7 @@ modifyVlan vlan (PoBasic pred (Action m obs)) =
     where
       m' = MS.map setVlans m
       setVlans (p, mod) = (p, setVlan mod)
-      setVlan pattern = pattern {ptrnDlVlan = exact vlan}
+      setVlan pattern = pattern {ptrnDlVlan = Exact vlan}
 modifyVlan vlan (PoUnion p1 p2) = PoUnion (modifyVlan vlan p1)
                                           (modifyVlan vlan p2)
 
@@ -117,7 +117,7 @@ setVlan vlan (Loc switch port) pol@(PoBasic pred (Action m obs)) =
   where
     m' = MS.map setVlanOnPort m
     setVlanOnPort (Physical p, mod) =
-      if p == port then (Physical p, mod {ptrnDlVlan = exact vlan})
+      if p == port then (Physical p, mod {ptrnDlVlan = Exact vlan})
                    else (Physical p, mod)
     setVlanOnPort (PhysicalFlood, mod) =
       error "FLOOD encountered in slice compilation.  Did you first localize?"

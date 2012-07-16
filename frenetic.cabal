@@ -23,6 +23,7 @@ Library
                         Frenetic.NetCore.API,
                         Frenetic.Server
                         Frenetic.Slices.Compile
+                        Frenetic.Slices.Verification
     other-modules:      Frenetic.Util,
                         Frenetic.Switches.OpenFlow,
                         Frenetic.NetCore.Compiler,
