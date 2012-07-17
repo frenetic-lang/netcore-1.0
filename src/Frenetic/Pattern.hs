@@ -100,16 +100,16 @@ instance (Bits a, Show a) => Show (Prefix a) where
 
 instance Bits a => Matchable (Prefix a) where
   top = Prefix 0 0
-  intersect (Prefix v1 sig1) (Prefix v2 sig2) = 
+  intersect (Prefix v1 sig1) (Prefix v2 sig2) =
     let sig = min sig1 sig2 -- shorter prefix
         width = bitSize v1 -- value ignored
-        mask = complement (bit (width - sig) - 1) in -- mask out lower bits 
+        mask = complement (bit (width - sig) - 1) in -- mask out lower bits
       case v1 .&. mask == v2 .&. mask of
         True -> case sig1 > sig2 of
                   True  -> Just (Prefix v1 sig1)
                   False -> Just (Prefix v2 sig2)
         False -> Nothing
-    
+
 instance Eq a => Matchable (Wildcard a) where
   top = Wildcard
   intersect (Exact a) (Exact b) = case a == b of

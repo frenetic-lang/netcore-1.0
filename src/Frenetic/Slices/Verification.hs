@@ -26,7 +26,7 @@ edgeDisjoint slice1 slice2 = Set.intersection s1 s2 == Set.empty where
 -- |Get all switches of a slice
 switchesOfSlice :: Slice -> Set.Set Switch
 switchesOfSlice (Slice internal ingress egress) =
-  Set.map (\ (Loc s _) -> s) 
+  Set.map (\ (Loc s _) -> s)
     (Set.union (internal)
     (Set.union (Map.keysSet ingress)
                (Map.keysSet egress)))

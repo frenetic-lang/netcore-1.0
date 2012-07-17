@@ -23,10 +23,10 @@ maxVlan = maxBound
 
 -- |Match a specific vlan tag
 vlanMatch :: Vlan -> Predicate
-vlanMatch vlan = PrPattern (dlVlan vlan)
+vlanMatch vlan = dlVlan vlan
 
 transform :: [(Slice, Policy)] -> Policy
-transform combined = 
+transform combined =
   if length combined > fromIntegral maxVlan
     then error "Too many VLANs to compile"
     else poNaryUnion policies
@@ -78,7 +78,7 @@ outport slice policy = foldr stripVlan policy locs
 -- |Produce a predicate matching any of the inports (and their predicate)
 -- specified
 ingressPredicate :: Slice -> Predicate
-ingressPredicate slice = 
+ingressPredicate slice =
   prNaryUnion . map ingressSpecToPred . Map.assocs $ ingress slice
 
 -- |Produce a predicate matching the ingress predicate at a particular location

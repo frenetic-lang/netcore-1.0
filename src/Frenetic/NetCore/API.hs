@@ -42,6 +42,7 @@ module Frenetic.NetCore.API
   -- ** Basic actions
   , flood
   , forward
+  , forwardMods
   , query
   , dropPkt
   -- ** Action composition
@@ -215,6 +216,10 @@ flood = Action (MS.singleton (PhysicalFlood, top)) []
 
 forward :: Port -> Action
 forward p = Action (MS.singleton (Physical p, top)) []
+
+forwardMods :: [(Port, Rewrite)] -> Action
+forwardMods mods = Action (MS.fromList mods') [] where
+  mods' = map (\(p, m) -> (Physical p, m)) mods
 
 query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do

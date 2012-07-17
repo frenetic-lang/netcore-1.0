@@ -68,7 +68,7 @@ instance FreneticImpl () where
   actnDefault = FreneticAct dropPkt
   actnController = FreneticAct dropPkt
   actnTranslate x = FreneticAct x
-  actnControllerPart (FreneticAct (Action _ queries)) switchID 
+  actnControllerPart (FreneticAct (Action _ queries)) switchID
                      (FreneticPkt pkt)  = do
     let pktChans = map pktQueryChan . filter isPktQuery $ queries
     mapM_ (\chan -> writeChan chan (switchID, pkt)) pktChans
