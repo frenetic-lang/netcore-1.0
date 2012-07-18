@@ -34,10 +34,18 @@ topo = buildGraph [ ((1, 1), (2, 1))
                   , ((3, 2), (4, 1))
                   ]
 
+smallTopo = buildGraph [ ((1, 1), (2, 1))
+                       , ((1, 2), (1, 2)) ]
+
 basicSlice = Slice (Set.fromList [ Loc 1 1
                                  , Loc 2 1, Loc 2 2
                                  , Loc 3 1
-                                 ]) Map.empty Map.empty
+                                 ])
+                   Map.empty Map.empty
+
+smallSlice = Slice (Set.fromList ([ Loc 1 1, Loc 1 2,
+                                    Loc 2 1, Loc 2 2 ]))
+                   Map.empty Map.empty
 
 case_testTransfer = do
   let p = Z3Packet "p"
@@ -100,16 +108,15 @@ case_testBreaksForwards = do
 
 case_testBreaksForwards2 = do
   let o = ((PrTo 1) ==> forward 1) <+> ((PrTo 2) ==> forward 2)
-  let r = ((PrTo 1) ==> forward 1) <+> ((PrTo 2) ==> forward 2)
-  result <- checkBool $ breaksForwards topo Nothing o r
+  result <- checkBool $ breaksForwards2 topo Nothing o o
   assertBool "identical switch" (not result)
 
   let o = ((PrTo 1) ==> forward 1) <+> ((PrTo 2) ==> forward 2)
   let r = ((PrTo 1) ==> forwardMods [(1, patDlVlan 2)]) <+>
           ((PrTo 2) ==> forwardMods [(2, patDlVlan 3)])
-  result <- checkBool $ breaksForwards topo Nothing o r
+  result <- checkBool $ breaksForwards2 topo Nothing o r
   assertBool "match vlans" (not result)
-  result <- checkBool $ breaksForwards topo Nothing r o
+  result <- checkBool $ breaksForwards2 topo Nothing r o
   assertBool "match vlans rev" (not result)
 
 case_testForwardsRestriction = do
@@ -155,3 +162,24 @@ case_testRange = do
   let pol = inport 3 1 ==> forward 2
   result <- checkBool $ unconfinedRange basicSlice pol
   assertBool "unconfinedRange true on unconfined" result
+
+case_testCompiledCorrectly = do
+  let o = (inport 2 2) <&> (dlVlan 2) ==> forward 1
+  result <- compiledCorrectly smallTopo smallSlice o o
+  putStrLn (show result)
+  assertBool "id compiled correctly" result
+
+  let o = (inport 2 2) <&> (dlVlan 2) ==> forward 1
+  let r = (inport 2 2) <&> (dlVlan 2) ==> forward 2
+  result <- compiledCorrectly smallTopo smallSlice o r
+  assertBool "basic compiled wrong" (not result)
+
+  let o = (inport 2 2)                ==> forward 1
+  let r = (inport 2 2) <&> (dlVlan 2) ==> forward 1
+  result <- compiledCorrectly smallTopo smallSlice o r
+  assertBool "match vlans in compilation" result
+
+  let o = (inport 2 2)                ==> forward 1
+  let r = (inport 2 2)  ==> forwardMods [(1, patDlVlan 2)]
+  result <- compiledCorrectly smallTopo smallSlice o r
+  assertBool "set vlans in compilation" result

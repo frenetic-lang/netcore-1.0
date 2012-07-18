@@ -1,5 +1,7 @@
 module Frenetic.Slices.Sat
-  ( breaksForwards
+  ( compiledCorrectly
+  , breaksForwards
+  , breaksForwards2
   , multipleVlanEdge
   , unconfinedDomain
   , unconfinedRange
@@ -13,19 +15,42 @@ import Frenetic.Topo
 import Frenetic.Slices.Slice
 import Frenetic.NetCore.API
 
-{- Things we need to test for compilation correctness from o to r:
- - *< r does not do anything with any packets outside of internal U ingress
- - *< r does not generate any packets outside of internal U egress
- - *< r simulates o for r's domain/range up to VLANS
- - *  o simulates r up to VLANS
- -    *< simulates on one-hop
- -    *  simulates on two-hop
- - *< r only uses one VLAN per edge
- -}
-
 doCheck consts assertions = check $ Input setUp consts assertions
 getConsts packets ints = (map (\pkt -> DeclConst (ConstPacket pkt)) packets) ++
                          (map (\int -> DeclConst (ConstInt int)) ints)
+
+{- | Verify that source has compiled correctly to target under topo and slice.
+ -
+ - Things we need to test for compilation correctness from o to r:
+ - * r does not do anything with any packets outside of internal U ingress
+ - * r does not generate any packets outside of internal U egress
+ - * r simulates o for r's domain/range up to VLANS
+ - * o simulates r up to VLANS
+ -   * simulates on one-hop
+ -   * simulates on two-hop
+ - * r only uses one VLAN per edge
+ -}
+compiledCorrectly :: Topo -> Slice -> Policy -> Policy -> IO (Bool)
+compiledCorrectly topo slice source target = (fmap not) failure where
+  cases =  [ unconfinedDomain slice target
+           , unconfinedRange  slice target
+           , multipleVlanEdge topo target
+           , breaksForwards  topo (Just slice) source target
+           , breaksForwards  topo Nothing target source
+           , breaksForwards2 topo (Just slice) source target
+           , breaksForwards2 topo Nothing target source
+           ]
+  failure = fmap or . sequence . map checkBool $ cases
+
+-- | helper function for debugging compiledCorrectly.  Use this when you want to
+-- figure out which of the internal functions is breaking.
+diagnose :: [IO (Maybe String)] -> IO ()
+diagnose cases = sequence_ . map printResult $ cases where
+
+printResult :: IO (Maybe String) -> IO ()
+printResult i = do
+  ms <- i
+  putStrLn (show ms)
 
 -- | Try to find some packets outside the interior or ingress of the slice that
 -- the policy forwards or observes.
@@ -124,8 +149,8 @@ breaksForwards2 topo mSlice a b = doCheck consts assertions where
                  -- Find a similar path for some vlans.  We don't need to test
                  -- topology transfer because it's insensitive to vlans.
                , ForAll [ConstInt v, ConstInt v', ConstInt v'']
-                        (And (forwardsWith b (p, Just v)  (p', Just v'))
-                             (forwardsWith b (q, Just v') (q', Just v'')))
+                        (Not (And (forwardsWith b (p, Just v)  (p', Just v'))
+                                  (forwardsWith b (q, Just v') (q', Just v''))))
                ]
 
 input :: Slice -> Z3Packet -> BoolExp
