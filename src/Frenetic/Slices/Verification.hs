@@ -20,8 +20,8 @@ separated slice1 slice2 = Set.intersection s1 s2 == Set.empty where
 -- traffic disambiguation)
 edgeDisjoint :: Slice -> Slice -> Bool
 edgeDisjoint slice1 slice2 = Set.intersection s1 s2 == Set.empty where
-  s1 = Set.map (\ (Loc s _) -> s) (internalPorts slice1)
-  s2 = Set.map (\ (Loc s _) -> s) (internalPorts slice2)
+  s1 = Set.map (\ (Loc s _) -> s) (internal slice1)
+  s2 = Set.map (\ (Loc s _) -> s) (internal slice2)
 
 -- |Get all switches of a slice
 switchesOfSlice :: Slice -> Set.Set Switch

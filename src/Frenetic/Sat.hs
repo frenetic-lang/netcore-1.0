@@ -45,8 +45,8 @@ inSlice (Slice int ing egr) pkt = nOr . (map atLoc) . Set.toList $ locations
 onTopo :: Topo -> Z3Packet -> BoolExp
 onTopo topo pkt = nOr constraints where
   constraints = map onPort (Graph.labEdges topo)
-  onPort (n, _, p) = And (Equals (switch pkt) (Primitive n))
-                         (Equals (port pkt) (Primitive p))
+  onPort (n, _, p) = And (Equals (switch pkt) (Primitive (fromIntegral n)))
+                         (Equals (port pkt) (Primitive (fromIntegral p)))
 
 -- |Build the predicate for the topology transfering two packets
 transfer :: Topo -> Z3Packet -> Z3Packet -> BoolExp

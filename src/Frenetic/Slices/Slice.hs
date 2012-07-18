@@ -20,7 +20,7 @@ data Loc = Loc Switch Port deriving (Eq, Ord, Show)
 
 data Slice = Slice {
   -- |Ports internal to the slice.
-  internalPorts :: Set.Set Loc
+  internal :: Set.Set Loc
   -- |External ports, and restrictions on inbound packets.
 , ingress :: Map.Map Loc Predicate
   -- |External ports, and restrictions on outbound packets.
@@ -45,7 +45,7 @@ localize slice policy = case policy of
     ports =
       Set.foldr (\ (Loc s p) -> Map.insertWith Set.union s (Set.singleton p))
                 Map.empty locations
-    locations = Set.union (internalPorts slice)
+    locations = Set.union (internal slice)
                           (Set.fromList . Map.keys $ egress slice)
 
 -- |Transform potentially non-local forwarding actions into explicitly local
