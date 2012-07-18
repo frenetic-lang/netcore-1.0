@@ -118,9 +118,7 @@ nOr bs = foldr1 (\ b1 b2 -> Or b1 b2) bs
 
 -- |Convert true-is-Just-false-is-Nothing to boolean
 checkBool :: IO (Maybe a) -> IO Bool
-checkBool input = do
-  result <- input
-  return (isJust result)
+checkBool = fmap isJust
 
 -- use smt2 syntax, disable warnings, emit the model, use stdin
 z3Process = CreateProcess (ShellCommand "z3 -smt2 -nw -m -in")
