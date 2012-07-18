@@ -74,7 +74,7 @@ multipleVlanEdge topo policy = doCheck consts assertions  where
 
 -- | Try to find a pair of packets that a forwards for which there are no two
 -- VLAN-equivalent packets that b also forwards.  If we can't, this is one-hop
--- simulation.
+-- simulation.  Maybe only consider packets within a slice.
 breaksForwards :: Topo -> Maybe Slice -> Policy -> Policy -> IO (Maybe String)
 breaksForwards topo mSlice a b = doCheck consts assertions where
   p = Z3Packet "p"
@@ -84,15 +84,48 @@ breaksForwards topo mSlice a b = doCheck consts assertions where
 
   consts = getConsts [p, p'] [v, v']
 
+  -- We don't need to test for vlan equivalence because input predicates do not
+  -- consider vlans
   locationAssertions = case mSlice of
-                      Just slice -> [ input slice p
-                                    , output slice p']
-                      Nothing -> [ onTopo topo p
-                                 , onTopo topo p']
+                         Just slice -> [ input slice p , output slice p']
+                         Nothing -> [ onTopo topo p , onTopo topo p']
+
   assertions = locationAssertions ++
                [ forwards a p p'
                , ForAll [ConstInt v, ConstInt v']
                         (Not (forwardsWith b (p, Just v) (p', Just v')))
+               ]
+
+-- | Try to find a two-hop forwarding path in a for which there isn't a
+-- vlan-equivalent path in b.  If we can't, this is two-hop simulation.
+breaksForwards2 :: Topo -> Maybe Slice -> Policy -> Policy -> IO (Maybe String)
+breaksForwards2 topo mSlice a b = doCheck consts assertions where
+  p  = Z3Packet "p"
+  p' = Z3Packet "pp"
+  q  = Z3Packet "q"
+  q' = Z3Packet "qq"
+  v = Z3Int "v"
+  v' = Z3Int "vv"
+  v'' = Z3Int "vvv"
+
+  consts = getConsts [p, p', q, q'] [v, v', v'']
+
+  -- We don't need to test for vlan equivalence because input predicates do not
+  -- consider vlans
+  locationAssertions = case mSlice of
+                         Just slice -> [ input slice p, output slice p'
+                                       , input slice q, output slice q' ]
+                         Nothing -> [ onTopo topo p, onTopo topo p'
+                                    , onTopo topo q, onTopo topo q' ]
+
+  assertions = locationAssertions ++
+               [ -- path p --1-> p' --T-- q --2-> q' in a
+                 forwards a p p' , transfer topo p' q , forwards a q q'
+                 -- Find a similar path for some vlans.  We don't need to test
+                 -- topology transfer because it's insensitive to vlans.
+               , ForAll [ConstInt v, ConstInt v', ConstInt v'']
+                        (And (forwardsWith b (p, Just v)  (p', Just v'))
+                             (forwardsWith b (q, Just v') (q', Just v'')))
                ]
 
 input :: Slice -> Z3Packet -> BoolExp

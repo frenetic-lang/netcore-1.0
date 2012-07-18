@@ -67,7 +67,7 @@ case_testTransferBreaks = do
   result <- checkBool . check $ Input setUp consts assertions
   assertBool "topology does not transfer" (not result)
 
-case_testSimulatesForwards = do
+case_testBreaksForwards = do
   let o = (PrTo 2) ==> forward 1
   let r = (PrTo 2) ==> forward 1
   result <- checkBool $ breaksForwards topo Nothing o r
@@ -77,8 +77,6 @@ case_testSimulatesForwards = do
   let r = (PrTo 2) <&> (inPort 2) ==> forward 1
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "identical locations" (not result)
-  result <- checkBool $ breaksForwards topo Nothing r o
-  assertBool "forward identically rev" (not result)
 
   let o = (PrTo 2) <&> (inPort 2) ==> forward 1
   let r = (PrTo 2) <&> (inPort 2) ==> forwardMods [(1, patDlVlan 2)]
@@ -99,6 +97,20 @@ case_testSimulatesForwards = do
   assertBool "set vlans" (not result)
   result <- checkBool $ breaksForwards topo Nothing r o
   assertBool "set vlans rev" (not result)
+
+case_testBreaksForwards2 = do
+  let o = ((PrTo 1) ==> forward 1) <+> ((PrTo 2) ==> forward 2)
+  let r = ((PrTo 1) ==> forward 1) <+> ((PrTo 2) ==> forward 2)
+  result <- checkBool $ breaksForwards topo Nothing o r
+  assertBool "identical switch" (not result)
+
+  let o = ((PrTo 1) ==> forward 1) <+> ((PrTo 2) ==> forward 2)
+  let r = ((PrTo 1) ==> forwardMods [(1, patDlVlan 2)]) <+>
+          ((PrTo 2) ==> forwardMods [(2, patDlVlan 3)])
+  result <- checkBool $ breaksForwards topo Nothing o r
+  assertBool "match vlans" (not result)
+  result <- checkBool $ breaksForwards topo Nothing r o
+  assertBool "match vlans rev" (not result)
 
 case_testForwardsRestriction = do
   let o = top ==> Action (MS.singleton (PhysicalFlood, top)) []
