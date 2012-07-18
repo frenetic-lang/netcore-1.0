@@ -140,5 +140,6 @@ check z3input = do
   let result : model = lines output
   if result == "unsat" then return Nothing
   else if result == "sat" then return (Just (join "\n" $ model))
+  else if result == "unknown" then error "No decision reached"
   else error ("Unknown status from z3: " ++ result ++ "\n" ++
               "This was the input to z3: \n" ++ assertions)
