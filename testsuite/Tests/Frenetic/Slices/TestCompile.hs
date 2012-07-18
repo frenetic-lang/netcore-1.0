@@ -19,29 +19,29 @@ sliceCompileTests = $(testGroupGenerator)
 
 -- Construct a bunch of basically meaningless objects for testing
 
-a1 = Action (MS.fromList [ (Physical 1, dlSrc 10)
-                         , (Physical 2, dlSrc 10)
-                         , (Physical 3, dlSrc 10)])
+a1 = Action (MS.fromList [ (Physical 1, patDlSrc 10)
+                         , (Physical 2, patDlSrc 10)
+                         , (Physical 3, patDlSrc 10)])
             []
-a2 = Action (MS.fromList [ (Physical 2, dlDst 20)
-                         , (Physical 3, dlDst 20)])
+a2 = Action (MS.fromList [ (Physical 2, patDlDst 20)
+                         , (Physical 3, patDlDst 20)])
             []
-a3 = Action (MS.fromList [ (Physical 2, dlTyp 30)])
+a3 = Action (MS.fromList [ (Physical 2, patDlTyp 30)])
             []
-a4 = Action (MS.fromList [ (Physical 4, nwSrc 40)
-                         , (Physical 5, nwSrc 40)
-                         , (Physical 6, nwSrc 40)])
+a4 = Action (MS.fromList [ (Physical 4, patNwSrc 40)
+                         , (Physical 5, patNwSrc 40)
+                         , (Physical 6, patNwSrc 40)])
             []
-a5 = Action (MS.fromList [ (Physical 3, nwSrc 50)
-                         , (Physical 4, nwSrc 50)
-                         , (Physical 5, nwSrc 50)
-                         , (Physical 6, nwSrc 50)])
+a5 = Action (MS.fromList [ (Physical 3, patNwSrc 50)
+                         , (Physical 4, patNwSrc 50)
+                         , (Physical 5, patNwSrc 50)
+                         , (Physical 6, patNwSrc 50)])
             []
 
 pr1 = inport 1 0
 pr2 = inport 1 0 <|> inport 2 3
-pr3 = inport 3 3 <&> PrPattern (dlSrc 10)
-pr4 = pr3 <&> neg (PrPattern (dlDst  20))
+pr3 = inport 3 3 <&> PrPattern (patDlSrc 10)
+pr4 = pr3 <&> neg (PrPattern (patDlDst  20))
 
 po1 = pr1 ==> a1
 po2 = pr2 ==> a2

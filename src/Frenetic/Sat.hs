@@ -1,6 +1,10 @@
 module Frenetic.Sat
-  ( -- * Non-NetCore tools
-    inSlice
+  ( -- * Shortcuts
+    switch
+  , port
+  -- * Non-NetCore tools
+  , inSlice
+  , transfer
   -- * Matching tools without substitution
   , match
   , forwards
@@ -13,10 +17,12 @@ import Frenetic.Z3
 import Frenetic.NetCore.API
 import Frenetic.Pattern hiding (match)
 import Frenetic.Slices.Slice
-import Data.Maybe
+import Frenetic.Topo
 import Data.Bits
-import qualified Data.MultiSet as MS
+import qualified Data.Graph.Inductive.Graph as Graph
 import qualified Data.Map as Map
+import Data.Maybe
+import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 
 -- We use this a lot, so make a shortcut.  Need the type signature to get it to
@@ -34,6 +40,38 @@ inSlice (Slice int ing egr) pkt = nOr . (map atLoc) . Set.toList $ locations
     locations = Set.union int (Set.union (Map.keysSet ing) (Map.keysSet egr))
     atLoc (Loc s p) = And (Equals (switch pkt) (Primitive (fint s)))
                           (Equals (port pkt) (Primitive (fint p)))
+
+transfer :: Topo -> Z3Packet -> Z3Packet -> BoolExp
+transfer topo p q = nAnd constraints where
+  -- Keep all fields the same, but move switch and port across one of the edges
+  -- in the graph.
+  constraints = [ same "DlSrc"
+                , same "DlDst"
+                , same "DlTyp"
+                , same "DlVlan"
+                , same "DlVlanPcp"
+                , same "NwSrc"
+                , same "NwDst"
+                , same "NwProto"
+                , same "NwTos"
+                , same "TpSrc"
+                , same "TpDst"
+                , forwarded]
+  same field = Equals (PktHeader field p) (PktHeader field q)
+  forwarded = nOr forwardOptions
+  forwardOptions = map edgeToOption
+                 . Set.toList
+                 . Set.fromList
+                 . Graph.labEdges
+                 $ topo
+  edgeToOption (s1, s2, port1) =
+    -- safe because Topo is undirected and we start from an edge
+    let Just port2 = getEdgeLabel topo s2 s1 in
+    nAnd [ (Equals (switch p) (Primitive (fint s1)))
+         , (Equals (switch q) (Primitive (fint s2)))
+         , (Equals (port p) (Primitive (fint port1)))
+         , (Equals (port q) (Primitive (fint port2)))
+         ]
 
 -- |Build the constraint for a policy forwarding an input packet to an output
 -- packet.

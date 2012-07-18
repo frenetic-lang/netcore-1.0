@@ -7,6 +7,9 @@ import Frenetic.Sat
 import Frenetic.Slices.Slice
 import Frenetic.NetCore.API
 
+-- TODO (astory): is looking only at a slice the right thing to do?  In the
+-- Python, we used the entire topology, but then also looked at ingress and
+-- egress edges
 simulatesForwards :: Slice -> Policy -> Policy -> IO (Maybe String)
 simulatesForwards slice a b = check $ Input setUp consts assertions
   where

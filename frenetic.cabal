@@ -10,9 +10,11 @@ Library
                         containers >= 0.4.2.1,
                         multiset >= 0.2.1,
                         mtl >= 2.0.1.0,
+                        fgl,
                         newtype,
                         newtype-th,
                         nettle-openflow == 0.2.*,
+                        process,
                         HList
     exposed-modules:    Frenetic.NetCore,
                         Frenetic.NetCore.Semantics,
@@ -22,14 +24,13 @@ Library
                         Frenetic.Pattern,
                         Frenetic.NetCore.API,
                         Frenetic.Server
-                        Frenetic.Slices.Compile
-                        Frenetic.Slices.Verification
     other-modules:      Frenetic.Util,
                         Frenetic.Switches.OpenFlow,
                         Frenetic.NetCore.Compiler,
                         Frenetic.Hosts.Nettle
+                        Frenetic.Topo
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
-      FlexibleContexts
+      FlexibleContexts, DoAndIfThenElse
     ghc-options:
       -fwarn-incomplete-patterns
     hs-source-dirs:     src
@@ -56,11 +57,13 @@ Test-Suite frenetic-tests
     main-is:          Main.hs
     build-depends:    base,
                       containers,
+                      fgl,
                       multiset,
                       newtype,
                       newtype-th,
                       nettle-openflow == 0.2.*,
                       mtl,
+                      process,
                       QuickCheck >= 2,
                       HUnit,
                       test-framework,
@@ -71,6 +74,6 @@ Test-Suite frenetic-tests
     ghc-options:
       -fwarn-incomplete-patterns
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
-      FlexibleContexts, TemplateHaskell
+      FlexibleContexts, TemplateHaskell, DoAndIfThenElse
     hs-source-dirs:   testsuite,
                       src

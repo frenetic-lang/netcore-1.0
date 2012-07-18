@@ -12,6 +12,7 @@ import Frenetic.Sat
 import Frenetic.Slices.Sat
 import Frenetic.Slices.Slice
 import Frenetic.Z3
+import Frenetic.Topo
 
 import Data.Maybe
 import qualified Data.Map as Map
@@ -27,6 +28,39 @@ case_testBasic = do
   let f = Input [] [] [ZFalse]
   result <- check f
   (Nothing) @=? result
+
+topo = buildGraph [ ((1, 1), (2, 1))
+                  , ((2, 2), (3, 1))
+                  , ((3, 2), (4, 1))
+                  ]
+
+case_testTransfer = do
+  let p = Z3Packet "p"
+  let p' = Z3Packet "pp"
+  let consts = [ DeclConst (ConstPacket p)
+               , DeclConst (ConstPacket p')]
+  let assertions = [ Equals (switch p)  (Primitive 2)
+                   , Equals (port p)    (Primitive 2)
+                   , Equals (switch p') (Primitive 3)
+                   , Equals (port p')   (Primitive 1)
+                   , transfer topo p p'
+                   ]
+  result <- checkBool . check $ Input setUp consts assertions
+  assertBool "topology transfers" (result)
+
+case_testTransferBreaks = do
+  let p = Z3Packet "p"
+  let p' = Z3Packet "pp"
+  let consts = [ DeclConst (ConstPacket p)
+               , DeclConst (ConstPacket p')]
+  let assertions = [ Equals (switch p)  (Primitive 2)
+                   , Equals (port p)    (Primitive 1)
+                   , Equals (switch p') (Primitive 3)
+                   , Equals (port p')   (Primitive 1)
+                   , transfer topo p p'
+                   ]
+  result <- checkBool . check $ Input setUp consts assertions
+  assertBool "topology does not transfer" (not result)
 
 basicSlice = Slice (Set.fromList [ Loc 1 1, Loc 1 2
                                  , Loc 2 1, Loc 2 2, Loc 2 3

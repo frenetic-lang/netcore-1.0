@@ -22,24 +22,24 @@ sliceTests = $(testGroupGenerator)
 
 -- Construct a bunch of basically meaningless objects for testing
 
-a1 = Action (MS.fromList [ (Physical 1, dlSrc 10)
-                         , (Physical 2, dlSrc 10)
-                         , (Physical 3, dlSrc 10)])
+a1 = Action (MS.fromList [ (Physical 1, patDlSrc 10)
+                         , (Physical 2, patDlSrc 10)
+                         , (Physical 3, patDlSrc 10)])
             []
-a2 = Action (MS.fromList [ (Physical 2, dlDst 20)
-                         , (Physical 3, dlDst 20)])
+a2 = Action (MS.fromList [ (Physical 2, patDlDst 20)
+                         , (Physical 3, patDlDst 20)])
             []
-a3 = Action (MS.fromList [ (Physical 2, dlTyp 30)])
+a3 = Action (MS.fromList [ (Physical 2, patDlTyp 30)])
             []
-a4 = Action (MS.fromList [ (Physical 4, nwSrc 40)
-                         , (Physical 5, nwSrc 40)
-                         , (Physical 6, nwSrc 40)])
+a4 = Action (MS.fromList [ (Physical 4, patNwSrc 40)
+                         , (Physical 5, patNwSrc 40)
+                         , (Physical 6, patNwSrc 40)])
             []
 
 pr1 = inport 1 0
 pr2 = inport 1 0 <|> inport 2 3
-pr3 = inport 3 3 <&> PrPattern (dlSrc 10)
-pr4 = pr3 <&> neg (PrPattern (dlDst  20))
+pr3 = inport 3 3 <&> dlSrc 10
+pr4 = pr3 <&> neg (dlDst  20)
 
 po1 = pr1 ==> a1
 po2 = pr2 ==> a2
@@ -57,8 +57,8 @@ case_testSwitchesOfPredicate = do
 
 case_testPoUsesVlans = do
   False @=? poUsesVlans (po1 <+> po2 <+> po3 <+> po4)
-  True @=? poUsesVlans (PrPattern (dlVlan 3) ==> Action MS.empty [])
-  True @=? poUsesVlans (top ==> Action (MS.singleton (Physical 1, dlVlan 3)) [])
+  True @=? poUsesVlans (PrPattern (patDlVlan 3) ==> Action MS.empty [])
+  True @=? poUsesVlans (top ==> Action (MS.singleton (Physical 1, patDlVlan 3)) [])
 
 slice = Slice (Set.fromList [ Loc 1 1
                             , Loc 1 2
