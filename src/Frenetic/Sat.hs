@@ -2,8 +2,10 @@ module Frenetic.Sat
   ( -- * Shortcuts
     switch
   , port
+  , vlan
   -- * Non-NetCore tools
-  , inSlice
+  , atLoc
+  , onTopo
   , transfer
   -- * Matching tools without substitution
   , match
@@ -16,7 +18,6 @@ module Frenetic.Sat
 import Frenetic.Z3
 import Frenetic.NetCore.API
 import Frenetic.Pattern hiding (match)
-import Frenetic.Slices.Slice
 import Frenetic.Topo
 import Data.Bits
 import qualified Data.Graph.Inductive.Graph as Graph
@@ -29,24 +30,19 @@ import qualified Data.Set as Set
 -- be properly polymorphic.
 fint :: (Integral a, Num b) => a -> b
 fint = fromIntegral
-switch = \pkt -> PktHeader "Switch" pkt
-port = \pkt -> PktHeader "InPort" pkt
+switch = PktHeader "Switch"
+port = PktHeader "InPort"
+vlan = PktHeader "DlVlan"
 
--- TODO(astory): incorporate predicate checking
--- |
-inSlice :: Slice -> Z3Packet -> BoolExp
-inSlice (Slice int ing egr) pkt = nOr . (map atLoc) . Set.toList $ locations
-  where
-    locations = Set.union int (Set.union (Map.keysSet ing) (Map.keysSet egr))
-    atLoc (Loc s p) = And (Equals (switch pkt) (Primitive (fint s)))
+atLoc :: Loc -> Z3Packet -> BoolExp
+atLoc (Loc s p) pkt = And (Equals (switch pkt) (Primitive (fint s)))
                           (Equals (port pkt) (Primitive (fint p)))
 
 -- |Build the predicate for a packet being on the topology
 onTopo :: Topo -> Z3Packet -> BoolExp
 onTopo topo pkt = nOr constraints where
   constraints = map onPort (Graph.labEdges topo)
-  onPort (n, _, p) = And (Equals (switch pkt) (Primitive (fromIntegral n)))
-                         (Equals (port pkt) (Primitive (fromIntegral p)))
+  onPort (n, _, p) = atLoc (Loc (fint n) p) pkt
 
 -- |Build the predicate for the topology transfering two packets
 transfer :: Topo -> Z3Packet -> Z3Packet -> BoolExp

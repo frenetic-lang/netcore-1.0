@@ -15,9 +15,6 @@ import qualified Data.MultiSet as MS
 import Frenetic.NetCore.API
 import Frenetic.Pattern
 
--- |Fully qualified port locations
-data Loc = Loc Switch Port deriving (Eq, Ord, Show)
-
 data Slice = Slice {
   -- |Ports internal to the slice.
   internal :: Set.Set Loc

@@ -16,8 +16,6 @@ import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
-type Vlan = Word16
-
 maxVlan :: Vlan
 maxVlan = maxBound
 

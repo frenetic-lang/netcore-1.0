@@ -31,6 +31,8 @@ module Frenetic.NetCore.API
   ( -- * Basic types
     Switch
   , Port
+  , Vlan
+  , Loc (..)
   , PseudoPort (..)
   , Word48
   -- * Actions
@@ -89,6 +91,11 @@ type Switch = Word64
 {-| The type of switch ports. -}
 type Port = Word16
 
+-- |Fully qualified port locations
+data Loc = Loc Switch Port deriving (Eq, Ord, Show)
+
+type Vlan = Word16
+
 {-| The type of logical switch ports. -}
 data PseudoPort = Physical Port | PhysicalFlood deriving (Ord, Eq, Show)
 
@@ -100,7 +107,7 @@ data Packet = Packet {
   pktDlSrc :: Word48,
   pktDlDst :: Word48,
   pktDlTyp :: Word16,
-  pktDlVlan :: Word16,
+  pktDlVlan :: Vlan,
   pktDlVlanPcp :: Word8,
   pktNwSrc :: Word32,
   pktNwDst :: Word32,
@@ -116,7 +123,7 @@ data Pattern = Pattern {
   ptrnDlSrc :: Wildcard Word48
   , ptrnDlDst :: Wildcard Word48
   , ptrnDlTyp :: Wildcard Word16
-  , ptrnDlVlan :: Wildcard Word16
+  , ptrnDlVlan :: Wildcard Vlan
   , ptrnDlVlanPcp :: Wildcard Word8
   , ptrnNwSrc :: Prefix Word32
   , ptrnNwDst :: Prefix Word32
