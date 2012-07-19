@@ -183,3 +183,31 @@ case_testCompiledCorrectly = do
   let r = (inport 2 2)  ==> forwardMods [(1, patDlVlan 2)]
   result <- compiledCorrectly smallTopo smallSlice o r
   assertBool "set vlans in compilation" result
+
+case_testBadCompile = do
+  let slice = Slice (Set.fromList [Loc 2 2, Loc 3 1])
+                    (Map.fromList [(Loc 2 1, nwDst 80)])
+                    (Map.fromList [(Loc 3 2, nwDst 80)])
+  let o = inport 2 1 ==> forward 2
+  let r = (inport 2 1) <&> nwDst 80 ==> forward 2
+  result <- compiledCorrectly topo slice o r
+  assertBool "grabs too many packets" (not result)
+
+  let o = inport 3 1 ==> forward 2
+  let r = inport 3 1 <&> nwDst 80 ==> forward 2
+  result <- compiledCorrectly topo slice o r
+  assertBool "emits vlan traffic" (not result)
+
+case_testInOutRestriction = do
+  let slice = Slice (Set.fromList [Loc 2 2, Loc 3 1])
+                    (Map.fromList [(Loc 2 1, nwDst 80)])
+                    (Map.fromList [(Loc 3 2, nwDst 80)])
+  let o = inport 2 1 ==> forward 2
+  let r = (inport 2 1) <&> nwDst 80 <&> dlVlan 0 ==> forward 2
+  result <- compiledCorrectly topo slice o r
+  assertBool "lifts into vlan" result
+
+  let o = inport 3 1 ==> forward 2
+  let r = inport 3 1 <&> nwDst 80 ==> forwardMods [(2, patDlVlan 0)]
+  result <- compiledCorrectly topo slice o r
+  assertBool "leaves vlan" result

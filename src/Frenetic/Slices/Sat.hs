@@ -9,11 +9,12 @@ module Frenetic.Slices.Sat
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Frenetic.Z3
-import Frenetic.Sat
-import Frenetic.Topo
-import Frenetic.Slices.Slice
 import Frenetic.NetCore.API
+import Frenetic.NetCore.Short
+import Frenetic.Sat
+import Frenetic.Slices.Slice
+import Frenetic.Topo
+import Frenetic.Z3
 
 doCheck consts assertions = check $ Input setUp consts assertions
 getConsts packets ints = (map (\pkt -> DeclConst (ConstPacket pkt)) packets) ++
@@ -31,15 +32,32 @@ getConsts packets ints = (map (\pkt -> DeclConst (ConstPacket pkt)) packets) ++
  - * r only uses one VLAN per edge
  -}
 compiledCorrectly :: Topo -> Slice -> Policy -> Policy -> IO (Bool)
-compiledCorrectly topo slice source target = (fmap not) failure where
-  cases =  [ unconfinedDomain slice target
-           , unconfinedRange  slice target
+compiledCorrectly topo slice source target = do (fmap not) failure where
+  slice' = realSlice slice
+  cases =  [ unconfinedDomain slice' target
+           , unconfinedRange  slice' target
            , multipleVlanEdge topo target
            , breaksForwards  topo (Just slice) source target
            , breaksForwards  topo Nothing target source
            , breaksForwards2 topo (Just slice) source target
            , breaksForwards2 topo Nothing target source
            ]
+  failure = fmap or . sequence . map checkBool $ cases
+
+separate :: Topo -> Policy -> Policy -> IO (Bool)
+separate topo p1 p2 = (fmap not) failure where
+  cases = [ sharedIO topo p1 p2
+          , sharedIO topo p2 p1
+          , sharedInput p1 p2
+          , sharedInput p2 p1
+          , sharedOutput p1 p2
+          , sharedOutput p2 p1
+          ]
+  failure = fmap or . sequence . map checkBool $ cases
+
+unsharedPortals :: Topo -> Policy -> Policy -> IO (Bool)
+unsharedPortals topo p1 p2 = (fmap not) failure where
+  cases = [ sharedTransit topo p1 p2 ]
   failure = fmap or . sequence . map checkBool $ cases
 
 -- | helper function for debugging compiledCorrectly.  Use this when you want to
@@ -50,7 +68,15 @@ diagnose cases = sequence_ . map printResult $ cases where
 printResult :: IO (Maybe String) -> IO ()
 printResult i = do
   ms <- i
-  putStrLn (show ms)
+  case ms of Just s -> putStrLn s
+             Nothing -> putStrLn "Nothing"
+
+-- | produce the slice that also expresses the constraint on ingress and egress
+-- that vlan = 0
+realSlice :: Slice -> Slice
+realSlice (Slice int ing egr) = Slice int ing' egr' where
+  ing' = Map.map (\pred -> pred <&> (dlVlan 0)) ing
+  egr' = Map.map (\pred -> pred <&> (dlVlan 0)) egr
 
 -- | Try to find some packets outside the interior or ingress of the slice that
 -- the policy forwards or observes.
@@ -60,7 +86,7 @@ unconfinedDomain slice policy = doCheck consts assertions where
   p' = Z3Packet "pp"
 
   consts = getConsts [p, p'] []
-  assertions = [ Not (input slice p) , forwards policy p p' ]
+  assertions = [ Not (sInput slice p) , forwards policy p p' ]
 
 -- | Try to find some packets outside the interior or egress of the slice that
 -- the policy produces
@@ -70,7 +96,7 @@ unconfinedRange slice policy = doCheck consts assertions where
   p' = Z3Packet "pp"
 
   consts = getConsts [p, p'] []
-  assertions = [ forwards policy p p', Not (output slice p') ]
+  assertions = [ forwards policy p p', Not (sOutput slice p') ]
 
 -- | Try to find some forwarding path over an edge that the policy receives
 -- packets on (either forwarding or observing), and another packet
@@ -109,10 +135,10 @@ breaksForwards topo mSlice a b = doCheck consts assertions where
 
   consts = getConsts [p, p'] [v, v']
 
-  -- We don't need to test for vlan equivalence because input predicates do not
+  -- We don't need to test for vlan equivalence because sInput predicates do not
   -- consider vlans
   locationAssertions = case mSlice of
-                         Just slice -> [ input slice p , output slice p']
+                         Just slice -> [ sInput slice p , sOutput slice p']
                          Nothing -> [ onTopo topo p , onTopo topo p']
 
   assertions = locationAssertions ++
@@ -138,8 +164,8 @@ breaksForwards2 topo mSlice a b = doCheck consts assertions where
   -- We don't need to test for vlan equivalence because input predicates do not
   -- consider vlans
   locationAssertions = case mSlice of
-                         Just slice -> [ input slice p, output slice p'
-                                       , input slice q, output slice q' ]
+                         Just slice -> [ sInput slice p, sOutput slice p'
+                                       , sInput slice q, sOutput slice q' ]
                          Nothing -> [ onTopo topo p, onTopo topo p'
                                     , onTopo topo q, onTopo topo q' ]
 
@@ -153,11 +179,80 @@ breaksForwards2 topo mSlice a b = doCheck consts assertions where
                                   (forwardsWith b (q, Just v') (q', Just v''))))
                ]
 
-input :: Slice -> Z3Packet -> BoolExp
-input = inOutput ingress
+-- | Try to find a packet that p1 produces that p2 does something with
+sharedIO :: Topo -> Policy -> Policy -> IO (Maybe String)
+sharedIO topo p1 p2 = doCheck consts assertions where
+  p  = Z3Packet "p"
+  p' = Z3Packet "pp"
+  q  = Z3Packet "q"
+  q' = Z3Packet "qq"
 
-output :: Slice -> Z3Packet -> BoolExp
-output = inOutput egress
+  consts = getConsts [p, p', q, q'] []
+
+  assertions = [ onTopo topo p, onTopo topo q' -- transfer takes care fo p', q
+               , output p1 p p'
+               , transfer topo p' q
+               , input p2 q q'
+               ]
+
+sharedInput :: Policy -> Policy -> IO (Maybe String)
+sharedInput p1 p2 = doCheck consts assertions where
+  p   = Z3Packet "p"
+  p'  = Z3Packet "pp"
+  p'' = Z3Packet "ppp"
+
+  consts = getConsts [p, p', p''] []
+
+  assertions = [input p1 p p', pIngress p2 p p'']
+
+sharedOutput :: Policy -> Policy -> IO (Maybe String)
+sharedOutput p1 p2 = doCheck consts assertions where
+  p   = Z3Packet "p"
+  p'  = Z3Packet "pp"
+  p'' = Z3Packet "ppp"
+
+  consts = getConsts [p, p', p''] []
+
+  assertions = [output p1 p p', pEgress p2 p p'']
+
+-- | Try to find a packet at the edge of both policies
+sharedTransit :: Topo -> Policy -> Policy -> IO (Maybe String)
+sharedTransit topo p1 p2 = doCheck consts assertions where
+  p   = Z3Packet "p"
+  p'  = Z3Packet "pp"
+  p'' = Z3Packet "ppp"
+  q'  = Z3Packet "qq"
+  q'' = Z3Packet "qqq"
+
+  consts = getConsts [p, p', p'', q', q''] []
+
+  -- We try to find a packet p
+  assertions = [ Or (pIngress p1 p p')
+                    (And (pEgress p1 p' p'') (transfer topo p'' p))
+               , Or (pIngress p2 p q')
+                    (And (pEgress p2 q' q'') (transfer topo q'' p))
+               ]
+
+-- | Is the packet coming into the compiled slice?
+pIngress policy p p' = And (input policy p p') (Equals (vlan p) (Primitive 0))
+-- | Is the packet leaving the compiled slice?
+pEgress policy p p' = And (output policy p p') (Equals (vlan p') (Primitive 0))
+
+-- | Does policy use p to produce any packets or observations?
+input :: Policy -> Z3Packet -> Z3Packet -> BoolExp
+input policy p p' = forwards policy p p'
+
+-- | Can p' be produced by policy?
+output :: Policy -> Z3Packet -> Z3Packet -> BoolExp
+output policy p p' = forwards policy p p'
+
+-- | Is the packet in the slice's interior or ingress?
+sInput :: Slice -> Z3Packet -> BoolExp
+sInput = inOutput ingress
+
+-- | Is the packet in the slice's interior or egress?
+sOutput :: Slice -> Z3Packet -> BoolExp
+sOutput = inOutput egress
 
 inOutput :: (Slice -> Map.Map Loc Predicate) -> Slice -> Z3Packet -> BoolExp
 inOutput gress slice pkt = nOr (onInternal ++ onGress) where
