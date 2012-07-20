@@ -76,14 +76,14 @@ module Frenetic.NetCore.API
   , (<+>)
   ) where
 
-import Frenetic.Util
-import qualified Data.List as List
 import Data.Bits
-import Data.Word
-import qualified Data.Set as Set
+import qualified Data.List as List
 import qualified Data.MultiSet as MS
+import qualified Data.Set as Set
+import Data.Word
 import Frenetic.LargeWord
 import Frenetic.Pattern
+import Frenetic.Util
 
 {-| The type of switches in the network. -}
 type Switch = Word64
@@ -132,7 +132,7 @@ data Pattern = Pattern {
   , ptrnTpSrc :: Wildcard Word16
   , ptrnTpDst :: Wildcard Word16
   , ptrnInPort :: Wildcard Port
-  } deriving (Ord, Show, Eq)
+  } deriving (Ord, Eq)
 
 instance Matchable Pattern where
   top = Pattern {
@@ -177,6 +177,24 @@ instance Matchable Pattern where
                          , ptrnInPort = ptrnInPort'
                          }
 
+instance Show Pattern where
+  show (Pattern {..}) = "Pattern {" ++ contents ++ "}" where
+    contents = concat (List.intersperse ", " lines')
+    lines' = filter (\l -> l /= "") lines
+    lines = [ case ptrnDlSrc     of {Exact v -> "ptrnDlSrc = "     ++ show v; Wildcard -> ""}
+            , case ptrnDlDst     of {Exact v -> "ptrnDlDst = "     ++ show v; Wildcard -> ""}
+            , case ptrnDlTyp     of {Exact v -> "ptrnDlTyp = "     ++ show v; Wildcard -> ""}
+            , case ptrnDlVlan    of {Exact v -> "ptrnDlVlan = "    ++ show v; Wildcard -> ""}
+            , case ptrnDlVlanPcp of {Exact v -> "ptrnDlVlanPcp = " ++ show v; Wildcard -> ""}
+            , case ptrnNwSrc     of {Prefix _ 0 -> ""; p -> show p}
+            , case ptrnNwDst     of {Prefix _ 0 -> ""; p -> show p}
+            , case ptrnNwProto   of {Exact v -> "ptrnNwProto = "   ++ show v; Wildcard -> ""}
+            , case ptrnNwTos     of {Exact v -> "ptrnNwTos = "     ++ show v; Wildcard -> ""}
+            , case ptrnTpSrc     of {Exact v -> "ptrnTpSrc = "     ++ show v; Wildcard -> ""}
+            , case ptrnTpDst     of {Exact v -> "ptrnTpDst = "     ++ show v; Wildcard -> ""}
+            , case ptrnInPort    of {Exact v -> "ptrnInPort = "    ++ show v; Wildcard -> ""}
+            ]
+
 type Rewrite = Pattern
 
 -- | Forward represents a set of forwards with modifications on a switch,
@@ -204,7 +222,7 @@ actionForwardsTo (Action m _) =
   Set.fromList . map fst . MS.elems $ m
 
 instance Show Action where
-  show (Action fwd _) = "<fwd=" ++ show fwd ++ ">"
+  show (Action fwd _) = "<fwd=" ++ show (MS.toAscList fwd) ++ ">"
 
 dropPkt :: Action
 dropPkt = Action MS.empty []

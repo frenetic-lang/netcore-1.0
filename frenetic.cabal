@@ -30,7 +30,7 @@ Library
                         Frenetic.Hosts.Nettle
                         Frenetic.Topo
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
-      FlexibleContexts, DoAndIfThenElse
+      FlexibleContexts, DoAndIfThenElse, RecordWildCards
     ghc-options:
       -fwarn-incomplete-patterns
     hs-source-dirs:     src
@@ -45,7 +45,7 @@ Executable frenetic-example-suite
                         nettle-openflow == 0.2.*,
                         HList
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
-      FlexibleContexts
+      FlexibleContexts, RecordWildCards
     ghc-options:
       -fwarn-incomplete-patterns
     hs-source-dirs:     src
@@ -74,6 +74,6 @@ Test-Suite frenetic-tests
     ghc-options:
       -fwarn-incomplete-patterns
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
-      FlexibleContexts, TemplateHaskell, DoAndIfThenElse
+      FlexibleContexts, TemplateHaskell, DoAndIfThenElse, RecordWildCards
     hs-source-dirs:   testsuite,
                       src

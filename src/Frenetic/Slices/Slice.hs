@@ -3,17 +3,21 @@ module Frenetic.Slices.Slice
     Slice (..)
   , Loc (..)
   -- * Utilities
+  , internalSlice
   , localize
   , switchesOfPredicate
   , poUsesVlans
+  , actUsesVlans
   ) where
 
 import Data.Word
+import Data.Graph.Inductive.Graph
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import Frenetic.NetCore.API
 import Frenetic.Pattern
+import Frenetic.Topo
 
 data Slice = Slice {
   -- |Ports internal to the slice.
@@ -22,7 +26,13 @@ data Slice = Slice {
 , ingress :: Map.Map Loc Predicate
   -- |External ports, and restrictions on outbound packets.
 , egress  :: Map.Map Loc Predicate
-}
+} deriving (Eq, Show)
+
+-- |Produce a slice that exactly covers the given topology, with no ingress or
+-- egress ports.
+internalSlice :: Topo -> Slice
+internalSlice topo = Slice locations Map.empty Map.empty where
+  locations = Set.fromList . map (\(n, _, p) -> Loc (fromIntegral n) p) . labEdges $ topo
 
 -- |Transform policy running on slice into a FLOOD- and unbound port-free (i.e.,
 -- every port has an unambiguous switch associated with it) version with the

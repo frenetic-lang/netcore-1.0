@@ -59,6 +59,7 @@ case_testPoUsesVlans = do
   False @=? poUsesVlans (po1 <+> po2 <+> po3 <+> po4)
   True @=? poUsesVlans (PrPattern (patDlVlan 3) ==> Action MS.empty [])
   True @=? poUsesVlans (top ==> Action (MS.singleton (Physical 1, patDlVlan 3)) [])
+  False @=? poUsesVlans ((PrTo 0 ==> forward 2) <+> (PrTo 2 ==> forward 1))
 
 slice = Slice (Set.fromList [ Loc 1 1
                             , Loc 1 2

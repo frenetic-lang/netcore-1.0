@@ -8,13 +8,13 @@ module Frenetic.Slices.Compile
   , matchesSwitch
   ) where
 
-import Data.Word
-import Frenetic.NetCore
-import Frenetic.Slices.Slice
-import Frenetic.NetCore.Short
+import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
-import qualified Data.Map as Map
+import Data.Word
+import Frenetic.NetCore
+import Frenetic.NetCore.Short
+import Frenetic.Slices.Slice
 
 maxVlan :: Vlan
 maxVlan = maxBound
@@ -37,7 +37,7 @@ transform combined =
 -- |Compile a slice with a vlan key
 compileSlice :: Slice -> Vlan -> Policy -> Policy
 compileSlice slice vlan policy =
-  if not (poUsesVlans policy) then error "input policy uses VLANs." else
+  if poUsesVlans policy then error "input policy uses VLANs." else
   let localPolicy = localize slice policy in
   -- A postcondition of localize is that all the forwarding actions of the
   -- policy make sense wrt the slice, and that every PoBasic matches at most one

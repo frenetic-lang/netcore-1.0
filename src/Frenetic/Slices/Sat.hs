@@ -1,10 +1,14 @@
 module Frenetic.Slices.Sat
   ( compiledCorrectly
+  , separate
   , breaksForwards
   , breaksForwards2
   , multipleVlanEdge
   , unconfinedDomain
   , unconfinedRange
+  , sharedIO
+  , sharedInput
+  , sharedOutput
   ) where
 
 import qualified Data.Map as Map
@@ -20,22 +24,13 @@ doCheck consts assertions = check $ Input setUp consts assertions
 getConsts packets ints = (map (\pkt -> DeclConst (ConstPacket pkt)) packets) ++
                          (map (\int -> DeclConst (ConstInt int)) ints)
 
-{- | Verify that source has compiled correctly to target under topo and slice.
- -
- - Things we need to test for compilation correctness from o to r:
- - * r does not do anything with any packets outside of internal U ingress
- - * r does not generate any packets outside of internal U egress
- - * r simulates o for r's domain/range up to VLANS
- - * o simulates r up to VLANS
- -   * simulates on one-hop
- -   * simulates on two-hop
- - * r only uses one VLAN per edge
- -}
+-- | Verify that source has compiled correctly to target under topo and slice.
 compiledCorrectly :: Topo -> Slice -> Policy -> Policy -> IO (Bool)
-compiledCorrectly topo slice source target = do (fmap not) failure where
+compiledCorrectly topo slice source target = do
+  (fmap not) failure where
   slice' = realSlice slice
-  cases =  [ unconfinedDomain slice' target
-           , unconfinedRange  slice' target
+  cases =  [ unconfinedDomain topo  slice' target
+           , unconfinedRange topo slice' target
            , multipleVlanEdge topo target
            , breaksForwards  topo (Just slice) source target
            , breaksForwards  topo Nothing target source
@@ -44,8 +39,10 @@ compiledCorrectly topo slice source target = do (fmap not) failure where
            ]
   failure = fmap or . sequence . map checkBool $ cases
 
+-- |Verify that the two policies are separated from each other.
 separate :: Topo -> Policy -> Policy -> IO (Bool)
-separate topo p1 p2 = (fmap not) failure where
+separate topo p1 p2 =  do
+  (fmap not) failure where
   cases = [ sharedIO topo p1 p2
           , sharedIO topo p2 p1
           , sharedInput p1 p2
@@ -80,23 +77,25 @@ realSlice (Slice int ing egr) = Slice int ing' egr' where
 
 -- | Try to find some packets outside the interior or ingress of the slice that
 -- the policy forwards or observes.
-unconfinedDomain :: Slice -> Policy -> IO (Maybe String)
-unconfinedDomain slice policy = doCheck consts assertions where
+unconfinedDomain :: Topo -> Slice -> Policy -> IO (Maybe String)
+unconfinedDomain topo slice policy = doCheck consts assertions where
   p = Z3Packet "p"
   p' = Z3Packet "pp"
 
   consts = getConsts [p, p'] []
-  assertions = [ Not (sInput slice p) , forwards policy p p' ]
+  assertions = [ onTopo topo p, onTopo topo p'
+               , Not (sInput slice p) , forwards policy p p' ]
 
 -- | Try to find some packets outside the interior or egress of the slice that
 -- the policy produces
-unconfinedRange :: Slice -> Policy -> IO (Maybe String)
-unconfinedRange slice policy = doCheck consts assertions where
+unconfinedRange :: Topo -> Slice -> Policy -> IO (Maybe String)
+unconfinedRange topo slice policy = doCheck consts assertions where
   p = Z3Packet "p"
   p' = Z3Packet "pp"
 
   consts = getConsts [p, p'] []
-  assertions = [ forwards policy p p', Not (sOutput slice p') ]
+  assertions = [ onTopo topo p, onTopo topo p'
+               , forwards policy p p', Not (sOutput slice p') ]
 
 -- | Try to find some forwarding path over an edge that the policy receives
 -- packets on (either forwarding or observing), and another packet
@@ -195,6 +194,7 @@ sharedIO topo p1 p2 = doCheck consts assertions where
                , input p2 q q'
                ]
 
+-- |Try to find a packet p1 uses that is in the ingress set of p2
 sharedInput :: Policy -> Policy -> IO (Maybe String)
 sharedInput p1 p2 = doCheck consts assertions where
   p   = Z3Packet "p"
@@ -205,6 +205,7 @@ sharedInput p1 p2 = doCheck consts assertions where
 
   assertions = [input p1 p p', pIngress p2 p p'']
 
+-- |Try to find a packet p1 emits that is in the egress set of p2
 sharedOutput :: Policy -> Policy -> IO (Maybe String)
 sharedOutput p1 p2 = doCheck consts assertions where
   p   = Z3Packet "p"
@@ -213,7 +214,7 @@ sharedOutput p1 p2 = doCheck consts assertions where
 
   consts = getConsts [p, p', p''] []
 
-  assertions = [output p1 p p', pEgress p2 p p'']
+  assertions = [output p1 p p'', pEgress p2 p' p'']
 
 -- | Try to find a packet at the edge of both policies
 sharedTransit :: Topo -> Policy -> Policy -> IO (Maybe String)

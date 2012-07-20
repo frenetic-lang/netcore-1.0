@@ -6,13 +6,15 @@ import Test.Framework.Providers.QuickCheck2
 import Test.HUnit
 import Test.Framework.Providers.HUnit
 
+import Tests.Frenetic.Util
+
 import Frenetic.NetCore
 import Frenetic.NetCore.Short
 import Frenetic.Sat
 import Frenetic.Slices.Sat
 import Frenetic.Slices.Slice
-import Frenetic.Z3
 import Frenetic.Topo
+import Frenetic.Z3
 
 import Data.Maybe
 import qualified Data.Map as Map
@@ -149,24 +151,23 @@ case_testOneVlanPerEdge = do
 
 case_testDomain = do
   let pol = inport 2 1 ==> forward 2
-  result <- checkBool $ unconfinedDomain basicSlice pol
+  result <- checkBool $ unconfinedDomain topo basicSlice pol
   assertBool "unconfinedDomain false on confined" (not result)
   let pol = PrTo 3 ==> forward 1
-  result <- checkBool $ unconfinedDomain basicSlice pol
+  result <- checkBool $ unconfinedDomain topo basicSlice pol
   assertBool "unconfinedDomain true on unconfined" result
 
 case_testRange = do
   let pol = inport 2 1 ==> forward 2
-  result <- checkBool $ unconfinedRange basicSlice pol
+  result <- checkBool $ unconfinedRange topo basicSlice pol
   assertBool "unconfinedRange false on confined" (not result)
   let pol = inport 3 1 ==> forward 2
-  result <- checkBool $ unconfinedRange basicSlice pol
+  result <- checkBool $ unconfinedRange topo basicSlice pol
   assertBool "unconfinedRange true on unconfined" result
 
 case_testCompiledCorrectly = do
   let o = (inport 2 2) <&> (dlVlan 2) ==> forward 1
   result <- compiledCorrectly smallTopo smallSlice o o
-  putStrLn (show result)
   assertBool "id compiled correctly" result
 
   let o = (inport 2 2) <&> (dlVlan 2) ==> forward 1
@@ -211,3 +212,34 @@ case_testInOutRestriction = do
   let r = inport 3 1 <&> nwDst 80 ==> forwardMods [(2, patDlVlan 0)]
   result <- compiledCorrectly topo slice o r
   assertBool "leaves vlan" result
+
+case_basicOverlap = do
+  let (topo, [p1, p2]) = linear [[0, 1, 2], [1, 2, 3]]
+  result <- checkBool $ sharedIO topo p1 p2
+  assertBool "detects overlap" result
+
+case_basicIso = do
+  let (topo, [p1, p2]) = linear [[0, 1], [2, 3]]
+  result <- checkBool $ sharedIO topo p1 p2
+  assertBool "disjoint nodes isolated" (not result)
+  let (topo, [p1, p2]) = linear [[0, 1, 2], [2, 3]]
+  result <- checkBool $ sharedIO topo p1 p2
+  assertBool "disjoint edges isolated" (not result)
+
+case_testSharedInput = do
+  let p1 = inport 0 1 <&> dlVlan 0 ==> forward 2
+  let p2 = inport 0 2 <&> dlVlan 0 ==> forward 2
+  result <- checkBool $ sharedInput p1 p2
+  assertBool "Disjoint policies have disjoint inputs" (not result)
+  let p1 = inport 0 1 <&> dlVlan 0 ==> forward 2
+  result <- checkBool $ sharedInput p1 p1
+  assertBool "Identical policies have joint inputs" result
+
+case_testSharedOutput = do
+  let p1 = inport 0 1 <&> dlVlan 0 ==> forward 1
+  let p2 = inport 0 1 <&> dlVlan 0 ==> forward 2
+  result <- checkBool $ sharedOutput p1 p2
+  assertBool "Disjoint policies have disjoint outputs" (not result)
+  let p1 = inport 0 1 <&> dlVlan 0 ==> forward 2
+  result <- checkBool $ sharedOutput p1 p1
+  assertBool "Identical policies have joint outputs" result
