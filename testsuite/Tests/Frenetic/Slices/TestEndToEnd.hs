@@ -9,7 +9,7 @@ import Test.Framework.Providers.HUnit
 import Tests.Frenetic.Util
 
 import Frenetic.NetCore
-import Frenetic.NetCore.Short
+import Frenetic.NetCore.Pretty
 
 import Frenetic.Slices.Compile
 import Frenetic.Slices.Slice

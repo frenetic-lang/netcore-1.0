@@ -55,6 +55,8 @@ module Frenetic.NetCore.API
   , Packet (..)
   -- * Policies
   , Policy (..)
+  -- * Tools
+  , interesting
   ) where
 
 import Data.Bits
@@ -160,22 +162,25 @@ instance Matchable Pattern where
                          }
 
 instance Show Pattern where
-  show (Pattern {..}) = "Pattern {" ++ contents ++ "}" where
-    contents = concat (List.intersperse ", " lines')
-    lines' = filter (\l -> l /= "") lines
-    lines = [ case ptrnDlSrc     of {Exact v -> "ptrnDlSrc = "     ++ show v; Wildcard -> ""}
-            , case ptrnDlDst     of {Exact v -> "ptrnDlDst = "     ++ show v; Wildcard -> ""}
-            , case ptrnDlTyp     of {Exact v -> "ptrnDlTyp = "     ++ show v; Wildcard -> ""}
-            , case ptrnDlVlan    of {Exact v -> "ptrnDlVlan = "    ++ show v; Wildcard -> ""}
-            , case ptrnDlVlanPcp of {Exact v -> "ptrnDlVlanPcp = " ++ show v; Wildcard -> ""}
-            , case ptrnNwSrc     of {Prefix _ 0 -> ""; p -> show p}
-            , case ptrnNwDst     of {Prefix _ 0 -> ""; p -> show p}
-            , case ptrnNwProto   of {Exact v -> "ptrnNwProto = "   ++ show v; Wildcard -> ""}
-            , case ptrnNwTos     of {Exact v -> "ptrnNwTos = "     ++ show v; Wildcard -> ""}
-            , case ptrnTpSrc     of {Exact v -> "ptrnTpSrc = "     ++ show v; Wildcard -> ""}
-            , case ptrnTpDst     of {Exact v -> "ptrnTpDst = "     ++ show v; Wildcard -> ""}
-            , case ptrnInPort    of {Exact v -> "ptrnInPort = "    ++ show v; Wildcard -> ""}
-            ]
+  show p = "Pattern {" ++ contents ++ "}" where
+    contents = concat (List.intersperse ", " (interesting " = " p))
+
+-- |Build a list of the non-wildcarded patterns with sep between field and value
+interesting :: String -> Pattern -> [String]
+interesting sep (Pattern {..}) = filter (\l -> l /= "") $ lines where
+  lines = [ case ptrnDlSrc     of {Exact v -> "DlSrc"     ++ sep ++ show v; Wildcard -> ""}
+          , case ptrnDlDst     of {Exact v -> "DlDst"     ++ sep ++ show v; Wildcard -> ""}
+          , case ptrnDlTyp     of {Exact v -> "DlTyp"     ++ sep ++ show v; Wildcard -> ""}
+          , case ptrnDlVlan    of {Exact v -> "DlVlan"    ++ sep ++ show v; Wildcard -> ""}
+          , case ptrnDlVlanPcp of {Exact v -> "DlVlanPcp" ++ sep ++ show v; Wildcard -> ""}
+          , case ptrnNwSrc     of {Prefix _ 0 -> ""; p -> "NwSrc" ++ sep ++ show p}
+          , case ptrnNwDst     of {Prefix _ 0 -> ""; p -> "NwDst" ++ sep ++ show p}
+          , case ptrnNwProto   of {Exact v -> "NwProto"   ++ sep ++ show v; Wildcard -> ""}
+          , case ptrnNwTos     of {Exact v -> "NwTos"     ++ sep ++ show v; Wildcard -> ""}
+          , case ptrnTpSrc     of {Exact v -> "TpSrc"     ++ sep ++ show v; Wildcard -> ""}
+          , case ptrnTpDst     of {Exact v -> "TpDst"     ++ sep ++ show v; Wildcard -> ""}
+          , case ptrnInPort    of {Exact v -> "InPort"    ++ sep ++ show v; Wildcard -> ""}
+          ]
 
 type Rewrite = Pattern
 
@@ -202,9 +207,6 @@ isPktQuery _               = False
 actionForwardsTo :: Action -> Set PseudoPort
 actionForwardsTo (Action m _) =
   Set.fromList . map fst . MS.elems $ m
-
-instance Show Action where
-  show (Action fwd _) = "<fwd=" ++ show (MS.toAscList fwd) ++ ">"
 
 unionForward :: Forward -> Forward -> Forward
 unionForward m1 m2 =
@@ -239,6 +241,9 @@ instance Show Predicate where
   show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
   show (PrNegate pr) = "~(" ++ show pr ++ ")"
+
+instance Show Action where
+  show (Action fwd _) = "<fwd=" ++ show (MS.toAscList fwd) ++ ">"
 
 instance Show Policy where
   show PoBottom = "(PoBottom)"
