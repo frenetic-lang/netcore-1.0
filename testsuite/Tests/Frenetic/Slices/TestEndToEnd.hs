@@ -43,8 +43,8 @@ case_testBasicWithHosts = do
   assertBool "Initials not separate" (not result)
   result <- separate topo c1 c2
   assertBool "Compiled separate" result
---  result <- compiledCorrectly topo slice p1 c1
---  assertBool "Compiled correctly" result
+  result <- compiledCorrectly topo slice p1 c1
+  assertBool "Compiled correctly" result
 
 case_testHostsCompile = do
   let (topo, [(s1, p1), (s2, p2)]) = linearHosts [[0, 1, 2, 3], [0, 1, 2, 3]]

@@ -7,6 +7,7 @@ module Frenetic.NetCore.Short
   , neg
   , prDifference
   , prNaryUnion
+  , prNaryIntersect
   -- ** Actions
   , dropPkt
   , flood
@@ -63,8 +64,13 @@ prDifference p1 p2 = PrIntersect p1 (PrNegate p2)
 
 -- |Construct nary union of a list of predicates
 prNaryUnion :: [Predicate] -> Predicate
-prNaryUnion [] = PrNegate top
+prNaryUnion [] = neg top
 prNaryUnion ps = List.foldr1 (\ p1 p2 -> PrUnion p1 p2) ps
+
+-- |Construct the intersect of a list of predicates
+prNaryIntersect :: [Predicate] -> Predicate
+prNaryIntersect [] = top
+prNaryIntersect ps = List.foldr1 (\ p1 p2 -> PrIntersect p1 p2) ps
 
 dropPkt :: Action
 dropPkt = Action MS.empty []

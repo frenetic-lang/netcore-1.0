@@ -49,27 +49,3 @@ prettyForward (port, mods) = prettyPseudoPort port <> mods' where
 -- |Render a pseudoport as "Port p" or "Flood"
 prettyPseudoPort (Physical p) = text "Port " <> integer (fromIntegral p)
 prettyPseudoPort PhysicalFlood = text "Flood"
-
--- |Get back all predicates in the union.  Does not return any naked unions.
-prUnUnion :: Predicate -> [Predicate]
-prUnUnion po = unfoldr f [po] where
-  f predicates = case predicates of 
-    [] -> Nothing
-    (PrUnion p1 p2) : rest -> f (p1 : (p2 : rest))
-    p : rest -> Just (p, rest)
-
--- |Get back all predicates in the intersection.  Does not return any naked intersections.
-prUnIntersect :: Predicate -> [Predicate]
-prUnIntersect po = unfoldr f [po] where
-  f predicates = case predicates of 
-    [] -> Nothing
-    (PrIntersect p1 p2) : rest -> f (p1 : (p2 : rest))
-    p : rest -> Just (p, rest)
-
--- |Get back all basic policies in the union.  Does not return any unions.
-poUnUnion :: Policy -> [Policy]
-poUnUnion po = unfoldr f [po] where
-  f policies = case policies of 
-    [] -> Nothing
-    (PoUnion p1 p2) : rest -> f (p1 : (p2 : rest))
-    p : rest -> Just (p, rest)

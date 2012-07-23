@@ -12,8 +12,8 @@ module Frenetic.Slices.Slice
 
 import Data.Word
 import Data.Graph.Inductive.Graph
-import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.MultiSet as MS
 import Frenetic.NetCore
 import Frenetic.Pattern
@@ -45,15 +45,24 @@ localize slice policy = case policy of
   PoUnion p1 p2 -> localize slice p1 <+> localize slice p2
   PoBasic pred (Action m obs) ->
     let ss = Set.toList (switchesOfPredicate switches pred) in
-    poNaryUnion [pred <&> (PrTo s) ==> Action (localizeMods m ports s) obs
+    poNaryUnion [pred' s <&> (PrTo s) ==> Action (localizeMods m ports s) obs
                  |s <- ss]
-  where
-    switches = Set.map (\ (Loc s _) -> s) locations
-    ports =
-      Set.foldr (\ (Loc s p) -> Map.insertWith Set.union s (Set.singleton p))
-                Map.empty locations
-    locations = Set.union (internal slice)
-                          (Set.fromList . Map.keys $ egress slice)
+    where
+      switches = Set.map (\ (Loc s _) -> s) locations
+      ports =
+        Set.foldr (\ (Loc s p) -> Map.insertWith Set.union s (Set.singleton p))
+                  Map.empty locations
+      locations = Set.union (internal slice)
+                            (Set.fromList . Map.keys $ egress slice)
+      pred' switch = pred <&> onSlice slice switch
+
+onSlice :: Slice -> Switch -> Predicate
+onSlice (Slice int ing egr) switch = prNaryUnion .
+                                     map (\p -> inPort p) $
+                                     ports where
+  ports = Set.toList .
+          Set.map (\(Loc _ p) -> p) .
+          Set.unions $ [int, Map.keysSet ing, Map.keysSet egr]
 
 -- |Transform potentially non-local forwarding actions into explicitly local
 -- ones on the switch.

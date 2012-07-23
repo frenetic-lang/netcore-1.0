@@ -57,6 +57,9 @@ module Frenetic.NetCore.API
   , Policy (..)
   -- * Tools
   , interesting
+  , prUnIntersect
+  , prUnUnion
+  , poUnUnion
   ) where
 
 import Data.Bits
@@ -228,7 +231,23 @@ data Predicate = PrPattern Pattern
                | PrUnion Predicate Predicate
                | PrIntersect Predicate Predicate
                | PrNegate Predicate
-  deriving (Eq)
+  deriving (Eq, Ord)
+
+-- |Get back all predicates in the intersection.  Does not return any naked intersections.
+prUnIntersect :: Predicate -> [Predicate]
+prUnIntersect po = List.unfoldr f [po] where
+  f predicates = case predicates of 
+    [] -> Nothing
+    (PrIntersect p1 p2) : rest -> f (p1 : (p2 : rest))
+    p : rest -> Just (p, rest)
+
+-- |Get back all predicates in the union.  Does not return any naked unions.
+prUnUnion :: Predicate -> [Predicate]
+prUnUnion po = List.unfoldr f [po] where
+  f predicates = case predicates of 
+    [] -> Nothing
+    (PrUnion p1 p2) : rest -> f (p1 : (p2 : rest))
+    p : rest -> Just (p, rest)
 
 {-| Policies denote functions from (switch, packet) to packets. -}
 data Policy = PoBottom
@@ -253,3 +272,11 @@ instance Show Policy where
 instance Matchable Predicate where
   top = PrPattern top
   intersect p1 p2 = Just (PrIntersect p1 p2)
+
+-- |Get back all basic policies in the union.  Does not return any unions.
+poUnUnion :: Policy -> [Policy]
+poUnUnion po = List.unfoldr f [po] where
+  f policies = case policies of 
+    [] -> Nothing
+    (PoUnion p1 p2) : rest -> f (p1 : (p2 : rest))
+    p : rest -> Just (p, rest)

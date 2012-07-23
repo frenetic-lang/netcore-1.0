@@ -13,6 +13,7 @@ import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Data.Word
 import Frenetic.NetCore
+import Frenetic.NetCore.Reduce
 import Frenetic.NetCore.Short
 import Frenetic.Slices.Slice
 
@@ -45,7 +46,7 @@ compileSlice slice vlan policy =
   let safePolicy = isolate vlan localPolicy in
   let inportPolicy = inportPo slice vlan localPolicy in
   let safeInportPolicy = PoUnion safePolicy inportPolicy in
-  outport slice safeInportPolicy
+  reduce $ outport slice safeInportPolicy
 
 -- |Produce a policy that only considers traffic on this vlan and on internal
 -- ports.  Note that if the policy does not modify vlans, then it also only

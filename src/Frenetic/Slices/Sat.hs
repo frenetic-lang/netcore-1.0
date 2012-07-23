@@ -27,6 +27,7 @@ getConsts packets ints = (map (\pkt -> DeclConst (ConstPacket pkt)) packets) ++
 -- | Verify that source has compiled correctly to target under topo and slice.
 compiledCorrectly :: Topo -> Slice -> Policy -> Policy -> IO (Bool)
 compiledCorrectly topo slice source target = do
+  diagnose cases
   (fmap not) failure where
   slice' = realSlice slice
   cases =  [ unconfinedDomain topo  slice' target
