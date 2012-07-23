@@ -1,11 +1,12 @@
-
 Install GHC 7.2.
 
-Install containers
-        iproute
-        network
-        nettle-openflow
+If you want verification to work, you also need to install Microsoft's Z3
+Theorem Prover.  They have an MSI install file for Windows and tarballs for
+Linux and Mac at
 
-        hlist
-        newtype-th
-        largeword
+http://research.microsoft.com/en-us/um/redmond/projects/z3/download.html
+
+Be sure to get the correct version for your architecture.  The code expects the
+z3 executable (/bin/z3 in the tarball) to be somewhere on the PATH.  Just copy
+the file -- no compilation is necessary; the Haskell code communicates with it
+as a separate process.
