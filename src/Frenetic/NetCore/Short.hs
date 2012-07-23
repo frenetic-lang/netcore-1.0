@@ -79,13 +79,13 @@ forwardMods :: [(Port, Rewrite)] -> Action
 forwardMods mods = Action (MS.fromList mods') [] where
   mods' = map (\(p, m) -> (Physical p, m)) mods
 
-pr1 <|> pr2 = PrUnion pr1 pr2
-pr1 <&> pr2 = PrIntersect pr1 pr2
-neg pr = PrNegate pr
+(<|>) = PrUnion
+(<&>) = PrIntersect
+neg = PrNegate
 
-pr ==> action = PoBasic pr action
+(==>) = PoBasic
 (%) = poRestrict
-po1 <+> po2 = PoUnion po1 po2
+(<+>) = PoUnion
 
 -- |Construct the policy restricted by the predicate
 poRestrict :: Policy -> Predicate -> Policy
