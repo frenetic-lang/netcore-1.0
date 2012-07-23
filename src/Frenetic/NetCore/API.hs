@@ -42,11 +42,7 @@ module Frenetic.NetCore.API
   , Query (..)
   , isPktQuery
   -- ** Basic actions
-  , flood
-  , forward
-  , forwardMods
   , query
-  , dropPkt
   -- ** Action composition
   , unionAction
   -- ** Inspecting actions
@@ -55,25 +51,10 @@ module Frenetic.NetCore.API
   , Pattern (..)
   -- * Predicates
   , Predicate (..)
-  -- ** Predicate constructor shortcuts
-  , inport
-  , (<|>)
-  , (<&>)
-  , neg
-  -- ** Predicate composition
-  , prDifference
-  , prNaryUnion
   -- * Packets
   , Packet (..)
   -- * Policies
   , Policy (..)
-  -- ** Policy composition
-  , poRestrict
-  , poNaryUnion
-  -- ** Policy constructor shortcuts
-  , (==>)
-  , (%)
-  , (<+>)
   ) where
 
 import Data.Bits
@@ -91,10 +72,11 @@ type Switch = Word64
 {-| The type of switch ports. -}
 type Port = Word16
 
+{-| The type of vlan tags -}
+type Vlan = Word16
+
 -- |Fully qualified port locations
 data Loc = Loc Switch Port deriving (Eq, Ord, Show)
-
-type Vlan = Word16
 
 {-| The type of logical switch ports. -}
 data PseudoPort = Physical Port | PhysicalFlood deriving (Ord, Eq, Show)
@@ -224,9 +206,6 @@ actionForwardsTo (Action m _) =
 instance Show Action where
   show (Action fwd _) = "<fwd=" ++ show (MS.toAscList fwd) ++ ">"
 
-dropPkt :: Action
-dropPkt = Action MS.empty []
-
 unionForward :: Forward -> Forward -> Forward
 unionForward m1 m2 =
   MS.union m1 m2
@@ -236,54 +215,10 @@ unionAction (Action fwd1 q1) (Action fwd2 q2) =
   Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
     where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
 
-flood :: Action
-flood = Action (MS.singleton (PhysicalFlood, top)) []
-
-forward :: Port -> Action
-forward p = Action (MS.singleton (Physical p, top)) []
-
-forwardMods :: [(Port, Rewrite)] -> Action
-forwardMods mods = Action (MS.fromList mods') [] where
-  mods' = map (\(p, m) -> (Physical p, m)) mods
-
 query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do
   ch <- newChan
   return (ch, Action MS.empty [NumPktQuery ch millisecondInterval])
-
--- |Construct the set difference between p1 and p2
-prDifference :: Predicate -> Predicate -> Predicate
-prDifference p1 p2 = PrIntersect p1 (PrNegate p2)
-
--- |Construct the nary union of a list of predicates
-prNaryUnion :: [Predicate] -> Predicate
-prNaryUnion [] = PrNegate top
-prNaryUnion ps = List.foldr1 (\ p1 p2 -> PrUnion p1 p2) ps
-
--- |Construct the policy restricted by the predicate
-poRestrict :: Policy -> Predicate -> Policy
-poRestrict policy pred=
-  case policy of
-    PoBottom -> PoBottom
-    PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
-    PoUnion p1 p2 -> PoUnion (poRestrict p1 pred) (poRestrict p2 pred)
-
--- |Construct the predicate matching packets on this switch and port
-inport :: Switch -> Port -> Predicate
-inport switch port = PrIntersect (PrTo switch)
-                                 (PrPattern (top {ptrnInPort = Exact port}))
-
-pr1 <|> pr2 = PrUnion pr1 pr2
-pr1 <&> pr2 = PrIntersect pr1 pr2
-neg pr = PrNegate pr
-
-pr ==> action = PoBasic pr action
-(%) = poRestrict
-po1 <+> po2 = PoUnion po1 po2
-
-poNaryUnion :: [Policy] -> Policy
-poNaryUnion [] = PoBottom
-poNaryUnion ps = List.foldr1 (\ p1 p2 -> PoUnion p1 p2) ps
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern

@@ -46,7 +46,8 @@ import           Frenetic.Compat
 import           Frenetic.Pattern
 import           Frenetic.Util
 import           Frenetic.NetCore.API
-import Frenetic.NetCore.Semantics
+import           Frenetic.NetCore.Semantics
+import           Frenetic.NetCore.Short
 import           Control.Newtype.TH
 import           Control.Newtype
 import           Data.Dynamic

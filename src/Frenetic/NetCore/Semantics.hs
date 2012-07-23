@@ -6,6 +6,7 @@ import Frenetic.Compat
 import Frenetic.Pattern
 import Frenetic.Util
 import Frenetic.NetCore.API
+import Frenetic.NetCore.Short
 
 -- |Implements the denotation function for predicates.
 interpretPredicate :: FreneticImpl a

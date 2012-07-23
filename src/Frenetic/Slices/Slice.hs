@@ -15,7 +15,7 @@ import Data.Graph.Inductive.Graph
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
-import Frenetic.NetCore.API
+import Frenetic.NetCore
 import Frenetic.Pattern
 import Frenetic.Topo
 

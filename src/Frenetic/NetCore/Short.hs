@@ -1,6 +1,25 @@
 module Frenetic.NetCore.Short
-  ( -- * Exact match predicate constructors
-    dlSrc
+  ( -- * Shorthand constructors
+  -- ** Predicates
+    inport
+  , (<|>)
+  , (<&>)
+  , neg
+  , prDifference
+  , prNaryUnion
+  -- ** Actions
+  , dropPkt
+  , flood
+  , forward
+  , forwardMods
+  -- ** Policies
+  , (==>)
+  , (%)
+  , (<+>)
+  , poRestrict
+  , poNaryUnion
+  -- * Exact match predicate constructors
+  , dlSrc
   , dlDst
   , dlTyp
   , dlVlan
@@ -28,8 +47,58 @@ module Frenetic.NetCore.Short
   ) where
 
 import Data.Word
+import qualified Data.List as List
+import qualified Data.MultiSet as MS
 import Frenetic.Pattern
 import Frenetic.NetCore.API
+
+-- |Construct the predicate matching packets on this switch and port
+inport :: Switch -> Port -> Predicate
+inport switch port = PrIntersect (PrTo switch)
+                                 (PrPattern (top {ptrnInPort = Exact port}))
+
+-- |Construct the set difference between p1 and p2
+prDifference :: Predicate -> Predicate -> Predicate
+prDifference p1 p2 = PrIntersect p1 (PrNegate p2)
+
+-- |Construct nary union of a list of predicates
+prNaryUnion :: [Predicate] -> Predicate
+prNaryUnion [] = PrNegate top
+prNaryUnion ps = List.foldr1 (\ p1 p2 -> PrUnion p1 p2) ps
+
+dropPkt :: Action
+dropPkt = Action MS.empty []
+
+flood :: Action
+flood = Action (MS.singleton (PhysicalFlood, top)) []
+
+forward :: Port -> Action
+forward port = forwardMods [(port, top)]
+
+forwardMods :: [(Port, Rewrite)] -> Action
+forwardMods mods = Action (MS.fromList mods') [] where
+  mods' = map (\(p, m) -> (Physical p, m)) mods
+
+pr1 <|> pr2 = PrUnion pr1 pr2
+pr1 <&> pr2 = PrIntersect pr1 pr2
+neg pr = PrNegate pr
+
+pr ==> action = PoBasic pr action
+(%) = poRestrict
+po1 <+> po2 = PoUnion po1 po2
+
+-- |Construct the policy restricted by the predicate
+poRestrict :: Policy -> Predicate -> Policy
+poRestrict policy pred=
+  case policy of
+    PoBottom -> PoBottom
+    PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
+    PoUnion p1 p2 -> PoUnion (poRestrict p1 pred) (poRestrict p2 pred)
+
+-- |Construct the union of a list of policies
+poNaryUnion :: [Policy] -> Policy
+poNaryUnion [] = PoBottom
+poNaryUnion ps = List.foldr1 (\ p1 p2 -> PoUnion p1 p2) ps
 
 dlSrc     :: Word48     -> Predicate
 dlDst     :: Word48     -> Predicate

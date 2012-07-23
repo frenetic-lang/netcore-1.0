@@ -51,7 +51,7 @@ import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
 import Frenetic.Pattern
 import Tests.Frenetic.ArbitraryPattern
-import Frenetic.NetCore.API
+import Frenetic.NetCore
 import Tests.Frenetic.NetCore.ArbitraryAPI
 
 import Frenetic.NetCore.Compiler
