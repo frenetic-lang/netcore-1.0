@@ -27,7 +27,6 @@ getConsts packets ints = (map (\pkt -> DeclConst (ConstPacket pkt)) packets) ++
 -- | Verify that source has compiled correctly to target under topo and slice.
 compiledCorrectly :: Topo -> Slice -> Policy -> Policy -> IO (Bool)
 compiledCorrectly topo slice source target = do
-  diagnose cases
   (fmap not) failure where
   slice' = realSlice slice
   cases =  [ unconfinedDomain topo  slice' target
@@ -61,7 +60,7 @@ unsharedPortals topo p1 p2 = (fmap not) failure where
 -- | helper function for debugging compiledCorrectly.  Use this when you want to
 -- figure out which of the internal functions is breaking.
 diagnose :: [IO (Maybe String)] -> IO ()
-diagnose cases = sequence_ . map printResult $ cases where
+diagnose cases = sequence_ . map printResult $ cases
 
 printResult :: IO (Maybe String) -> IO ()
 printResult i = do
