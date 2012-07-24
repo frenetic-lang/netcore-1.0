@@ -118,7 +118,7 @@ multipleVlanEdge topo policy = doCheck consts assertions  where
                , forwards policy r r' -- TODO(astory): Or observe packet
                , forwards policy q q'
                , Equals (switch p') (switch q')
-               , Equals (port p') (switch q')
+               , Equals (port p') (port q')
                , Not (Equals (vlan p') (vlan q'))
                ]
 

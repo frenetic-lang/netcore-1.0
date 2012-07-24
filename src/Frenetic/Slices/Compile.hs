@@ -43,18 +43,20 @@ compileSlice slice vlan policy =
   -- A postcondition of localize is that all the forwarding actions of the
   -- policy make sense wrt the slice, and that every PoBasic matches at most one
   -- switch.  This is a precondition for outport
-  let safePolicy = isolate vlan localPolicy in
+  let safePolicy = isolate slice vlan localPolicy in
   let inportPolicy = inportPo slice vlan localPolicy in
   let safeInportPolicy = PoUnion safePolicy inportPolicy in
-  reduce $ outport slice safeInportPolicy
+  outport slice safeInportPolicy
 
 -- |Produce a policy that only considers traffic on this vlan and on internal
 -- ports.  Note that if the policy does not modify vlans, then it also only
 -- emits traffic on this vlan.
-isolate :: Vlan -> Policy -> Policy
-isolate vlan policy = policy `poRestrict` (vlPred)
+isolate :: Slice -> Vlan -> Policy -> Policy
+isolate slice vlan policy = policy % (vlPred <&> intern)
   where
     vlPred = vlanMatch vlan
+    intern = prNaryUnion . map (\(Loc s p) -> inport s p) . Set.toList $
+             internal slice
 
 locToPred :: Loc -> Predicate
 locToPred (Loc switch port) = inport switch port
@@ -65,7 +67,7 @@ inportPo :: Slice -> Vlan -> Policy -> Policy
 inportPo slice vlan policy =
   let incoming = ingressPredicate slice in
   let policyIntoVlan = modifyVlan vlan policy in
-  policyIntoVlan `poRestrict` incoming
+  policyIntoVlan % (incoming <&> dlVlan 0)
 
 -- |Produce a new policy the same as the old, but wherever a packet leaves an
 -- outgoing edge, set its VLAN to 0.  Precondition:  every PoBasic must match at
