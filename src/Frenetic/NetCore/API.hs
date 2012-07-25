@@ -63,6 +63,7 @@ module Frenetic.NetCore.API
   ) where
 
 import Data.Bits
+import Data.IORef
 import qualified Data.List as List
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
@@ -70,6 +71,7 @@ import Data.Word
 import Frenetic.LargeWord
 import Frenetic.Pattern
 import Frenetic.Util
+import System.IO.Unsafe
 
 {-| The type of switches in the network. -}
 type Switch = Word64
@@ -193,9 +195,14 @@ type Rewrite = Pattern
 -- encoded by using the PseudoPort Flood rather than
 type Forward = MS.MultiSet (PseudoPort, Rewrite)
 
+type QueryID = Int
+
+nextQueryID :: IORef QueryID
+nextQueryID = unsafePerformIO $ newIORef 0
+
 data Query
-  = NumPktQuery (Chan (Switch, Integer)) Int
-  | PktQuery { pktQueryChan :: (Chan (Switch, Packet)) }
+  = NumPktQuery QueryID (Chan (Switch, Integer)) Int
+  | PktQuery { pktQueryChan :: (Chan (Switch, Packet)), pktQueryID :: QueryID }
   deriving (Eq)
 
 data Action = Action {
@@ -203,7 +210,7 @@ data Action = Action {
   actionQueries :: [Query]
 } deriving (Eq)
 
-isPktQuery (PktQuery _) = True
+isPktQuery (PktQuery _ _) = True
 isPktQuery _               = False
 
 -- TODO(astory): change output to multiset
@@ -223,7 +230,9 @@ unionAction (Action fwd1 q1) (Action fwd2 q2) =
 query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do
   ch <- newChan
-  return (ch, Action MS.empty [NumPktQuery ch millisecondInterval])
+  queryID <- readIORef nextQueryID
+  modifyIORef nextQueryID (+ 1)
+  return (ch, Action MS.empty [NumPktQuery queryID ch millisecondInterval])
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern

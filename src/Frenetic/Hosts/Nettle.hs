@@ -153,14 +153,14 @@ runQueryOnSwitch nettle switch classifier =
   mapM_ runQuery (classifierQueries classifier)
     where mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
           switchID = handle2SwitchID switch
-          runQuery (NumPktQuery outChan millisecondDelay, pats) = do
+          runQuery (NumPktQuery _ outChan millisecondDelay, pats) = do
             let statReqs = map mkReq pats
             forkIO $ forever $ do
               threadDelay (millisecondDelay * 1000)
               sendTransaction nettle switch statReqs $ \replies -> do
               writeChan outChan (switchID, sum (map getPktCount replies))
             return ()
-          runQuery (PktQuery _, pats) = do
+          runQuery (PktQuery _ _, pats) = do
             -- nothing to do on the controller until a PacketIn
             return ()
 
