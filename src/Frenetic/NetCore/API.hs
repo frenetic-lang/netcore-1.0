@@ -56,6 +56,7 @@ module Frenetic.NetCore.API
   -- * Policies
   , Policy (..)
   -- * Tools
+  , idOfQuery
   , interesting
   , prUnIntersect
   , prUnUnion
@@ -227,12 +228,16 @@ unionAction (Action fwd1 q1) (Action fwd2 q2) =
   Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
     where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
 
-query :: Int -> IO (Chan (Switch, Integer), Action)
+query :: Int -> IO (Chan (Switch, Integer), Query)
 query millisecondInterval = do
   ch <- newChan
   queryID <- readIORef nextQueryID
   modifyIORef nextQueryID (+ 1)
-  return (ch, Action MS.empty [NumPktQuery queryID ch millisecondInterval])
+  return (ch, NumPktQuery queryID ch millisecondInterval)
+
+idOfQuery :: Query -> QueryID
+idOfQuery (NumPktQuery queryID _ _) = queryID
+idOfQuery (PktQuery {pktQueryID=queryID}) = queryID
 
 {-| Predicates denote sets of (switch, packet) pairs. -}
 data Predicate = PrPattern Pattern

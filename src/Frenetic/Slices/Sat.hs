@@ -1,6 +1,7 @@
 module Frenetic.Slices.Sat
   ( compiledCorrectly
   , separate
+  , breaksObserves
   , breaksForwards
   , breaksForwards2
   , multipleVlanEdge
@@ -32,6 +33,12 @@ compiledCorrectly topo slice source target = do
   cases =  [ unconfinedDomain topo  slice' target
            , unconfinedRange topo slice' target
            , multipleVlanEdge topo target
+           -- Note that in these cases we need to include information about the
+           -- slice when we test that the target simulates the source so that in
+           -- those cases we can excuse the target from simulating on packets
+           -- that aren't in the slice.
+           , breaksObserves  topo (Just slice) source target
+           , breaksObserves  topo Nothing target source
            , breaksForwards  topo (Just slice) source target
            , breaksForwards  topo Nothing target source
            , breaksForwards2 topo (Just slice) source target
@@ -112,15 +119,36 @@ multipleVlanEdge topo policy = doCheck consts assertions  where
 
   consts = getConsts [p, p', q, q', r, r'] []
 
+  -- Here, we care about finding some p' and q' that are produced by their
+  -- respective policies, and are identical up to vlans.  We also require that
+  -- p' is used by its policy in some way after a topology transfer (the
+  -- business with r), since if it's not, then there's no problem.
   assertions = [ forwards policy p p'
                , transfer topo p' r
-               , forwards policy r r' -- TODO(astory): Or observe packet
+               , input policy r r'
                , forwards policy q q'
                , Equals (switch p') (switch q')
                , Equals (port p') (port q')
                , Not (Equals (vlan p') (vlan q'))
                ]
 
+-- |Try to find a packet that produces an observation for which no equivalent
+-- packet prodcues an observation in the other policy.
+breaksObserves :: Topo -> Maybe Slice -> Policy -> Policy -> IO (Maybe String)
+breaksObserves topo mSlice a b = doCheck consts assertions where
+  p = Z3Packet "p"
+  v = Z3Int "v"
+  qid = Z3Int "qid"
+
+  consts = getConsts [p] [v, qid]
+
+  locationAssertions = case mSlice of
+                         Just slice -> [ sInput slice p ]
+                         Nothing -> [ onTopo topo p ]
+  assertions = locationAssertions ++
+               [ queries a p qid
+               , ForAll [ConstInt v] (Not (queriesWith b (p, Just v) qid))
+               ]
 
 -- | Try to find a pair of packets that a forwards for which there are no two
 -- VLAN-equivalent packets that b also forwards.  If we can't, this is one-hop
@@ -241,7 +269,8 @@ pEgress policy p p' = And (output policy p p') (Equals (vlan p') (Primitive 0))
 
 -- | Does policy use p to produce any packets or observations?
 input :: Policy -> Z3Packet -> Z3Packet -> BoolExp
-input policy p p' = forwards policy p p'
+input policy p p' = Or (forwards policy p p')
+                       (observes policy p)
 
 -- | Can p' be produced by policy?
 output :: Policy -> Z3Packet -> Z3Packet -> BoolExp

@@ -32,9 +32,9 @@ instance Show Declaration where
   show PacketSort = "(declare-sort Packet)"
   show (Header name) = "(declare-fun " ++ name ++ " (Packet) Int)"
 
-data Z3Packet = Z3Packet String
+data Z3Packet = Z3Packet String deriving (Eq)
 
-data Z3Int = Z3Int String
+data Z3Int = Z3Int String deriving (Eq)
 
 data DeclConst = DeclConst Const
 
@@ -46,6 +46,7 @@ instance Show DeclConst where
 
 data Const = ConstPacket Z3Packet
            | ConstInt Z3Int
+           deriving (Eq)
 
 instance Show Const where
   show (ConstPacket (Z3Packet name)) = "(" ++ name ++ " Packet)"
@@ -60,10 +61,12 @@ data BoolExp = ZTrue
              | Equals IntExp IntExp
              | ForAll [Const] BoolExp
              | Exists [Const] BoolExp
+             deriving (Eq)
 
 data IntExp = Primitive Integer
             | PktHeader String Z3Packet
             | Variable Z3Int
+            deriving (Eq)
 
 setUp = [PacketSort
         , Header "DlSrc"

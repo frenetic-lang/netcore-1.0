@@ -9,6 +9,7 @@ import Test.Framework.Providers.HUnit
 import Tests.Frenetic.Util
 
 import Frenetic.NetCore
+import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Short
 import Frenetic.Sat
 import Frenetic.Slices.Sat
@@ -76,6 +77,21 @@ case_testTransferBreaks = do
                    ]
   result <- checkBool . check $ Input setUp consts assertions
   assertBool "topology does not transfer" (not result)
+
+case_testBreaksObserves = do
+  (_, query1) <- query 1
+  (_, query2) <- query 1 -- different query ID
+  let o = PrTo 2 ==> Action MS.empty [query1]
+  let r = PrTo 2 ==> Action MS.empty [query2]
+  result <- checkBool $ breaksObserves topo Nothing o o
+  assertBool "identical observations good." (not result)
+  result <- checkBool $ breaksObserves topo Nothing o r
+  assertBool "separate observations bad." (result)
+
+  let o = top ==> Action MS.empty [query1]
+  let r = (PrTo 2) ==> Action MS.empty [query1]
+  result <- checkBool $ breaksObserves topo Nothing o r
+  assertBool "different predicates bad." (result)
 
 case_testBreaksForwards = do
   let o = (PrTo 2) ==> forward 1

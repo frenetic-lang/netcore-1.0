@@ -10,9 +10,13 @@ module Frenetic.Sat
   -- * Matching tools without substitution
   , match
   , forwards
+  , observes
+  , queries
   -- * Matching tools with substitution
   , matchWith
   , forwardsWith
+  , observesWith
+  , queriesWith
   ) where
 
 import Frenetic.Z3
@@ -94,6 +98,46 @@ forwardsWith (PoUnion p1 p2) p q = Or (forwardsWith p1 p q)
 forwardsWith (PoBasic pred action) p q = And (matchWith pred p)
                                              (produceWith action p q)
 
+-- |Build the constraint that some query is fired by the policy.
+observes :: Policy -> Z3Packet -> BoolExp
+observes pol p = observesWith pol (p, Nothing)
+
+-- |Build the constraint that some query is fired by the policy, maybe
+-- substituting a value for the VLAN.
+observesWith :: Policy -> (Z3Packet, Maybe Z3Int) -> BoolExp
+observesWith PoBottom _ = ZFalse
+observesWith (PoUnion p1 p2) p =
+  if p1' == ZFalse then p2'
+  else if p2' == ZFalse then p1'
+  else Or p1' p2'
+  where
+    p1' = observesWith p1 p
+    p2' = observesWith p2 p
+observesWith (PoBasic pred action) p = if observesAct action
+                                         then matchWith pred p
+                                         else ZFalse
+
+-- |Build the constraint that a particular query (as referenced by its serial
+-- ID) is triggered.
+queries :: Policy -> Z3Packet -> Z3Int -> BoolExp
+queries pol pkt qid = queriesWith pol (pkt, Nothing) qid
+
+-- |Build the constraint that a particular query (as referenced by its serial
+-- ID) is triggered, maybe substituting a value for the VLAN.
+queriesWith :: Policy -> (Z3Packet, Maybe Z3Int) -> Z3Int -> BoolExp
+queriesWith PoBottom _ _ = ZFalse
+queriesWith (PoUnion p1 p2) p qid =
+  if p1' == ZFalse then p2'
+  else if p2' == ZFalse then p1'
+  else Or p1' p2'
+  where
+    p1' = queriesWith p1 p qid
+    p2' = queriesWith p2 p qid
+queriesWith (PoBasic pred action) p qid = if observesAct action
+                                            then And (matchWith pred p)
+                                                     (queryAct action qid)
+                                            else ZFalse
+
 -- |Build the constraint for pred matching packet.
 match :: Predicate -> Z3Packet -> BoolExp
 match pred pkt = matchWith pred (pkt, Nothing)
@@ -165,6 +209,18 @@ produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
         , updateField p q "TpSrc"     ((fmap fint) (ptrnTpSrc m))
         , updateField p q "TpDst"     ((fmap fint) (ptrnTpDst m))
         ]
+
+-- |Determine if an action emits an observation
+observesAct :: Action -> Bool
+observesAct (Action _ []) = False
+observesAct (Action _ qs) = True
+
+-- |Determine if an action emits a particular observation
+queryAct :: Action -> Z3Int -> BoolExp
+queryAct (Action _ qs) qid = nOr queries where
+  queries = map (\qid' -> Equals (Variable qid) (Primitive qid')) .
+            map fromIntegral . map idOfQuery $
+            qs
 
 vlanOfPacket :: (Z3Packet, Maybe Z3Int) -> IntExp
 vlanOfPacket (pkt, Just vl) = Variable vl

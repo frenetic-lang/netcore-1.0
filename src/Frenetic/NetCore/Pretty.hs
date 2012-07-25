@@ -32,7 +32,10 @@ prettyPr p@(PrIntersect _ _) = text "Intersect " <>
                            (align . tupled . map prettyPr $ prUnIntersect p)
 prettyPr (PrNegate p) = text "Not " <> align (tupled [prettyPr p])
 
-prettyAc (Action fwds _) = semiBraces . map prettyForward . MS.toAscList $ fwds
+prettyAc (Action fwds qs) =
+  (semiBraces . map prettyForward . MS.toAscList $ fwds) </>
+  text "emit " <>
+  (semiBraces . map integer . map fromIntegral . map idOfQuery $ qs)
 
 prettyPo PoBottom = text "Bottom"
 prettyPo (PoBasic pr ac) = prettyPr pr </> text " ==> " <> align (prettyAc ac)
