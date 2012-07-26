@@ -15,7 +15,8 @@ Library
                         newtype-th,
                         nettle-openflow == 0.2.*,
                         process,
-                        HList
+                        HList,
+                        hslogger == 1.2.*
     exposed-modules:    Frenetic.NetCore,
                         Frenetic.NetCore.Semantics,
                         Frenetic.NetCore.Short
@@ -43,7 +44,8 @@ Executable frenetic-example-suite
                         newtype,
                         newtype-th,
                         nettle-openflow == 0.2.*,
-                        HList
+                        HList,
+                        hslogger == 1.2.*
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
       FlexibleContexts, RecordWildCards
     ghc-options:
@@ -71,7 +73,8 @@ Test-Suite frenetic-tests
                       test-framework-th,
                       test-framework-hunit,
                       test-framework-quickcheck2,
-                      HList
+                      HList,
+                      hslogger == 1.2.*               
     ghc-options:
       -fwarn-incomplete-patterns
     Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
