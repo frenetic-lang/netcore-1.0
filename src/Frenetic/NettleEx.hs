@@ -15,6 +15,8 @@ import qualified Data.Map as Map
 import Nettle.OpenFlow hiding (intersect)
 import qualified Nettle.Servers.Server as Server
 import Nettle.Servers.Server hiding (acceptSwitch, closeServer, sendToSwitch)
+import Prelude hiding (catch)
+import Control.Exception
 
 data Nettle = Nettle {
   server :: OpenFlowServer,
@@ -41,7 +43,7 @@ acceptSwitch :: Nettle
                     SwitchFeatures,
                     Chan (TransactionID, SCMessage))
 acceptSwitch nettle = do
-  let exnHandler _ = do
+  let exnHandler (_ :: SomeException) = do
         infoM "nettle" $ "could not accept switch" 
         accept 
       accept = do
