@@ -63,11 +63,11 @@ import Frenetic.NettleEx
 {-| Convert an EthernetAddress to a Word48. -}
 ethToWord48 eth =
   LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
-    where (a, b, c, d, e, f) = unpack eth
+     where (f, e, d, c, b, a) = unpack eth
 
 {-| Convert a Word48 to an EthernetAddress. -}
 word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
-    ethernetAddress a b c d e f
+    ethernetAddress f e d c b a
 
 {-| Convert a pattern Prefix to an IPAddressPrefix. -}
 prefixToIPAddressPrefix :: Prefix Word32 -> IPAddressPrefix
@@ -282,7 +282,9 @@ instance FreneticImpl OpenFlow where
   actnController = OFAct toController []
   actnDefault = OFAct toController []
 
-  actnTranslate act@(Action fwd queries) = OFAct (toCtrl ++ ofFwd) queries
+  -- The ToController action needs to come last. If you reorder, it will not
+  -- work. Observed with the usermode switch.
+  actnTranslate act@(Action fwd queries) = OFAct (ofFwd ++ toCtrl) queries
     where ofFwd = map (\pp -> SendOutPort (physicalPortOfPseudoPort pp)) 
                       (Set.toList (actionForwardsTo act))
           toCtrl = case find isPktQuery queries of
