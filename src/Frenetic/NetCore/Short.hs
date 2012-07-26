@@ -12,7 +12,9 @@ module Frenetic.NetCore.Short
   , dropPkt
   , flood
   , forward
+  , forwardQuery
   , forwardMods
+  , forwardModsQuery
   -- ** Policies
   , (==>)
   , (%)
@@ -79,10 +81,16 @@ flood :: Action
 flood = Action (MS.singleton (PhysicalFlood, top)) []
 
 forward :: Port -> Action
-forward port = forwardMods [(port, top)]
+forward port = forwardModsQuery [(port, top)] []
+
+forwardQuery :: Port -> Query -> Action
+forwardQuery port query = forwardModsQuery [(port, top)] [query]
 
 forwardMods :: [(Port, Rewrite)] -> Action
-forwardMods mods = Action (MS.fromList mods') [] where
+forwardMods mods = forwardModsQuery mods []
+
+forwardModsQuery :: [(Port, Rewrite)] -> [Query] -> Action
+forwardModsQuery mods queries = Action (MS.fromList mods') queries where
   mods' = map (\(p, m) -> (Physical p, m)) mods
 
 (<|>) = PrUnion

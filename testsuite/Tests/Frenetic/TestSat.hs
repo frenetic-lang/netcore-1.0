@@ -149,8 +149,7 @@ case_testForwardsRestriction = do
 
   let o = top ==> Action (MS.singleton (PhysicalFlood, top)) []
   let r = (PrTo 1 ==> forward 1) <+>
-          (PrTo 2 ==> Action (MS.fromList [(Physical 1, top),
-                                           (Physical 2, top)]) []) <+>
+          (PrTo 2 ==> forwardMods [(1, top), (2, top)]) <+>
           (PrTo 3 ==> forward 2)
   result <- checkBool $ breaksForwards topo (Just basicSlice) o r
   assertBool "restriction failure works" result
@@ -201,6 +200,12 @@ case_testCompiledCorrectly = do
   result <- compiledCorrectly smallTopo smallSlice o r
   assertBool "set vlans in compilation" result
 
+  (_, q) <- query 1
+  let o = (inport 2 2)                ==> forwardQuery 1 q
+  let r = (inport 2 2) <&> (dlVlan 2) ==> forwardQuery 1 q
+  result <- compiledCorrectly smallTopo smallSlice o r
+  assertBool "queries match" result
+
 case_testBadCompile = do
   let slice = Slice (Set.fromList [Loc 2 2, Loc 3 1])
                     (Map.fromList [(Loc 2 1, nwDst 80)])
@@ -214,6 +219,13 @@ case_testBadCompile = do
   let r = inport 3 1 <&> nwDst 80 ==> forward 2
   result <- compiledCorrectly topo slice o r
   assertBool "emits vlan traffic" (not result)
+
+  (_, q1) <- query 1
+  (_, q2) <- query 1
+  let o = (inport 2 2)                ==> forwardQuery 1 q1
+  let r = (inport 2 2) <&> (dlVlan 2) ==> forwardQuery 1 q2
+  result <- compiledCorrectly smallTopo smallSlice o r
+  assertBool "queries mismatch" (not result)
 
 case_testInOutRestriction = do
   let slice = Slice (Set.fromList [Loc 2 2, Loc 3 1])
