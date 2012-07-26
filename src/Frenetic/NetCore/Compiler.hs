@@ -56,26 +56,6 @@ import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Map             as Map
 
-{-| Input: a function, a context, a value, and a lists. Apply the function to each pair from the list and the context and current value; we may modify the list and current value. The context is the list of items we have already processed. -}
-selfMap :: ([a] -> c -> a -> a -> (c, Maybe a, Maybe a)) -> [a] -> c -> [a] -> [a]
-selfMap f ctxt c [] = []
-selfMap f ctxt c (x : xs) =
-    case selfMap' c x xs of
-      (Just x', xs') -> x' : selfMap f (x' : ctxt)  c xs'
-      (Nothing, xs') -> selfMap f ctxt c xs'
-    where
-      selfMap' c x [] = (Just x, [])
-      selfMap' c x (y : ys) =
-          case f ctxt c x y of
-          (c', Just x', Just y') ->
-              let
-                  (jx, ys') = selfMap' c' x' ys
-              in
-                (jx, y' : ys')
-          (c', Nothing, Just y') -> (Nothing, y' : ys)
-          (c', Just x', Nothing) -> selfMap' c' x' ys
-          (c', Nothing, Nothing) -> (Nothing, ys)
-
 {-| Input: a function, a value, and two lists. Apply the function to each pair from the two lists and the current value. The function may modify the two lists and modify the current value. -}
 cartMap :: (c -> a -> b -> (c, Maybe a, Maybe b)) -> c -> [a] -> [b] -> (c, [a], [b])
 cartMap f c [] ys = (c, [], ys)
