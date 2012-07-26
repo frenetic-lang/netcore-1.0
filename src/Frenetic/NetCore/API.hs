@@ -43,6 +43,7 @@ module Frenetic.NetCore.API
   , isPktQuery
   -- ** Basic actions
   , query
+  , pktQuery
   -- ** Action composition
   , unionAction
   -- ** Inspecting actions
@@ -234,6 +235,13 @@ query millisecondInterval = do
   queryID <- readIORef nextQueryID
   modifyIORef nextQueryID (+ 1)
   return (ch, NumPktQuery queryID ch millisecondInterval)
+
+pktQuery :: IO (Chan (Switch, Packet), Query)
+pktQuery = do
+  ch <- newChan
+  queryID <- readIORef nextQueryID
+  modifyIORef nextQueryID (+1)
+  return (ch, PktQuery ch queryID)
 
 idOfQuery :: Query -> QueryID
 idOfQuery (NumPktQuery queryID _ _) = queryID
