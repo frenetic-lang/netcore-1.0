@@ -215,10 +215,9 @@ data Action = Action {
 isPktQuery (PktQuery _ _) = True
 isPktQuery _               = False
 
--- TODO(astory): change output to multiset
-actionForwardsTo :: Action -> Set PseudoPort
-actionForwardsTo (Action m _) =
-  Set.fromList . map fst . MS.elems $ m
+actionForwardsTo :: Action -> MS.MultiSet PseudoPort
+actionForwardsTo (Action m _) = 
+  MS.map fst m
 
 unionForward :: Forward -> Forward -> Forward
 unionForward m1 m2 =

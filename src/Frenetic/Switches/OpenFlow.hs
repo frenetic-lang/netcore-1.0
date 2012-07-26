@@ -49,7 +49,7 @@ import Data.HList
 import Control.Concurrent.Chan
 import           Data.Bits
 import           Frenetic.LargeWord
-import qualified Data.Set                        as Set
+import qualified Data.MultiSet                   as MS
 import           Data.Word
 import Data.List (nub, find)
 import qualified Nettle.IPv4.IPAddress as IPAddr
@@ -282,9 +282,10 @@ instance FreneticImpl OpenFlow where
   actnController = OFAct toController []
   actnDefault = OFAct toController []
 
+  -- CS: TODO: add modifications
   actnTranslate act@(Action fwd queries) = OFAct (toCtrl ++ ofFwd) queries
     where ofFwd = map (\pp -> SendOutPort (physicalPortOfPseudoPort pp)) 
-                      (Set.toList (actionForwardsTo act))
+                      (MS.toList (actionForwardsTo act))
           toCtrl = case find isPktQuery queries of
             -- sends as much of the packet as possible to the controller
             Just _  -> [SendOutPort (ToController maxBound)]
