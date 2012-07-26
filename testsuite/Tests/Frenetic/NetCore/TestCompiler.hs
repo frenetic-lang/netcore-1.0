@@ -110,32 +110,39 @@ case_regress_1 = do
   assertEqual "classifier should produce the same action"
     (Just (FreneticAct polAct)) classAct
 
-negation_regress_maker msg pred = do
+negation_regress_maker pred = do
   let act = forward 2
-  let pol = PoUnion (PoBasic pred act) (PoBasic (PrNegate pred) flood)
+  let act' = forward 90
+  let pol = PoUnion (PoBasic pred act) (PoBasic (PrNegate pred) act')
   let pkt = Packet {pktDlSrc = 200,
               pktDlDst = 500, pktDlTyp = 1, pktDlVlan = 4,
               pktDlVlanPcp = 0, pktNwSrc = 6, pktNwDst = 5, pktNwProto = 5,
               pktNwTos = 7, pktTpSrc = 5, pktTpDst = 0, pktInPort = 6}
+  let polAct = interpretPolicy pol (Transmission top 0 (FreneticPkt pkt))
+  assertEqual "policy should fwd 2" act polAct
   let classAct = classify 0 (FreneticPkt pkt) (compile 0 pol)
-  assertEqual (msg ++ "flow table should fwd 2")
+  assertEqual "flow table should fwd 2"
     (Just (FreneticAct act)) classAct
   let pkt' = pkt { pktDlDst = 501 }
+  let polAct' = interpretPolicy pol (Transmission top 0 (FreneticPkt pkt'))
+  assertEqual "policy should fwd 90"  act' polAct'
   let classAct' = classify 0 (FreneticPkt pkt') (compile 0 pol)
-  assertEqual (msg ++ "flow table should flood")
-    (Just (FreneticAct flood)) classAct'
+  assertEqual "flow table should fwd 90"
+    (Just (FreneticAct act')) classAct'
 
 case_regress_neg_1 = do
-  negation_regress_maker "with switch constraint: " 
-    (PrUnion (PrPattern (patDlDst 500)) (PrTo 0))
+  negation_regress_maker (PrIntersect (PrPattern (patDlDst 500)) (PrTo 0))
 
 case_regress_neg_1_ok = do
-  negation_regress_maker "without switch constraint: " 
-    (PrPattern (patDlDst 500))
+  negation_regress_maker (PrPattern (patDlDst 500))
 
 case_regress_neg_1_2 = do
-  negation_regress_maker "with two patterns: " 
-    (PrUnion (PrPattern (patDlDst 500)) (PrPattern (patDlSrc 200)))
+  negation_regress_maker 
+    (PrIntersect (PrPattern (patDlDst 500)) (PrPattern (patDlSrc 200)))
+
+case_regress_neg_1_2_ok = do
+  negation_regress_maker
+    (PrPattern (top { ptrnDlDst = Exact 500, ptrnDlSrc = Exact 200 }))
 
 -- Invariant: given an arbitrary classifier c, minimze c yields an
 --            equivalent classifier.
