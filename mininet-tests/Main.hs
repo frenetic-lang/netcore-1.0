@@ -16,7 +16,7 @@ argSpec =
       "a simple repeater"
   , Option [] ["query1"] (NoArg (Example Query1.main)) 
       "a repeater that also counts packets"
-  , Option [] ["maclearing"] (NoArg (Example MacLearning.main))
+  , Option [] ["maclearning"] (NoArg (Example MacLearning.main))
       "a learning switch"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
   ]
