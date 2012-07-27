@@ -52,7 +52,7 @@ compileSlice slice vlan policy =
   let safePolicy = isolate slice vlan localPolicy in
   let inportPolicy = inportPo slice vlan localPolicy in
   let safeInportPolicy = PoUnion safePolicy inportPolicy in
-  outport slice safeInportPolicy
+  reduce $ outport slice safeInportPolicy
 
 -- | Compile a slice with an assignment of VLAN tags to ports.  For this to work
 -- properly, the assignment of tags to both ends of an edge must be the same
