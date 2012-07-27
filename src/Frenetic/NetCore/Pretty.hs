@@ -1,5 +1,5 @@
 module Frenetic.NetCore.Pretty
-  ( prettyNetCore
+  ( toString
   , putNetCore
   , putNetCoreLn
   , hPutNetCore
@@ -14,8 +14,10 @@ import Text.PrettyPrint.ANSI.Leijen
 ribbonFrac = 0.8
 lineWidth = 100
 
--- |Pretty-print a netcore policy to a Doc
-prettyNetCore = prettyPo
+render = renderPretty ribbonFrac lineWidth
+
+-- |Pretty-print a netcore policy to a String
+toString p = displayS (render $ prettyPo p) ""
 
 -- |Pretty-print a netcore policy to stdout
 putNetCore = hPutNetCore stdout
@@ -24,7 +26,7 @@ putNetCoreLn = hPutNetCoreLn stdout
 -- |Pretty-print a netcore policy to a handle
 hPutNetCore :: Handle -> Policy -> IO ()
 hPutNetCore h p = do
-  let rendered = renderPretty ribbonFrac lineWidth $ prettyPo p
+  let rendered = render $ prettyPo p
   displayIO h rendered
 
 hPutNetCoreLn h p = do
