@@ -145,7 +145,7 @@ instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
       largeWordComplement (LargeKey lo hi) = LargeKey (largeWordComplement lo) (largeWordComplement hi)
 
 instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) => Show (LargeKey a b) where
-   showsPrec p = showInt . largeWordToInteger
+    show p = "0x" ++ (showHex (largeWordToInteger p) "")
 
 instance (Ord a, Bits a, LargeWord a, Bits b, LargeWord b) =>
    Num (LargeKey a b) where

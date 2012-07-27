@@ -6,6 +6,7 @@ module Frenetic.NettleEx
   , module Nettle.Servers.Server
   , closeServer
   , acceptSwitch
+  , sendToSwitch
   , startOpenFlowServerEx
   ) where
 
@@ -13,7 +14,9 @@ import Frenetic.Util
 import qualified Data.Map as Map
 import Nettle.OpenFlow hiding (intersect)
 import qualified Nettle.Servers.Server as Server
-import Nettle.Servers.Server hiding (acceptSwitch, closeServer)
+import Nettle.Servers.Server hiding (acceptSwitch, closeServer, sendToSwitch)
+import Prelude hiding (catch)
+import Control.Exception
 
 data Nettle = Nettle {
   server :: OpenFlowServer,
@@ -40,11 +43,18 @@ acceptSwitch :: Nettle
                     SwitchFeatures,
                     Chan (TransactionID, SCMessage))
 acceptSwitch nettle = do
-  (switch, switchFeatures) <- Server.acceptSwitch (server nettle)
+  let exnHandler (_ :: SomeException) = do
+        infoM "nettle" $ "could not accept switch" 
+        accept 
+      accept = do
+        Server.acceptSwitch (server nettle) `catch` exnHandler
+  (switch, switchFeatures) <- accept
   modifyIORef (switches nettle) (Map.insert (handle2SwitchID switch) switch)
   switchMessages <- newChan
   let handleSwitch (xid, msg) = do
         handlers <- readIORef (txHandlers nettle)
+        debugM "nettle" $ "received message xid=" ++ show xid ++ "; msg=" ++ 
+                          show msg
         case Map.lookup xid handlers of
           Just handler -> handler msg
           Nothing      -> writeChan switchMessages (xid, msg)
@@ -53,6 +63,12 @@ acceptSwitch nettle = do
 
 closeServer :: Nettle -> IO ()
 closeServer nettle = Server.closeServer (server nettle)
+
+sendToSwitch :: SwitchHandle -> (TransactionID, CSMessage) -> IO ()
+sendToSwitch sw (xid, msg) = do
+  debugM "nettle" $ "msg to switch with xid=" ++ show xid ++ "; msg=" ++ 
+                    show msg
+  Server.sendToSwitch sw (xid, msg)
 
 -- |spin-lock until we acquire a 'TransactionID'
 reserveTxId :: Nettle -> IO TransactionID

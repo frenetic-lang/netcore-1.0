@@ -11,28 +11,34 @@ module Frenetic.Slices.Compile
 import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
-import Data.Word
 import Frenetic.NetCore
 import Frenetic.NetCore.Reduce
 import Frenetic.NetCore.Short
 import Frenetic.Slices.Slice
-
-maxVlan :: Vlan
-maxVlan = maxBound
+import Frenetic.Slices.VlanAssignment
+import Frenetic.Topo
 
 -- |Match a specific vlan tag
 vlanMatch :: Vlan -> Predicate
 vlanMatch vlan = dlVlan vlan
 
+-- |Produce the combined policy by compiling a list of slices and policies with
+-- the vanilla compiler
 transform :: [(Slice, Policy)] -> Policy
-transform combined =
-  if length combined > fromIntegral maxVlan
-    then error "Too many VLANs to compile"
-    else poNaryUnion policies
+transform combined = poNaryUnion policies
   where
-    tagged = zip [1..maxVlan] combined
+    tagged = sequential combined
     policies = map (\(vlan, (slice, policy)) -> compileSlice slice vlan policy)
                    tagged
+
+-- |Produce the combined policy by compiling a list of slices and policies with
+-- the edge compiler
+transformEdge :: Topo -> [(Slice, Policy)] -> Policy
+transformEdge topo combined = poNaryUnion policies where
+  tagged = edge topo combined
+  policies = map (\(assignment, (slice, policy)) ->
+                   edgeCompileSlice slice assignment policy)
+                 tagged
 
 -- TODO(astory): egress predicates
 -- |Compile a slice with a vlan key
@@ -47,6 +53,18 @@ compileSlice slice vlan policy =
   let inportPolicy = inportPo slice vlan localPolicy in
   let safeInportPolicy = PoUnion safePolicy inportPolicy in
   outport slice safeInportPolicy
+
+-- | Compile a slice with an assignment of VLAN tags to ports.  For this to work
+-- properly, the assignment of tags to both ends of an edge must be the same
+edgeCompileSlice :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
+edgeCompileSlice slice assignment policy = internalPol <+> externalPol where
+  internalPol = edgeInternal slice assignment policy
+  externalPol = edgeExternal slice assignment policy
+
+edgeInternal :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
+edgeInternal slice assignment policy = error "edgeInternal unimplemented"
+edgeExternal :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
+edgeExternal slice assignment policy = error "edgeExternal unimplemented"
 
 -- |Produce a policy that only considers traffic on this vlan and on internal
 -- ports.  Note that if the policy does not modify vlans, then it also only

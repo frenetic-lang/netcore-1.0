@@ -2,6 +2,8 @@ module Frenetic.Topo
   ( Topo
   , buildGraph
   , getEdgeLabel
+  , getEdge
+  , reverseLoc
   , subgraph
   , switches
   , hosts
@@ -10,6 +12,7 @@ module Frenetic.Topo
 
 import Data.Graph.Inductive.Graph
 import Data.Graph.Inductive.Tree
+import qualified Data.List as List
 import qualified Data.Set as Set
 
 import Frenetic.NetCore.API
@@ -48,6 +51,30 @@ subgraph nodes gr = filterGr (\(n, _) -> Set.member n nodes) gr
 -- | Maybe get the label of the edge from n1 to n2
 getEdgeLabel :: Gr a b -> Node -> Node -> Maybe b
 getEdgeLabel gr n1 n2 = lookup n2 (lsuc gr n1)
+
+-- | Put an edge into a normal form (lowest location first)
+normal :: (Loc, Loc) -> (Loc, Loc)
+normal (l1, l2) = if l1 < l2 then (l1, l2) else (l2, l1)
+
+-- | Get the normalized pair of locations that one location is on
+getEdge :: Topo -> Loc -> (Loc, Loc)
+getEdge topo loc = normal (loc, (reverseLoc topo loc))
+
+-- | Maybe get the reverse of a location
+reverseLoc :: Topo -> Loc -> Loc
+reverseLoc topo loc@(Loc switch port) =
+  Loc (fromIntegral targetSwitch) targetPort
+  where
+  mTargetSwitch = List.find (\(_, port') -> port == port') $
+                  lsuc topo (fromIntegral switch)
+  (targetSwitch, _) = case mTargetSwitch of
+                        Just s -> s
+                        Nothing -> error ("Location invalid: " ++ show loc)
+  mTargetPort = getEdgeLabel topo targetSwitch (fromIntegral switch)
+  targetPort = case mTargetPort of
+                 Just p -> p
+                 Nothing -> error ("Graph not undirected, inverse missing of: "
+                            ++ show loc)
 
 -- | Get the switches of a topology.  A switch is a node with no port 0
 switches :: Gr a Port -> [Node]

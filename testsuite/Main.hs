@@ -9,6 +9,7 @@ import Tests.Frenetic.Slices.TestCompile
 import Tests.Frenetic.Slices.TestEndToEnd
 import Tests.Frenetic.Slices.TestSlice
 import Tests.Frenetic.Slices.TestVerification
+import Tests.Frenetic.Slices.TestVlanAssignment
 import Tests.Frenetic.Switches.TestSwitches
 import Tests.Frenetic.TestCompat
 import Tests.Frenetic.TestSat
@@ -17,9 +18,9 @@ import Test.Framework
 
 main = do
   args <- getArgs
-  let expensive = elem "expensive" args
-  let ourTests = if expensive then expensiveTests : mainTests else mainTests
-  let args' = if expensive then delete "expensive" args else args
+  let sat = elem "sat" args
+  let ourTests = if sat then satTestGroup : mainTests else mainTests
+  let args' = if sat then delete "sat" args else args
   defaultMainWithArgs ourTests args'
 
 mainTests = 
@@ -31,8 +32,8 @@ mainTests =
   , testGroup "Slice tests" [ sliceCompileTests
                             , sliceTests
                             , sliceVerificationTests
-                            , satTests
+                            , vlanAssignmentTests
                             ]
   ]
 
-expensiveTests = testGroup "Expensive tests" [endToEndTests]
+satTestGroup = testGroup "SAT tests" [satTests, endToEndTests]

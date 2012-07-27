@@ -29,6 +29,7 @@
 --------------------------------------------------------------------------------
 module Frenetic.Hosts.Nettle where
 
+-- TODO(arjun): builtin catch is deprecated. Seriously?
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Frenetic.LargeWord
@@ -43,10 +44,6 @@ import Frenetic.Compat
 import Data.List (nub, find)
 import Frenetic.NettleEx
 import Frenetic.Util
-
-sendToSwitch' sw msg = do
-  sendToSwitch sw msg
-
 
 mkFlowMod :: (Match, ActionSequence)
           -> Priority
@@ -87,18 +84,33 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   let switchID = handle2SwitchID switch
   policiesAndMessages <- mergeChan policyChan msgChan
   let loop oldPolicy (Left policy) = do
-        sendToSwitch' switch (0, FlowMod (DeleteFlows matchAny Nothing))
+        sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
         let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
+        debugM "nettle" $ "policy is " ++ show policy ++ 
+                          " and flow table is " ++ show flowTbl
         runQueryOnSwitch nettle switch cl
         -- Priority 65535 is for microflow rules from reactive-specialization
-        let flowMods = zipWith mkFlowMod flowTbl [65534, 65533 ..]
-        mapM_ (sendToSwitch' switch) (zip [0..] flowMods)
+        let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
+        mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
+        debugM "nettle" $ "finished reconfiguring switch " ++ 
+                          show (handle2SwitchID switch)
         nextMsg <- readChan policiesAndMessages
 
         loop policy nextMsg
       loop policy (Right (xid, msg)) = case msg of
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
+                                   reasonSent=ExplicitSend,
+                                   enclosedFrame=Right frame})) -> do
+          let t = Transmission (toOFPat (frameToExactMatch inPort frame))
+                               switchID
+                               (toOFPkt pkt)
+          let actions = interpretPolicy policy t
+          actnControllerPart (actnTranslate actions) switchID (toOFPkt pkt)
+          nextMsg <- readChan policiesAndMessages
+          loop policy nextMsg
+        PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
+                                   reasonSent=NotMatched,
                                    enclosedFrame=Right frame})) -> do
           let t = Transmission (toOFPat (frameToExactMatch inPort frame))
                                switchID
@@ -108,9 +120,11 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
           case bufferID pkt of
             Nothing -> return ()
             Just buf -> do
+              let unCtrl (SendOutPort (ToController _)) = False
+                  unCtrl _ = True
               let msg = PacketOut $ PacketOutRecord (Left buf) (Just inPort) $
-                          (fromOFAct $ actnTranslate actions)
-              sendToSwitch' switch (2, msg)
+                          (filter unCtrl (fromOFAct $ actnTranslate actions))
+              sendToSwitch switch (2, msg)
           nextMsg <- readChan policiesAndMessages
           loop policy nextMsg
         otherwise -> do
@@ -128,6 +142,8 @@ nettleServer policyChan = do
   forever $ do
     -- Nettle does the OpenFlow handshake
     (switch, switchFeatures, msgChan) <- acceptSwitch server
+    noticeM "controller" $ "switch " ++ show (handle2SwitchID switch) ++ 
+                           " connected"
     -- reading from a channel removes the messages. We need to dupChan for
     -- each switch.
     switchPolicyChan <- dupChan policyChan

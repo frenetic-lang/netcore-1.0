@@ -5,9 +5,11 @@ module Frenetic.Util
   , Map
   , module Control.Concurrent.Chan
   , module Control.Concurrent
+  , module System.Log.Logger
   , mergeChan
   ) where
 
+import System.Log.Logger hiding (Priority)
 import Control.Concurrent.Chan
 import Control.Concurrent
 import Control.Monad

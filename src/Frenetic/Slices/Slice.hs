@@ -26,7 +26,7 @@ data Slice = Slice {
 , ingress :: Map.Map Loc Predicate
   -- |External ports, and restrictions on outbound packets.
 , egress  :: Map.Map Loc Predicate
-} deriving (Eq, Show)
+} deriving (Eq, Ord, Show)
 
 -- |Produce a slice that exactly covers the given topology, with no ingress or
 -- egress ports.
