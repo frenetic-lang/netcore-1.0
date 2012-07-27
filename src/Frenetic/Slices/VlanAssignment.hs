@@ -27,7 +27,7 @@ edge :: Topo -> [(Slice, Policy)] -> [(Map.Map Loc Vlan, (Slice, Policy))]
 edge topo combined = [ (lookup, both)
                      | (both, lookup) <- Map.toList bySlice] where
   locUse :: Map.Map Loc (Set.Set (Slice, Policy))
-  locUse = foldr addEdges Map.empty combined
+  locUse =  foldr addEdges Map.empty combined
 
   edgeUse :: Map.Map Edge (Set.Set (Slice, Policy))
   -- getEdge returns the normal form (smallest first)

@@ -50,7 +50,9 @@ linearHosts nodess = (topo,
             nodes
   getAllIntLocs :: Integral n => Set.Set n -> Set.Set Loc
   getAllIntLocs = Set.unions . map getIntLocs . map fromIntegral . Set.toList
-  getIntLocs n = Set.fromList [Loc n 1, Loc n 2]
+  getIntLocs n = if n == 0 then Set.singleton (Loc n 2)
+                 else if n == fromIntegral max then Set.singleton (Loc n 1)
+                 else Set.fromList [Loc n 1, Loc n 2]
   getAllHostLocs :: Integral n => Set.Set n -> Set.Set Loc
   getAllHostLocs = Set.unions . map getHostLocs . map fromIntegral . Set.toList
   getHostLocs n = Set.fromList [Loc n 3, Loc n 4]
@@ -100,7 +102,9 @@ linearHostsQ nodess queries = (topo, map (\(ns, q) -> (mkSlice ns, mkPolicy ns q
             nodes
   getAllIntLocs :: Integral n => Set.Set n -> Set.Set Loc
   getAllIntLocs = Set.unions . map getIntLocs . map fromIntegral . Set.toList
-  getIntLocs n = Set.fromList [Loc n 1, Loc n 2]
+  getIntLocs n = if n == 0 then Set.singleton (Loc n 2)
+                 else if n == fromIntegral max then Set.singleton (Loc n 1)
+                 else Set.fromList [Loc n 1, Loc n 2]
   getAllHostLocs :: Integral n => Set.Set n -> Set.Set Loc
   getAllHostLocs = Set.unions . map getHostLocs . map fromIntegral . Set.toList
   getHostLocs n = Set.fromList [Loc n 3, Loc n 4]

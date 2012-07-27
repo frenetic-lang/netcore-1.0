@@ -69,7 +69,10 @@ reverseLoc topo loc@(Loc switch port) =
                   lsuc topo (fromIntegral switch)
   (targetSwitch, _) = case mTargetSwitch of
                         Just s -> s
-                        Nothing -> error ("Location invalid: " ++ show loc)
+                        Nothing ->
+                          error ("Location invalid: could not find dest for "
+                                 ++ show loc ++ " among "
+                                 ++ show (labEdges topo))
   mTargetPort = getEdgeLabel topo targetSwitch (fromIntegral switch)
   targetPort = case mTargetPort of
                  Just p -> p

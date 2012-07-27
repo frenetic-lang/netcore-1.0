@@ -10,11 +10,13 @@ import Tests.Frenetic.Util
 
 import Frenetic.NetCore hiding (intersect)
 import Frenetic.NetCore.Pretty
+import Frenetic.NetCore.Reduce
 
+import Frenetic.PolicyGen
 import Frenetic.Slices.Compile
 import Frenetic.Slices.Slice
 import Frenetic.Slices.Sat
-import Frenetic.PolicyGen
+import Frenetic.Slices.VlanAssignment
 import Frenetic.Topo
 import Frenetic.Z3
 
@@ -38,6 +40,18 @@ case_testBasicCompile = do
   result <- compiledCorrectly topo slice p1 c1
   assertBool "Compiled correctly" result
 
+case_testBasicEdge = do
+  qs <- queries
+  let (topo, [p1, p2]) = linearQ [[0, 1, 2, 3], [0, 1, 2, 3]] qs
+  let slice = internalSlice topo
+  let [(a1, (s1, _)), (a2, (s2, _))] = edge topo [(slice, p1), (slice, p2)]
+  let c1 = edgeCompileSlice s1 a1 p1
+  let c2 = edgeCompileSlice s2 a2 p2
+  result <- separate topo c1 c2
+  assertBool "Compiled separate" result
+  result <- compiledCorrectly topo slice p1 c1
+  assertBool "Compiled correctly" result
+
 case_testBasicWithHosts = do
   qs <- queries
   let (topoNoHosts, _) = linear [[0, 1, 2, 3], [0, 1, 2, 3]]
@@ -47,6 +61,19 @@ case_testBasicWithHosts = do
   let c2 = compileSlice slice 2 p2
   result <- separate topo p1 p2
   assertBool "Initials not separate" (not result)
+  result <- separate topo c1 c2
+  assertBool "Compiled separate" result
+  result <- compiledCorrectly topo slice p1 c1
+  assertBool "Compiled correctly" result
+
+case_testBasicEdgeWithHosts = do
+  qs <- queries
+  let (topoNoHosts, _) = linear [[0, 1, 2, 3], [0, 1, 2, 3]]
+  let (topo, [(_, p1), (_, p2)]) = linearHostsQ [[0, 1, 2, 3], [0, 1, 2, 3]] qs
+  let slice = internalSlice topoNoHosts
+  let [(a1, (s1, _)), (a2, (s2, _))] = edge topo [(slice, p1), (slice, p2)]
+  let c1 = edgeCompileSlice s1 a1 p1
+  let c2 = edgeCompileSlice s1 a2 p2
   result <- separate topo c1 c2
   assertBool "Compiled separate" result
   result <- compiledCorrectly topo slice p1 c1
@@ -67,6 +94,20 @@ case_testHostsCompile = do
   result <- compiledCorrectly topo s1 p1 c1
   assertBool "Compiled correctly" result
 
+case_testHostsCompileEdge = do
+  qs <- queries
+  let (topo, [(s1, p1), (s2, p2)]) = linearHostsQ [[0, 1, 2, 3], [0, 1, 2, 3]]
+                                                  qs
+  let [(a1, (s1', _)), (a2, (s2', _))] = edge topo [(s1, p1), (s2, p2)]
+  let c1 = edgeCompileSlice s1' a1 p1
+  let c2 = edgeCompileSlice s2' a2 p2
+  result <- checkBool $ sharedIO topo c1 c2
+  assertBool "Compiled separate up to edges" (not result)
+  result <- separate topo c1 c2
+  assertBool "Compiled not separate" (not result)
+  result <- compiledCorrectly topo s1 p1 c1
+  assertBool "Compiled correctly" result
+
 case_testInputPredicates = do
   qs <- queries
   let (topo, [(s1, p1), (s2, p2)]) = linearHostsQ [[0, 1, 2, 3], [0, 1, 2, 3]] qs
@@ -74,6 +115,23 @@ case_testInputPredicates = do
   let s2' = s2 {ingress = Map.map (\_ -> dlSrc 200) (ingress s2)}
   let c1 = compileSlice s1' 1 p1
   let c2 = compileSlice s2' 2 p2
+  result <- checkBool $ sharedIO topo c1 c2
+  assertBool "Compiled separate up to edges" (not result)
+  result <- checkBool $ sharedInput c1 c2
+  assertBool "Compiled do not share inputs" (not result)
+  result <- separate topo c1 c2
+  assertBool "Compiled not separate" (not result)
+  result <- compiledCorrectly topo s1' p1 c1
+  assertBool "Compiled correctly" result
+
+case_testInputPredicatesEdge = do
+  qs <- queries
+  let (topo, [(s1, p1), (s2, p2)]) = linearHostsQ [[0, 1], [0, 1]] qs
+  let s1' = s1 {ingress = Map.map (\_ -> dlSrc 100) (ingress s1)}
+  let s2' = s2 {ingress = Map.map (\_ -> dlSrc 200) (ingress s2)}
+  let [(a1, (_, _)), (a2, (_, _))] = edge topo [(s1', p1), (s2', p2)]
+  let c1 = edgeCompileSlice s1' a1 p1
+  let c2 = edgeCompileSlice s2' a2 p2
   result <- checkBool $ sharedIO topo c1 c2
   assertBool "Compiled separate up to edges" (not result)
   result <- checkBool $ sharedInput c1 c2

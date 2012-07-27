@@ -1,7 +1,9 @@
 module Frenetic.Slices.Compile
   ( -- * Compilation
     transform
+  , transformEdge
   , compileSlice
+  , edgeCompileSlice
   -- * Internal tools
   , modifyVlan
   , setVlan
@@ -57,14 +59,94 @@ compileSlice slice vlan policy =
 -- | Compile a slice with an assignment of VLAN tags to ports.  For this to work
 -- properly, the assignment of tags to both ends of an edge must be the same
 edgeCompileSlice :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
-edgeCompileSlice slice assignment policy = internalPol <+> externalPol where
-  internalPol = edgeInternal slice assignment policy
-  externalPol = edgeExternal slice assignment policy
+edgeCompileSlice slice assignment policy = poNaryUnion (queryPols : forwardPols)
+  where
+    localPolicy = localize slice policy
+    -- separate out queries to avoid multiplying them during the fracturing that
+    -- goes on in creating the internal and external policies.
+    queryPols = queryOnly slice assignment localPolicy
+    forwardPols = forwardEdges slice assignment localPolicy
 
-edgeInternal :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
-edgeInternal slice assignment policy = error "edgeInternal unimplemented"
-edgeExternal :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
-edgeExternal slice assignment policy = error "edgeExternal unimplemented"
+-- |Produce a list of policies that together implement just the query portion of
+-- the policy running on the slice
+queryOnly :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
+queryOnly slice assignment policy = justQueries % (onSlice <|> inBound) where
+  onSlice = prNaryUnion . map onPort . Set.toList $ (internal slice)
+  inBound = ingressPredicate slice <&> dlVlan 0
+  justQueries = removeForwards policy
+  onPort l@(Loc s p) = inport s p <&> dlVlan vlan <&>
+                       Map.findWithDefault top l (ingress slice) where
+    vlan = case Map.lookup l assignment of
+           Just v -> v
+           Nothing -> error "assignment map incomplete."
+
+-- |Remove forwarding actions from policy leaving only queries
+removeForwards :: Policy -> Policy
+removeForwards PoBottom = PoBottom
+removeForwards (PoBasic pred (Action _ qs)) = PoBasic pred (Action MS.empty qs)
+removeForwards (PoUnion p1 p2) = PoUnion p1' p2' where
+  p1' = removeForwards p1
+  p2' = removeForwards p2
+
+-- |Remove queries from policy leaving only forwarding actions
+removeQueries :: Policy -> Policy
+removeQueries PoBottom = PoBottom
+removeQueries (PoBasic pred (Action fs _)) = PoBasic pred (Action fs [])
+removeQueries (PoUnion p1 p2) = PoUnion p1' p2' where
+  p1' = removeQueries p1
+  p2' = removeQueries p2
+
+-- |Remove forwarding actions to ports other than p
+justTo :: Port -> Policy -> Policy
+justTo _ PoBottom = PoBottom
+justTo p (PoBasic pred (Action fs qs)) = PoBasic pred (Action fs' qs) where
+  fs' = MS.filter matches fs
+  matches (Physical p', _) = p == p'
+  matches (PhysicalFlood, _) = error "Flood found while compiling."
+justTo p (PoUnion p1 p2) = PoUnion p1' p2' where
+  p1' = justTo p p1
+  p2' = justTo p p2
+
+-- TODO(astory): egress predicates
+-- |Produce a list of policies that together instrument the edge-compiled
+-- internal policy.  This only considers internal -> internal and internal ->
+-- external forwarding.
+forwardEdges :: Slice -> Map.Map Loc Vlan -> Policy -> [Policy]
+forwardEdges slice assignment policy = concat . map buildPort $ locs where
+  int = internal slice
+  ing = Map.keysSet (ingress slice)
+  egr = Map.keysSet (egress slice)
+  portLookup = portsOfSet (Set.union int (Set.union ing egr))
+  locs = Set.toList (Set.union int ing)
+  buildPort :: Loc -> [Policy] -- Get the policies for packets to one location
+  buildPort l@(Loc s p) = map hop $ Set.toList destinations where
+    destinations = case Map.lookup s portLookup of
+                     Just dests -> dests
+                     Nothing -> error "Port lookup malformed."
+    ourVlan = if Set.member l ing then 0
+              else case Map.lookup l assignment of
+                     Just v -> v
+                     Nothing -> error "Vlan assignment malformed."
+    restriction = inport s p <&>
+                  dlVlan ourVlan <&>
+                  Map.findWithDefault top l (ingress slice)
+    policy' = policy % restriction
+    hop :: Port -> Policy -- Get the policies for one switch forwarding
+    hop port = policy''' where
+      loc = Loc s port
+      targetVlan = if Set.member loc egr then 0
+                   else case Map.lookup loc assignment of
+                          Just v -> v
+                          Nothing -> error "Vlan assignment malformed."
+      policy'' = justTo port policy'
+      -- It's safe to use modifyVlan because we only have actions on this one
+      -- forwarding hop.
+      policy''' = modifyVlan targetVlan policy''
+
+portsOfSet :: Set.Set Loc -> Map.Map Switch (Set.Set Port)
+portsOfSet = Map.fromListWith Set.union .
+             map (\(Loc s p) -> (s, Set.singleton p)) .
+             Set.toList
 
 -- |Produce a policy that only considers traffic on this vlan and on internal
 -- ports.  Note that if the policy does not modify vlans, then it also only
