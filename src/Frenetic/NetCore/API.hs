@@ -59,6 +59,7 @@ module Frenetic.NetCore.API
   -- * Tools
   , idOfQuery
   , interesting
+  , interestingFields
   , prUnIntersect
   , prUnUnion
   , poUnUnion
@@ -172,6 +173,24 @@ instance Matchable Pattern where
 instance Show Pattern where
   show p = "Pattern {" ++ contents ++ "}" where
     contents = concat (List.intersperse ", " (interesting " = " p))
+
+-- |Build a list of the non-wildcarded pattern fields
+interestingFields :: Pattern -> Set String
+interestingFields (Pattern {..}) = Set.fromList stringList where
+  stringList = filter (\l -> l /= "") $ lines 
+  lines = [ case ptrnDlSrc     of {Exact v -> "DlSrc";      Wildcard -> ""}
+          , case ptrnDlDst     of {Exact v -> "DlDst";      Wildcard -> ""}
+          , case ptrnDlTyp     of {Exact v -> "DlTyp";      Wildcard -> ""}
+          , case ptrnDlVlan    of {Exact v -> "DlVlan";     Wildcard -> ""}
+          , case ptrnDlVlanPcp of {Exact v -> "DlVlanPcp";  Wildcard -> ""}
+          , case ptrnNwSrc     of {Prefix _ 0 -> "";        p -> "NwSrc"}
+          , case ptrnNwDst     of {Prefix _ 0 -> "";        p -> "NwDst"}
+          , case ptrnNwProto   of {Exact v -> "NwProto";    Wildcard -> ""}
+          , case ptrnNwTos     of {Exact v -> "NwTos";      Wildcard -> ""}
+          , case ptrnTpSrc     of {Exact v -> "TpSrc";      Wildcard -> ""}
+          , case ptrnTpDst     of {Exact v -> "TpDst";      Wildcard -> ""}
+          , case ptrnInPort    of {Exact v -> "InPort";     Wildcard -> ""}
+          ]
 
 -- |Build a list of the non-wildcarded patterns with sep between field and value
 interesting :: String -> Pattern -> [String]

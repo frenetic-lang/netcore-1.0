@@ -50,6 +50,7 @@ import Data.HList
 import Control.Concurrent.Chan
 import           Data.Bits
 import           Frenetic.LargeWord
+import qualified Data.Set                        as Set
 import qualified Data.MultiSet                   as MS
 import           Data.Word
 import Data.List (nub, find)
@@ -299,13 +300,23 @@ instance FreneticImpl OpenFlow where
   -- The ToController action needs to come last. If you reorder, it will not
   -- work. Observed with the usermode switch.
   actnTranslate act@(Action fwd queries) = OFAct (ofFwd ++ toCtrl) queries
-    where ofFwd = concatMap (\(pp, md) -> modTranslate md 
+    where acts  = if hasUnimplementableMods $ map snd $ MS.toList fwd
+                  then [SendOutPort (ToController maxBound)]
+                  else ofFwd ++ toCtrl
+          ofFwd = concatMap (\(pp, md) -> modTranslate md 
                                  ++ [SendOutPort (physicalPortOfPseudoPort pp)])
                       $ MS.toList fwd
           toCtrl = case find isPktQuery queries of
             -- sends as much of the packet as possible to the controller
             Just _  -> [SendOutPort (ToController maxBound)]
             Nothing -> []
+          hasUnimplementableMods as
+            | length as <= 1 = False
+            | length as > 1  =
+                let minFields = foldl (\m p -> if Set.size p < Set.size m then p else m) 
+                                      (interestingFields $ head as) 
+                                      (map interestingFields $ tail as)
+                in not $ all (\pat -> Set.isSubsetOf (interestingFields pat) minFields) as
           modTranslate m = 
             let f1 = case ptrnDlSrc m of 
                        Wildcard -> Nothing
