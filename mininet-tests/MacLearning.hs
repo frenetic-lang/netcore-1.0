@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import System.Log.Logger
 
+-- TODO(arjun): Doesn't work with forwarding loops.
 pktsByLocation :: IO (Chan (Switch, Packet), Chan Policy)
 pktsByLocation = do
   uniqPktChan <- newChan
@@ -37,7 +38,6 @@ pktsByLocation = do
 learnRoutes :: Chan (Switch, Packet) -> IO (Chan Policy)
 learnRoutes pktChan = do
   polChan <- newChan
-  let pktLoc (sw, pkt) = (sw, pktDlSrc pkt, pktDlDst pkt)
   let mkRule locs ((sw, dstMac), port) = 
         map (\((_, srcMac), _) -> 
           PoBasic (PrTo sw <&> dlSrc srcMac <&> dlDst dstMac) (forward port)) $
@@ -48,6 +48,7 @@ learnRoutes pktChan = do
         (sw, pkt) <- readChan pktChan
         let locs' = Map.insert (sw, pktDlSrc pkt) (pktInPort pkt) locs
         let fwdPol = poNaryUnion (concatMap (mkRule locs') (Map.toList locs'))
+        debugM "maclearning" $ "forwarding policy is " ++ show fwdPol
         let floodPol = PoBasic (PrNegate (poDom fwdPol)) flood
         writeChan polChan (PoUnion fwdPol floodPol)
         loop locs'

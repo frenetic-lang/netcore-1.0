@@ -170,8 +170,9 @@ instance Matchable Pattern where
                          }
 
 instance Show Pattern where
-  show p = "Pattern {" ++ contents ++ "}" where
+  show p = "{" ++ contents ++ "}"  where
     contents = concat (List.intersperse ", " (interesting " = " p))
+
 
 -- |Build a list of the non-wildcarded patterns with sep between field and value
 interesting :: String -> Pattern -> [String]
@@ -295,7 +296,11 @@ instance Ord Query where
     qid2 = idOfQuery q2
 
 instance Show Action where
-  show (Action fwd _) = "<fwd=" ++ show (MS.toAscList fwd) ++ ">"
+  show (Action fwd q) = "<fwd=" ++ show (MS.toAscList fwd) ++ " q=" ++ show q ++ ">"
+
+instance Show Query where
+  show (NumPktQuery qid _ _) = "NumPkt " ++ show qid
+  show (PktQuery _ qid) = "Pkt " ++ show qid
 
 instance Show Policy where
   show PoBottom = "(PoBottom)"

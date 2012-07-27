@@ -41,7 +41,7 @@ import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
-import Data.List (nub, find)
+import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
 import Frenetic.Util
 
@@ -88,7 +88,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
         infoM "nettle" $ "policy is " ++ show policy ++ 
-                          " and flow table is " ++ show flowTbl
+                          " and flow table is " ++ (concat $ intersperse "\n" (map show flowTbl))
         runQueryOnSwitch nettle switch cl
         -- Priority 65535 is for microflow rules from reactive-specialization
         let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
