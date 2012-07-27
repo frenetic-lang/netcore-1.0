@@ -18,9 +18,9 @@ import Test.Framework
 
 main = do
   args <- getArgs
-  let expensive = elem "expensive" args
-  let ourTests = if expensive then expensiveTests : mainTests else mainTests
-  let args' = if expensive then delete "expensive" args else args
+  let sat = elem "sat" args
+  let ourTests = if sat then satTestGroup : mainTests else mainTests
+  let args' = if sat then delete "sat" args else args
   defaultMainWithArgs ourTests args'
 
 mainTests = 
@@ -33,8 +33,7 @@ mainTests =
                             , sliceTests
                             , sliceVerificationTests
                             , vlanAssignmentTests
-                            , satTests
                             ]
   ]
 
-expensiveTests = testGroup "Expensive tests" [endToEndTests]
+satTestGroup = testGroup "SAT tests" [satTests, endToEndTests]
