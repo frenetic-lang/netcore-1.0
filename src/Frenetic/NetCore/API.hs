@@ -62,6 +62,7 @@ module Frenetic.NetCore.API
   , prUnIntersect
   , prUnUnion
   , poUnUnion
+  , poDom
   ) where
 
 import Data.Bits
@@ -308,3 +309,9 @@ poUnUnion po = List.unfoldr f [po] where
     [] -> Nothing
     (PoUnion p1 p2) : rest -> f (p1 : (p2 : rest))
     p : rest -> Just (p, rest)
+
+-- |Returns a predicate that matches the domain of the policy.
+poDom :: Policy -> Predicate
+poDom PoBottom = PrNegate top
+poDom (PoBasic pred _) = pred
+poDom (PoUnion pol1 pol2) = PrUnion (poDom pol1) (poDom pol2)

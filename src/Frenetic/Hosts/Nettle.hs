@@ -134,8 +134,6 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
 
 nettleServer :: Chan Policy -> IO ()
 nettleServer policyChan = do
-  updateGlobalLogger "controller" (setLevel DEBUG)
-  updateGlobalLogger "nettle" (setLevel DEBUG)
   server <- startOpenFlowServerEx Nothing 6633
   currentPolicy <- newIORef PoBottom
   forkIO $ forever $ do
