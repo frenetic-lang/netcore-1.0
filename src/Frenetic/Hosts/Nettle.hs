@@ -87,7 +87,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
         let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
-        debugM "nettle" $ "policy is " ++ show policy ++ 
+        infoM "nettle" $ "policy is " ++ show policy ++ 
                           " and flow table is " ++ show flowTbl
         runQueryOnSwitch nettle switch cl
         -- Priority 65535 is for microflow rules from reactive-specialization
