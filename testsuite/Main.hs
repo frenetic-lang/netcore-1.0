@@ -9,6 +9,7 @@ import Tests.Frenetic.Slices.TestCompile
 import Tests.Frenetic.Slices.TestEndToEnd
 import Tests.Frenetic.Slices.TestSlice
 import Tests.Frenetic.Slices.TestVerification
+import Tests.Frenetic.Slices.TestVlanAssignment
 import Tests.Frenetic.Switches.TestSwitches
 import Tests.Frenetic.TestCompat
 import Tests.Frenetic.TestSat
@@ -31,6 +32,7 @@ mainTests =
   , testGroup "Slice tests" [ sliceCompileTests
                             , sliceTests
                             , sliceVerificationTests
+                            , vlanAssignmentTests
                             , satTests
                             ]
   ]
