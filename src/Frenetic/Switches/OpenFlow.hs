@@ -44,6 +44,7 @@ module Frenetic.Switches.OpenFlow
 
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe (catMaybes)
 
 import Data.HList
 import Control.Concurrent.Chan
@@ -282,14 +283,63 @@ instance FreneticImpl OpenFlow where
   actnController = OFAct toController []
   actnDefault = OFAct toController []
 
-  -- CS: TODO: add modifications
+  -- Not all multisets of actions can be translated to lists of OpenFlow
+  -- actions.  For example, consider the set 
+  --
+  --    {(SrcIP = 0, Fwd 1), (DstIP = 1, Fwd 2)}.
+  --
+  -- In general, it is not possible to set SrcIP to 0, forward out port 1,
+  -- and then revert the SrcIP to its original value before setting DstIP to 1
+  -- and forwarding out port 2.  In such situations, the action is changed to
+  -- "send to controller."
+  -- TODO: implement optimizations to handle special cases on the switch.
+  -- TODO: deploying these kinds of actions relies on the controller to forward
+  --       them.  will this corrupt/drop packets larger than maxBound?
   actnTranslate act@(Action fwd queries) = OFAct (toCtrl ++ ofFwd) queries
-    where ofFwd = map (\pp -> SendOutPort (physicalPortOfPseudoPort pp)) 
-                      (MS.toList (actionForwardsTo act))
+    where ofFwd = concatMap (\(pp, md) -> modTranslate md 
+                                 ++ [SendOutPort (physicalPortOfPseudoPort pp)])
+                      $ MS.toList fwd
           toCtrl = case find isPktQuery queries of
             -- sends as much of the packet as possible to the controller
             Just _  -> [SendOutPort (ToController maxBound)]
             Nothing -> []
+          modTranslate m = 
+            let f1 = case ptrnDlSrc m of 
+                       Wildcard -> Nothing
+                       Exact v  -> Just $ SetEthSrcAddr $ word48ToEth v
+                f2 = case ptrnDlDst m of
+                       Wildcard -> Nothing
+                       Exact v  -> Just $ SetEthDstAddr $ word48ToEth v
+                f3 = case ptrnDlTyp m of
+                       Wildcard -> Nothing
+                       Exact v  -> error "OpenFlow 1.0 does not support modifying DlTyp."
+                f4 = case ptrnDlVlan m of
+                       Wildcard -> Nothing
+                       Exact v  -> Just $ SetVlanVID v
+                f5 = case ptrnDlVlanPcp m of
+                       Wildcard -> Nothing
+                       Exact v  -> Just $ SetVlanPriority v
+                f6 = case ptrnNwSrc m of
+                       Prefix _  0  -> Nothing
+                       Prefix ip 32 -> Just $ SetIPSrcAddr $ IPAddress ip
+                       _ -> error "IP Modification must specify the entire IP address."
+                f7 = case ptrnNwDst m of
+                       Prefix _  0  -> Nothing
+                       Prefix ip 32 -> Just $ SetIPDstAddr $ IPAddress ip
+                       _ -> error "IP Modification must specify the entire IP address."
+                f8 = case ptrnNwProto m of
+                       Wildcard -> Nothing
+                       Exact v  -> error "OpenFlow 1.0 does not support modifying NwProto."
+                f9 = case ptrnNwTos m of
+                       Wildcard -> Nothing
+                       Exact v  -> Just $ SetIPToS v
+                f10 = case ptrnTpSrc m of
+                        Wildcard -> Nothing
+                        Exact v  -> Just $ SetTransportSrcPort v
+                f11 = case ptrnTpDst m of
+                        Wildcard -> Nothing
+                        Exact v  -> Just $ SetTransportDstPort v
+              in catMaybes [f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11]
   
   actnControllerPart (OFAct _ queries) switchID ofPkt  = do
     let pktChans = map pktQueryChan . filter isPktQuery $ queries
