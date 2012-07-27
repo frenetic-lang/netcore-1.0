@@ -210,7 +210,7 @@ data Query
 data Action = Action {
   actionForwards :: Forward,
   actionQueries :: [Query]
-} deriving (Eq)
+} deriving (Eq, Ord)
 
 isPktQuery (PktQuery _ _) = True
 isPktQuery _               = False
@@ -275,6 +275,7 @@ prUnUnion po = List.unfoldr f [po] where
 data Policy = PoBottom
             | PoBasic Predicate Action
             | PoUnion Policy Policy
+            deriving (Eq, Ord)
 
 instance Show Predicate where
   show (PrPattern pat) = show pat
@@ -283,6 +284,15 @@ instance Show Predicate where
   show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
   show (PrNegate pr) = "~(" ++ show pr ++ ")"
 
+instance Matchable Predicate where
+  top = PrPattern top
+  intersect p1 p2 = Just (PrIntersect p1 p2)
+
+instance Ord Query where
+  compare q1 q2 = compare qid1 qid2 where
+    qid1 = idOfQuery q1
+    qid2 = idOfQuery q2
+
 instance Show Action where
   show (Action fwd _) = "<fwd=" ++ show (MS.toAscList fwd) ++ ">"
 
@@ -290,10 +300,6 @@ instance Show Policy where
   show PoBottom = "(PoBottom)"
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
-
-instance Matchable Predicate where
-  top = PrPattern top
-  intersect p1 p2 = Just (PrIntersect p1 p2)
 
 -- |Get back all basic policies in the union.  Does not return any unions.
 poUnUnion :: Policy -> [Policy]
