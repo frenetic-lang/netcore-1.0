@@ -37,6 +37,7 @@ init [Help] = do
   putStrLn (usageInfo "Usage Info" argSpec)
 init (Verbosity s : rest) = case s of
   "DEBUG" -> setLog DEBUG rest
+  "INFO" -> setLog INFO rest
   otherwise -> do
     fail $ "invalid value " ++ s
 init [] = fail "too few arguments"

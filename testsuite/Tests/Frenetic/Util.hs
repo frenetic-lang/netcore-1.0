@@ -7,12 +7,14 @@ module Tests.Frenetic.Util
   , linearQ
   , linearHostsQ
   , kCompleteQ
+  , kCompleteQHosts
   ) where
 
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Frenetic.NetCore.API
+import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.PolicyGen
 import Frenetic.Slices.Slice
@@ -50,7 +52,9 @@ linearHosts nodess = (topo,
             nodes
   getAllIntLocs :: Integral n => Set.Set n -> Set.Set Loc
   getAllIntLocs = Set.unions . map getIntLocs . map fromIntegral . Set.toList
-  getIntLocs n = Set.fromList [Loc n 1, Loc n 2]
+  getIntLocs n = if n == 0 then Set.singleton (Loc n 2)
+                 else if n == fromIntegral max then Set.singleton (Loc n 1)
+                 else Set.fromList [Loc n 1, Loc n 2]
   getAllHostLocs :: Integral n => Set.Set n -> Set.Set Loc
   getAllHostLocs = Set.unions . map getHostLocs . map fromIntegral . Set.toList
   getHostLocs n = Set.fromList [Loc n 3, Loc n 4]
@@ -100,7 +104,9 @@ linearHostsQ nodess queries = (topo, map (\(ns, q) -> (mkSlice ns, mkPolicy ns q
             nodes
   getAllIntLocs :: Integral n => Set.Set n -> Set.Set Loc
   getAllIntLocs = Set.unions . map getIntLocs . map fromIntegral . Set.toList
-  getIntLocs n = Set.fromList [Loc n 1, Loc n 2]
+  getIntLocs n = if n == 0 then Set.singleton (Loc n 2)
+                 else if n == fromIntegral max then Set.singleton (Loc n 1)
+                 else Set.fromList [Loc n 1, Loc n 2]
   getAllHostLocs :: Integral n => Set.Set n -> Set.Set Loc
   getAllHostLocs = Set.unions . map getHostLocs . map fromIntegral . Set.toList
   getHostLocs n = Set.fromList [Loc n 3, Loc n 4]
@@ -113,8 +119,35 @@ kCompleteQ k queries = (topo, map mkCombined $ zip sliceNodes queries) where
   topo = TG.kComplete k'
   length = k' `quot` 2
   -- [0, 1, 2], [1, 2, 3], ..., [4, 5, 6], [5, 6, 0], [6, 0, 1]
-  sliceNodes = take k' . map (take length) . List.tails . cycle $ [0 .. k']
+  sliceNodes = take k' . map (take length) . List.tails . cycle $ [1 .. k']
   mkCombined (nodes, q) = (nodes, slice, policy) where
     topo' = subgraph (Set.fromList nodes) topo
     slice = internalSlice topo'
+    policy = simuFloodQuery topo' q
+
+-- |Construct a k-complete graph and k slices on floor(k/2) nodes with two hosts
+-- on each switch.  Each slice is assigned the IP address of its lowest member.
+-- Requires k queries.
+kCompleteQHosts :: Integral k => k -> [Query] ->
+                                 (Topo, [([Node], Slice, Policy)])
+kCompleteQHosts k queries = (topo, map mkCombined $ zip sliceNodes queries) where
+  k' = fromIntegral k
+  topo = TG.kCompleteHosts k'
+  length = k' `quot` 2
+  -- [1, 2, 3], ..., [4, 5, 6], [5, 6, 1], [6, 1, 2]
+  sliceNodes = take k' .
+               map (take length) .
+               List.tails .
+               cycle $ [1 .. k']
+  mkCombined (nodes, q) = (nodes, slice, policy) where
+    topo' = subgraph (Set.fromList . map fromIntegral $ nodes) topo
+    edges = concat .
+            map (\i -> [ Loc i (fromIntegral $ 101 + 10 * i)
+                       , Loc i (fromIntegral $ 102 + 10 * i)]) .
+            map fromIntegral $
+            nodes
+    min = fromIntegral $ minimum nodes
+    inbound  = Map.fromList . map (\l -> (l, nwDst min)) $ edges
+    outbound = Map.fromList . map (\l -> (l, nwSrc min)) $ edges
+    slice = (internalSlice topo') {ingress = inbound, egress = outbound}
     policy = simuFloodQuery topo' q

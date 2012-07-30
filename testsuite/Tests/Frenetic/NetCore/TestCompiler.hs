@@ -312,8 +312,6 @@ case_quiescence_bug_4 = do
       }
 
 case_quiescence_bug_5 = do
-  hPutStrLn stderr ("bug_5: policy: " ++ show policy)
-  hPutStrLn stderr ("bug_5: classifier: " ++ show classifier)
   assertEqual "policy -> flood" polActs (forward 1)
   assertEqual "classifier -> flood"
     (Just [OFAction.SendOutPort $ OFAction.PhysicalPort 1])

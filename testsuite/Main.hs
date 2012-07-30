@@ -36,4 +36,7 @@ mainTests =
                             ]
   ]
 
-satTestGroup = testGroup "SAT tests" [satTests, endToEndTests]
+satTestGroup = testGroup "SAT tests" [
+                                       satTests
+                                     , endToEndTests
+                                     ]

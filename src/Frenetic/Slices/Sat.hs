@@ -216,7 +216,7 @@ sharedIO topo p1 p2 = doCheck consts assertions where
 
   consts = getConsts [p, p', q, q'] []
 
-  assertions = [ onTopo topo p, onTopo topo q' -- transfer takes care fo p', q
+  assertions = [ onTopo topo p, onTopo topo q' -- transfer takes care of p', q
                , output p1 p p'
                , transfer topo p' q
                , input p2 q q'
