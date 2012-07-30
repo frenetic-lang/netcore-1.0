@@ -78,7 +78,10 @@ queryOnly slice assignment policy = justQueries % (onSlice <|> inBound) where
                        Map.findWithDefault top l (ingress slice) where
     vlan = case Map.lookup l assignment of
            Just v -> v
-           Nothing -> error "assignment map incomplete."
+           Nothing -> error $
+                      "assignment map incomplete at " ++ (show l) ++
+                      "\nmap:   " ++ (show assignment) ++ 
+                      "\nslice: " ++ (show $ internal slice)
 
 -- |Remove forwarding actions from policy leaving only queries
 removeForwards :: Policy -> Policy

@@ -24,8 +24,7 @@ sequential combined =
 type Edge = (Loc, Loc)
 
 edge :: Topo -> [(Slice, Policy)] -> [(Map.Map Loc Vlan, (Slice, Policy))]
-edge topo combined = [ (lookup, both)
-                     | (both, lookup) <- Map.toList bySlice] where
+edge topo combined = paired  where
   locUse :: Map.Map Loc (Set.Set (Slice, Policy))
   locUse =  foldr addEdges Map.empty combined
 
@@ -45,6 +44,8 @@ edge topo combined = [ (lookup, both)
 
   bySlice :: Map.Map (Slice, Policy) (Map.Map Loc Vlan)
   bySlice = invert vlans
+
+  paired = [ (lookup, both) | (both, lookup) <- Map.toList bySlice]
 
 -- | Add (loc, slice) to map for all internal locations in slice
 addEdges :: (Slice, Policy) -> Map.Map Loc (Set.Set (Slice, Policy)) ->

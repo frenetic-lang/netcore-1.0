@@ -2,6 +2,7 @@ module Frenetic.TopoGen
   ( linear
   , linearHosts
   , kComplete
+  , kCompleteHosts
   ) where
 
 import Frenetic.Topo
@@ -40,3 +41,19 @@ kComplete n = buildGraph pairs where
   pairs = [((fromIntegral x, (fromIntegral y)),
             (fromIntegral y, (fromIntegral x)))
           | (x:xs) <- List.tails nodes, y <- xs]
+
+-- |Produce a topology on the n-complete graph, starting with node 1.  Each node
+-- x has an edge to node y over port y, and two hosts 1i1 and 1i2 connected at
+-- ports of the same name.
+kCompleteHosts :: (Integral n) => n -> Topo
+kCompleteHosts n = buildGraph $ hostLinks ++ pairs where
+  nodes :: [Node]
+  nodes = [1 .. (fromIntegral n)]
+  hostLinks = concat . map buildHostLinks $ nodes
+  pairs = [((fromIntegral x, (fromIntegral y)),
+            (fromIntegral y, (fromIntegral x)))
+          | (x:xs) <- List.tails nodes, y <- xs]
+  buildHostLinks i = [ ((i, fromIntegral h1), (h1, 0))
+                     , ((i, fromIntegral h2), (h2, 0)) ] where
+    h1 = 101 + 10 * i
+    h2 = 102 + 10 * i
