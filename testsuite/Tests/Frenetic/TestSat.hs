@@ -32,6 +32,7 @@ case_testBasic = do
   result <- check f
   (Nothing) @=? result
 
+-- 1--2--3--4
 topo = buildGraph [ ((1, 1), (2, 1))
                   , ((2, 2), (3, 1))
                   , ((3, 2), (4, 1))
@@ -123,6 +124,19 @@ case_testBreaksForwards = do
   assertBool "set vlans" (not result)
   result <- checkBool $ breaksForwards topo Nothing r o
   assertBool "set vlans rev" (not result)
+
+--TODO(astory): reenable
+--case_testBreaksForwardsFlood = do
+--  let topo' = buildGraph [ ((1, 0), (9, 1))
+--                         , ((2, 0), (9, 2))
+--                         , ((3, 0), (9, 3))
+--                         ]
+--  let o = PrTo 9 ==> flood
+--  let r = (inport 9 1 ==> forwardMods [(2, top), (3, top)]) <+>
+--          (inport 9 2 ==> forwardMods [(1, top), (3, top)]) <+>
+--          (inport 9 3 ==> forwardMods [(1, top), (2, top)])
+--  result <- checkBool $ breaksForwards topo' Nothing o r
+--  assertBool "flood semantics" (not result)
 
 case_testBreaksForwards2 = do
   let o = ((PrTo 1) ==> forward 1) <+> ((PrTo 2) ==> forward 2)
