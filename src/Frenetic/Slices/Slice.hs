@@ -43,10 +43,11 @@ localize :: Slice -> Policy -> Policy
 localize slice policy = case policy of
   PoBottom -> PoBottom
   PoUnion p1 p2 -> localize slice p1 <+> localize slice p2
-  PoBasic pred (Action m obs) ->
+  PoBasic pred act ->
     let ss = Set.toList (switchesOfPredicate switches pred) in
-    poNaryUnion [pred' s <&> PrTo s ==> Action (localizeMods m ports s) obs
-                 |s <- ss]
+    poNaryUnion [localizeMods (pred' <&> PrTo s) act
+                              (Map.findWithDefault Set.empty s ports)
+                | s <- ss]
     where
       switches = Set.map (\ (Loc s _) -> s) locations
       ports =
@@ -54,7 +55,7 @@ localize slice policy = case policy of
                   Map.empty locations
       locations = Set.union (internal slice)
                             (Set.fromList . Map.keys $ egress slice)
-      pred' switch = pred <&> onSlice slice
+      pred' = pred <&> onSlice slice
 
 onSlice :: Slice -> Predicate
 onSlice (Slice int ing egr) = prNaryUnion .
@@ -63,17 +64,23 @@ onSlice (Slice int ing egr) = prNaryUnion .
                               Set.unions $
                               [int, Map.keysSet ing, Map.keysSet egr]
 
-
 -- |Transform potentially non-local forwarding actions into explicitly local
 -- ones on the switch.
-localizeMods :: Forward -> Map.Map Switch (Set.Set Port) -> Switch -> Forward
-localizeMods m ports switch = MS.unionsMap localizeMod m where
-  localizeMod (port, mods) =
-    let ps = Map.findWithDefault Set.empty switch ports in
-    case port of
-      Physical p -> if Set.member p ps then MS.singleton (Physical p, mods)
-                                       else MS.empty
-      PhysicalFlood -> MS.fromList [(Physical p, mods) | p <- Set.toList ps]
+localizeMods :: Predicate -> Action -> Set.Set Port -> Policy
+localizeMods pred (Action m obs) ports = poNaryUnion (forwardPol : floodPols)
+  where
+  (forwards, floods) = MS.mapEither split m
+  -- partial match is safe because we split it
+  forwards' = MS.filter (\(Physical p, _) -> Set.member p ports) forwards
+  -- Put the observations with the forwards so we don't duplicate them
+  forwardPol = pred ==> Action forwards' obs
+  floodPols = [mkFlood p mods | p <- Set.toList ports, mods <- MS.toList floods]
+  mkFlood port mods = pred <&> inPort port ==> Action mods' [] where
+    mods' = MS.fromList [(Physical p, mods) | p <- otherPorts]
+    otherPorts = Set.toList $ Set.delete port ports
+
+split (Physical p, rewrite) = Left (Physical p, rewrite)
+split (PhysicalFlood, rewrite) = Right (rewrite)
 
 -- |Starting with a set of switches, get the switches the predicate might match.
 switchesOfPredicate :: Set.Set Switch -> Predicate -> Set.Set Switch

@@ -196,7 +196,9 @@ produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
     fieldConstraint (pp, m) = nAnd cs where
       cs = (case pp of Physical port' -> [Equals (port q')
                                                  (Primitive (fint port'))]
-                       PhysicalFlood  -> []) ++
+                       -- Flood means to forward out all ports but the one we
+                       -- came in
+                       PhysicalFlood  -> [Not (Equals (port p') (port q'))]) ++
         [ updateField p q "DlSrc"     ((fmap fint) (ptrnDlSrc m))
         , updateField p q "DlDst"     ((fmap fint) (ptrnDlDst m))
         , updateField p q "DlTyp"     ((fmap fint) (ptrnDlTyp m))
