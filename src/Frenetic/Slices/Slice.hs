@@ -45,7 +45,7 @@ localize slice policy = case policy of
   PoUnion p1 p2 -> localize slice p1 <+> localize slice p2
   PoBasic pred (Action m obs) ->
     let ss = Set.toList (switchesOfPredicate switches pred) in
-    poNaryUnion [pred' s ==> Action (localizeMods m ports s) obs
+    poNaryUnion [pred' s <&> PrTo s ==> Action (localizeMods m ports s) obs
                  |s <- ss]
     where
       switches = Set.map (\ (Loc s _) -> s) locations
@@ -54,14 +54,14 @@ localize slice policy = case policy of
                   Map.empty locations
       locations = Set.union (internal slice)
                             (Set.fromList . Map.keys $ egress slice)
-      pred' switch = pred <&> onSlice slice switch
+      pred' switch = pred <&> onSlice slice
 
-onSlice :: Slice -> Switch -> Predicate
-onSlice (Slice int ing egr) switch = prNaryUnion .
-                                     map (\(Loc s p) -> inport s p) .
-                                     Set.toList .
-                                     Set.unions $
-                                     [int, Map.keysSet ing, Map.keysSet egr]
+onSlice :: Slice -> Predicate
+onSlice (Slice int ing egr) = prNaryUnion .
+                              map (\(Loc s p) -> inport s p) .
+                              Set.toList .
+                              Set.unions $
+                              [int, Map.keysSet ing, Map.keysSet egr]
 
 
 -- |Transform potentially non-local forwarding actions into explicitly local
