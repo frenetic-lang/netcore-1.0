@@ -43,8 +43,8 @@ acceptSwitch :: Nettle
                     SwitchFeatures,
                     Chan (TransactionID, SCMessage))
 acceptSwitch nettle = do
-  let exnHandler (_ :: SomeException) = do
-        infoM "nettle" $ "could not accept switch" 
+  let exnHandler (e :: SomeException) = do
+        infoM "nettle" $ "could not accept switch " ++ show e
         accept 
       accept = do
         Server.acceptSwitch (server nettle) `catch` exnHandler
