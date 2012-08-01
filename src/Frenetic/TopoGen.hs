@@ -5,11 +5,44 @@ module Frenetic.TopoGen
   , kCompleteHosts
   ) where
 
-import Frenetic.Topo
+import Data.Graph.Inductive.Graph
 import qualified Data.List as List
+import qualified Data.Maybe as Maybe
+import qualified Data.Set as Set
+import System.Random
 
 import Frenetic.NetCore.API
-import Data.Graph.Inductive.Graph
+import Frenetic.Topo
+
+distance (x1, y1) (x2, y2) = ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
+
+rand01IO :: IO Double
+rand01IO = randomRIO (0.0, 1.0)
+
+-- |Take a list of linked nodes, and connect them via ports that share the name
+-- of their destination node.  So [(1, 2)] becomes [((1, 2), (2, 1))]
+pairsToLinks :: [(Node, Node)] -> [((Node, Port), (Node, Port))]
+pairsToLinks = map pairToLink
+
+pairToLink :: (Node, Node) -> ((Node, Port), (Node, Port))
+pairToLink (n1, n2) = ((n1, fromIntegral n2), (n2, fromIntegral n1))
+
+-- |Adds n hosts to each node, numbered as 100 * Node + i where 1 <= i <= n, and
+-- each node links to the host with a port numbered the same as the name of the
+-- host.
+buildHosts :: (Integral n) => n -> [Node] -> [((Node, Port), (Node, Port))]
+buildHosts n nodes = concat . map addHosts $ nodes where
+  n' = fromIntegral n :: Int
+  addHosts node = [ ((node, fromIntegral host), (host, 0))
+                  | host <- [100 * node + 1 .. 100 * node + n']]
+
+addHosts :: (Integral n) => n -> [(Node, Node)] ->
+                                 [((Node, Port), (Node, Port))]
+addHosts n edges = edges' ++ hosts where
+  (firsts, seconds) = unzip edges
+  nodes = Set.toList . Set.fromList $ firsts ++ seconds
+  edges' = pairsToLinks edges
+  hosts = buildHosts n nodes
 
 -- | Produce a topology with n nodes in a row, port 1 pointing to the previous
 -- and port 2 pointing to the next, starting at node 0.
@@ -57,3 +90,79 @@ kCompleteHosts n = buildGraph $ hostLinks ++ pairs where
                      , ((i, fromIntegral h2), (h2, 0)) ] where
     h1 = 101 + 10 * i
     h2 = 102 + 10 * i
+
+-- |Build a Waxman random graph with n nodes, h hosts on each node, and
+-- parameters a and b
+waxman :: (Integral n, Integral h) => n -> h -> Double -> Double -> IO Topo
+waxman n h a b = do
+  plotted <- sequence [ do
+                        x <- rand01IO
+                        y <- rand01IO
+                        return (n, (x, y))
+                      | n <- ns]
+  let distances = [ distance p1 p2
+                  | (_, p1) <- plotted, (_, p2) <- plotted]
+  let maxDistance = maximum distances
+  let link (i, ip) (j, jp) = do
+        let d = distance ip jp
+        rv <- rand01IO
+        if rv < a * (-d / (b * maxDistance)) then return $ Just (i, j)
+                                             else return Nothing
+  edges <- sequence [ link i j | i : js <- List.tails plotted, j <- js]
+  let edges' = Maybe.catMaybes edges
+  let links = addHosts h edges'
+  return $ buildGraph links
+  where
+  n' = fromIntegral n :: Node
+  ns = [1 .. n']
+
+-- |Build a Watts-Strogatz graph on n nodes, with degree k (even, n >> k >>
+-- ln(n) >> 1) and rewiring likelihood 0 <= b <= 1.  See
+-- en.wikipedia.org/wiki/Watts_and_Strogatz_model for more information, and the
+-- algorithm we follow.
+smallworld :: (Integral n, Integral h, Integral k) =>
+              n -> h -> k -> Double -> IO Topo
+smallworld n h k b = do
+  edges' <- sequence $ map rewire edges
+  let edges'' = Set.toList . Set.fromList $ edges'
+  return $ buildGraph (addHosts h edges'')
+  where
+  n' = fromIntegral n :: Node
+  ns = [1 .. n']
+  -- Get the edges in the ring forcing i < j
+  edges = [ (i, j)
+          | i <- ns, j <- [i + 1 .. n'] -- => i < j => abs(i - j) > 0
+          , abs (i - j) <= fromIntegral k `quot` 2]
+  rewire :: (Node, Node) -> IO (Node, Node)
+  rewire (i, j) = do
+    let options = [x | x <- ns, x /= i]
+    rwValue <- rand01IO
+    let rw = rwValue < b
+    if rw then do
+      index <- randomRIO (0, length options - 1)
+      let j' = options !! index
+      return (i, j')
+    else return (i, j)
+
+-- |Build a fattree topology with two aggregating switches, four top-of-rack
+-- switches and six hosts per rack.
+fattree :: Topo
+fattree = buildGraph links where
+  a1 = 1
+  a2 = 2
+  t1 = 11
+  t2 = 12
+  t3 = 13
+  t4 = 14
+  links = [
+            ((a1, 1), (t1, 1))
+          , ((a2, 1), (t1, 2))
+          , ((a1, 2), (t2, 1))
+          , ((a2, 2), (t2, 2))
+          , ((a1, 3), (t3, 1))
+          , ((a2, 3), (t3, 2))
+          , ((a1, 4), (t4, 1))
+          , ((a2, 4), (t4, 2))
+          ] ++ hosts
+  hosts = [ ((t, fromIntegral h), (h, 0))
+          | t <- [t1, t2, t3, t4], h <- [t * 10 .. t * 10 + 5]]
