@@ -10,6 +10,9 @@ import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import System.Log.Logger
 
+ethernetFloodMAC = 0xFFFFFFFFFFFF
+isFlood = dlDst ethernetFloodMAC
+
 -- TODO(arjun): Doesn't work with forwarding loops.
 pktsByLocation :: IO (Chan (Switch, Packet), Chan Policy)
 pktsByLocation = do
@@ -27,11 +30,12 @@ pktsByLocation = do
           otherwise -> do
             -- pktDlSrc pkt is either completely new or has moved.
             let locs' = Map.insert (sw, pktDlSrc pkt) (pktInPort pkt) locs
-            let pred = neg (prNaryUnion (map matchLoc (Map.toList locs')))
+            let pred = neg (isFlood <|>
+                            prNaryUnion (map matchLoc (Map.toList locs')))
             writeChan uniqPktChan (sw, pkt)
             writeChan polChan (pred ==> act)
             loop locs'
-  writeChan polChan (top ==> act)
+  writeChan polChan (neg isFlood ==> act)
   forkIO (loop Map.empty)
   return (uniqPktChan, polChan)
 
