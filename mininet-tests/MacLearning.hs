@@ -27,11 +27,11 @@ pktsByLocation = do
           otherwise -> do
             -- pktDlSrc pkt is either completely new or has moved.
             let locs' = Map.insert (sw, pktDlSrc pkt) (pktInPort pkt) locs
-            let pred = PrNegate (prNaryUnion (map matchLoc (Map.toList locs')))
+            let pred = neg (prNaryUnion (map matchLoc (Map.toList locs')))
             writeChan uniqPktChan (sw, pkt)
-            writeChan polChan (PoBasic pred act)
+            writeChan polChan (pred ==> act)
             loop locs'
-  writeChan polChan (PoBasic top act)
+  writeChan polChan (top ==> act)
   forkIO (loop Map.empty)
   return (uniqPktChan, polChan)
 
@@ -40,7 +40,7 @@ learnRoutes pktChan = do
   polChan <- newChan
   let mkRule locs ((sw, dstMac), port) = 
         map (\((_, srcMac), _) -> 
-          PoBasic (PrTo sw <&> dlSrc srcMac <&> dlDst dstMac) (forward port)) $
+          (PrTo sw <&> dlSrc srcMac <&> dlDst dstMac) ==> forward port) $
           filter (\((sw', _), _) -> sw' == sw) $
             Map.toList locs
   let loop :: Map (Switch, Word48) Port -> IO ()
@@ -49,10 +49,10 @@ learnRoutes pktChan = do
         let locs' = Map.insert (sw, pktDlSrc pkt) (pktInPort pkt) locs
         let fwdPol = poNaryUnion (concatMap (mkRule locs') (Map.toList locs'))
         debugM "maclearning" $ "forwarding policy is " ++ show fwdPol
-        let floodPol = PoBasic (PrNegate (poDom fwdPol)) flood
-        writeChan polChan (PoUnion fwdPol floodPol)
+        let floodPol = neg (poDom fwdPol) ==> flood
+        writeChan polChan (fwdPol <+> floodPol)
         loop locs'
-  writeChan polChan (PoBasic top flood)
+  writeChan polChan (top ==> flood)
   forkIO (loop Map.empty)
   return polChan
 
@@ -67,10 +67,10 @@ learningSwitch = do
           (Left queryPol, Nothing, _) -> loop Nothing (Just queryPol)
           (Right fwdPol, _, Nothing) -> loop (Just fwdPol) Nothing
           (Left queryPol, Just fwdPol, _) -> do
-            writeChan polChan (PoUnion fwdPol queryPol)
+            writeChan polChan (fwdPol <+> queryPol)
             loop (Just fwdPol) (Just queryPol)
           (Right fwdPol, _, Just queryPol) -> do
-            writeChan polChan (PoUnion fwdPol queryPol)
+            writeChan polChan (fwdPol <+> queryPol)
             loop (Just fwdPol) (Just queryPol)
   forkIO (loop Nothing Nothing)
   return polChan
