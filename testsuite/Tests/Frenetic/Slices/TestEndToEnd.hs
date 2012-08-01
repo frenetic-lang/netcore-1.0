@@ -42,6 +42,17 @@ case_testBasicCompile = do
   result <- compiledCorrectly topo slice p1 c1
   assertBool "Compiled correctly" result
 
+case_testFloodCompile = do
+  qs <- queries
+  let topo = buildGraph [ ((1, 0), (9, 1))
+                        , ((2, 0), (9, 2)) ]
+  let p = PrTo 9 ==> flood
+  let slice = Slice Set.empty (Map.fromList [(Loc 9 1, top), (Loc 9 2, top)])
+                              (Map.fromList [(Loc 9 1, top), (Loc 9 2, top)])
+  let c = compileSlice slice 1 p
+  result <- compiledCorrectly topo slice p c
+  assertBool "Compiled correctly" result
+
 case_testBasicEdge = do
   qs <- queries
   let (topo, [p1, p2]) = linearQ [[0, 1, 2, 3], [0, 1, 2, 3]] qs

@@ -1,0 +1,8 @@
+\#*#
+*~
+dist/
+cabal-dev/
+*.log
+*.pyc
+*.sw[a-z]
+*.orig

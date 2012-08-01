@@ -125,18 +125,17 @@ case_testBreaksForwards = do
   result <- checkBool $ breaksForwards topo Nothing r o
   assertBool "set vlans rev" (not result)
 
---TODO(astory): reenable
---case_testBreaksForwardsFlood = do
---  let topo' = buildGraph [ ((1, 0), (9, 1))
---                         , ((2, 0), (9, 2))
---                         , ((3, 0), (9, 3))
---                         ]
---  let o = PrTo 9 ==> flood
---  let r = (inport 9 1 ==> forwardMods [(2, top), (3, top)]) <+>
---          (inport 9 2 ==> forwardMods [(1, top), (3, top)]) <+>
---          (inport 9 3 ==> forwardMods [(1, top), (2, top)])
---  result <- checkBool $ breaksForwards topo' Nothing o r
---  assertBool "flood semantics" (not result)
+case_testBreaksForwardsFlood = do
+  let topo' = buildGraph [ ((1, 0), (9, 1))
+                         , ((2, 0), (9, 2))
+                         , ((3, 0), (9, 3))
+                         ]
+  let o = PrTo 9 ==> flood
+  let r = (inport 9 1 ==> forwardMods [(2, top), (3, top)]) <+>
+          (inport 9 2 ==> forwardMods [(1, top), (3, top)]) <+>
+          (inport 9 3 ==> forwardMods [(1, top), (2, top)])
+  result <- checkBool $ breaksForwards topo' Nothing o r
+  assertBool "flood semantics" (not result)
 
 case_testBreaksForwards2 = do
   let o = ((PrTo 1) ==> forward 1) <+> ((PrTo 2) ==> forward 2)
@@ -153,22 +152,12 @@ case_testBreaksForwards2 = do
 
 case_testForwardsRestriction = do
   let o = top ==> Action (MS.singleton (PhysicalFlood, top)) []
-  let r = (PrTo 1 ==> forward 1) <+>
-          (PrTo 2 ==> forwardMods [(1, top), (2, top)]) <+>
-          (PrTo 3 ==> forward 1)
+  let r = (inport 2 1 ==> forward 2) <+>
+          (inport 2 2 ==> forward 1)
   result <- checkBool $ breaksForwards topo (Just basicSlice) o r
   assertBool "restriction works" (not result)
   result <- checkBool $ breaksForwards topo Nothing r o
   assertBool "flood encompasses forwarding" (not result)
-
-  let o = top ==> Action (MS.singleton (PhysicalFlood, top)) []
-  let r = (PrTo 1 ==> forward 1) <+>
-          (PrTo 2 ==> forwardMods [(1, top), (2, top)]) <+>
-          (PrTo 3 ==> forward 2)
-  result <- checkBool $ breaksForwards topo (Just basicSlice) o r
-  assertBool "restriction failure works" result
-  result <- checkBool $ breaksForwards topo (Just basicSlice) r o
-  assertBool "restricted flood works" (not result)
 
 case_testOneVlanPerEdge = do
   let pol = (dlVlan 1) ==> forwardMods [(1, top), (1, top)]
