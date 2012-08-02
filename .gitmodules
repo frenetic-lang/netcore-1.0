@@ -1,0 +1,3 @@
+[submodule "nettle-openflow"]
+	path = nettle-openflow
+	url = git://github.com/frenetic-lang/nettle-openflow.git
