@@ -7,6 +7,7 @@ module Frenetic.Topo
   , subgraph
   , switches
   , hosts
+  , lPorts
   , ports
   ) where
 
@@ -40,16 +41,16 @@ buildGraph links = mkGraph nodes edges where
               links
 
 -- | Get the subgraph that only contains the nodes matched by the predicate
-filterGr :: (LNode a -> Bool) -> Gr a b -> Gr a b
+filterGr :: (Graph gr) => (LNode a -> Bool) -> gr a b -> gr a b
 filterGr pred gr = delNodes badNodes gr where
-  badNodes = map (\(n, _) -> n) . filter (not . pred) . labNodes $ gr
+  badNodes = map fst . filter (not . pred) . labNodes $ gr
 
 -- | Get the subgraph only containing nodes
-subgraph :: Set.Set Node -> Gr a b -> Gr a b
+subgraph :: (Graph gr) => Set.Set Node -> gr a b -> gr a b
 subgraph nodes gr = filterGr (\(n, _) -> Set.member n nodes) gr
 
 -- | Maybe get the label of the edge from n1 to n2
-getEdgeLabel :: Gr a b -> Node -> Node -> Maybe b
+getEdgeLabel :: (Graph gr) => gr a b -> Node -> Node -> Maybe b
 getEdgeLabel gr n1 n2 = lookup n2 (lsuc gr n1)
 
 -- | Put an edge into a normal form (lowest location first)
@@ -80,18 +81,22 @@ reverseLoc topo loc@(Loc switch port) =
                             ++ show loc)
 
 -- | Get the switches of a topology.  A switch is a node with no port 0
-switches :: Gr a Port -> [Node]
+switches :: (Graph gr) => gr a Port -> [Node]
 switches topo = filter (not . isHost topo) $ nodes topo
 
 hostPort :: Port
 hostPort = 0
-isHost :: Gr a Port -> Node -> Bool
+isHost :: (Graph gr) => gr a Port -> Node -> Bool
 isHost topo node = elem hostPort (ports topo node)
 
 -- | Get the hosts of a topology.  A host is a node with only one port, 0.
-hosts :: Gr a Port -> [Node]
+hosts :: (Graph gr) => gr a Port -> [Node]
 hosts topo = filter (isHost topo) $ nodes topo
 
+-- |Get the (dest, port) of a switch in the topology
+lPorts :: (Graph gr) => gr a Port -> Node -> [(Node, Port)]
+lPorts topo n = lsuc topo n
+
 -- |Get the ports of a switch in the topology.
-ports :: Gr a Port -> Node -> [Port]
-ports topo n = map snd . lsuc topo $ n
+ports :: (Graph gr) => gr a Port -> Node -> [Port]
+ports topo = map snd . lPorts topo

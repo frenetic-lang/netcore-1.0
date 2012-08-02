@@ -6,11 +6,29 @@ module Frenetic.PolicyGen
   ) where
 
 import Data.Graph.Inductive.Graph
+import Data.Graph.Inductive.Tree
+import Data.Graph.Inductive.Query.MST
+import Data.Graph.Inductive.Query.SP
+import Data.Graph.Inductive.Internal.RootPath
+import Data.Maybe
+import qualified Data.Set as Set
+import Data.Tuple
 import Frenetic.NetCore.API
 import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.Topo
 import System.IO.Unsafe
+
+-- |Convert a topology to a graph with weight 1 on each edge, for use with
+-- Data.Graph.Inductive.Query.SP's shortest path algorithms
+toUnitWeight :: Topo -> Gr () Integer
+toUnitWeight = emap (const 1)
+
+-- |Convert a list to a list of adjacent pairs
+toHops :: [a] -> [(a, a)]
+toHops [] = []
+toHops [_] = []
+toHops all@(_ : tail) = zip all tail
 
 -- |Get an infinite stream of fresh queries
 queries :: IO [Query]
@@ -44,3 +62,52 @@ simuFloodQuery topo q = poNaryUnion policies where
               forwardModsQuery (ports' s) [q] | s <- ss]
   ports' s = zip (ports topo s) (repeat top)
   validPort s = prNaryUnion . map (\p -> inPort p) $ ports topo s
+
+-- |Construct an all-pairs-shortest-path routing policy between hosts, using the
+-- ID of the host as the MAC address.
+shortestPaths :: Topo -> Policy
+shortestPaths topo = poNaryUnion policies where
+  routingTopo = toUnitWeight topo
+  hostsSet = Set.fromList (hosts topo)
+  policies = map pathPolicy $ Set.toList hostsSet
+  pathPolicy h1 = poNaryUnion policies where
+    otherHosts = Set.delete h1 hostsSet
+    paths = spTree h1 routingTopo
+    policies = [ buildPath (fromIntegral h1) (fromIntegral h2) $
+                 getLPathNodes h2 paths
+               | h2 <- Set.toList otherHosts ]
+  buildPath _ _ [] = PoBottom
+  buildPath _ _ [_] = PoBottom
+  buildPath source dest path = poNaryUnion policies where
+    hops = toHops path
+    policies = catMaybes . map (buildHop source dest) $ hops
+  buildHop source dest (s1, s2) =
+    if Set.member s1 hostsSet then Nothing
+    else Just (PrTo (fromIntegral s1) <&>
+               dlSrc source <&> dlDst dest ==> forward destPort)
+    where
+    destPort = case getEdgeLabel topo s1 s2 of
+                 Just port -> port
+                 Nothing -> error "Tried to find nonexistent port."
+
+-- |Construct a policy that routes traffic to DlDst:FF:FF:FF:FF:FF:FF to all
+-- hosts except the one it came in on
+spanningTree :: Topo -> Policy
+spanningTree topo = poNaryUnion policies % dlDst 0xFFFFFFFFFFFF where
+  routingTopo = toUnitWeight topo
+  hostsSet = Set.fromList (hosts topo)
+  tree = msTree routingTopo
+  hops = Set.fromList .
+         concat .
+         map (\pair -> [pair, swap pair]) .
+         concat .
+         map toHops .
+         map (map fst) .
+         map (\(LP x) -> x) $ tree
+  policies = [ buildSwitch s | s <- switches topo ]
+  buildSwitch s = poNaryUnion policies where
+    ports = Set.fromList [p | (dest, p) <- lPorts topo s,
+                              Set.member (s, dest) hops]
+    s' = fromIntegral s
+    policies = [ inport s' p ==> forwardMany (Set.toList $ Set.delete p ports)
+               | p <- Set.toList ports ]
