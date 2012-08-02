@@ -103,8 +103,10 @@ case_regress_1 = do
   let policy = PoBasic pred flood
   let pkt = FreneticPkt (Packet {pktDlSrc = 4410948387332,
               pktDlDst = 6609988486150, pktDlTyp = 1, pktDlVlan = 4,
-              pktDlVlanPcp = 0, pktNwSrc = 6, pktNwDst = 5, pktNwProto = 5,
-              pktNwTos = 7, pktTpSrc = 5, pktTpDst = 0, pktInPort = 6})
+              pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5, 
+              pktNwProto = 5,
+              pktNwTos = 7, pktTpSrc = Just 5, pktTpDst = Just 0,
+              pktInPort = 6})
   let polAct = interpretPolicy policy (Transmission top 0 pkt)
   let classAct = classify 0 pkt (compile 0 policy)
   assertEqual "classifier should produce the same action"
@@ -116,8 +118,9 @@ negation_regress_maker pred = do
   let pol = PoUnion (PoBasic pred act) (PoBasic (PrNegate pred) act')
   let pkt = Packet {pktDlSrc = 200,
               pktDlDst = 500, pktDlTyp = 1, pktDlVlan = 4,
-              pktDlVlanPcp = 0, pktNwSrc = 6, pktNwDst = 5, pktNwProto = 5,
-              pktNwTos = 7, pktTpSrc = 5, pktTpDst = 0, pktInPort = 6}
+              pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5, 
+              pktNwProto = 5,
+              pktNwTos = 7, pktTpSrc = Just 5, pktTpDst = Just 0, pktInPort = 6}
   let polAct = interpretPolicy pol (Transmission top 0 (FreneticPkt pkt))
   assertEqual "policy should fwd 2" act polAct
   let classAct = classify 0 (FreneticPkt pkt) (compile 0 pol)
@@ -205,12 +208,12 @@ case_quiescence_bug_1 = do
       , pktDlTyp = 0
       , pktDlVlan = 0
       , pktDlVlanPcp = 0
-      , pktNwSrc = 0x5000001
-      , pktNwDst = 0
+      , pktNwSrc = Just 0x5000001
+      , pktNwDst = Just 0
       , pktNwProto = 0
       , pktNwTos = 0
-      , pktTpSrc = 0
-      , pktTpDst = 0
+      , pktTpSrc = Just 0
+      , pktTpDst = Just 0
       , pktInPort = 0
       }
 
@@ -233,12 +236,12 @@ case_quiescence_bug_2 = do
       , pktDlTyp = 0
       , pktDlVlan = 0
       , pktDlVlanPcp = 0
-      , pktNwSrc = 0x5000001
-      , pktNwDst = 0
+      , pktNwSrc = Just 0x5000001
+      , pktNwDst = Just 0
       , pktNwProto = 0
       , pktNwTos = 0
-      , pktTpSrc = 0
-      , pktTpDst = 0
+      , pktTpSrc = Just 0
+      , pktTpDst = Just 0
       , pktInPort = 0
       }
 
@@ -261,12 +264,12 @@ case_quiescence_bug_3 = do
       , pktDlTyp = 0
       , pktDlVlan = 0
       , pktDlVlanPcp = 0
-      , pktNwSrc = 0x5000001
-      , pktNwDst = 0
+      , pktNwSrc = Just 0x5000001
+      , pktNwDst = Just 0
       , pktNwProto = 0
       , pktNwTos = 0
-      , pktTpSrc = 0
-      , pktTpDst = 0
+      , pktTpSrc = Just 0
+      , pktTpDst = Just 0
       , pktInPort = 0
       }
 
@@ -302,12 +305,12 @@ case_quiescence_bug_4 = do
       , pktDlTyp = 0
       , pktDlVlan = 0
       , pktDlVlanPcp = 0
-      , pktNwSrc = 0
-      , pktNwDst = 0
+      , pktNwSrc = Just 0
+      , pktNwDst = Just 0
       , pktNwProto = 0
       , pktNwTos = 0
-      , pktTpSrc = 0
-      , pktTpDst = 0
+      , pktTpSrc = Just 0
+      , pktTpDst = Just 0
       , pktInPort = 0
       }
 
@@ -329,12 +332,12 @@ case_quiescence_bug_5 = do
       , pktDlTyp = 1
       , pktDlVlan = 1
       , pktDlVlanPcp = 1
-      , pktNwSrc = 1
-      , pktNwDst = 0
+      , pktNwSrc = Just 1
+      , pktNwDst = Just 0
       , pktNwProto = 1
       , pktNwTos = 1
-      , pktTpSrc = 1
-      , pktTpDst = 1
+      , pktTpSrc = Just 1
+      , pktTpDst = Just 1
       , pktInPort = 1
       }
 
