@@ -102,12 +102,12 @@ data Packet = Packet {
   pktDlTyp :: Word16,
   pktDlVlan :: Vlan,
   pktDlVlanPcp :: Word8,
-  pktNwSrc :: Word32,
-  pktNwDst :: Word32,
+  pktNwSrc :: Maybe Word32,
+  pktNwDst :: Maybe Word32,
   pktNwProto :: Word8,
   pktNwTos :: Word8,
-  pktTpSrc :: Word16,
-  pktTpDst :: Word16,
+  pktTpSrc :: Maybe Word16,
+  pktTpDst :: Maybe Word16,
   pktInPort :: Port
 } deriving (Show, Eq, Ord)
 
