@@ -8,6 +8,14 @@ module Frenetic.NettleEx
   , acceptSwitch
   , sendToSwitch
   , startOpenFlowServerEx
+  , ethVLANId
+  , ethVLANPcp
+  , ethSrcIP
+  , ethDstIP
+  , ethProto
+  , ethTOS
+  , srcPort
+  , dstPort
   ) where
 
 import Frenetic.Util
@@ -15,6 +23,8 @@ import qualified Data.Map as Map
 import Nettle.OpenFlow hiding (intersect)
 import qualified Nettle.Servers.Server as Server
 import Nettle.Servers.Server hiding (acceptSwitch, closeServer, sendToSwitch)
+import Nettle.Ethernet.EthernetFrame
+import Nettle.Ethernet.AddressResolutionProtocol
 import Prelude hiding (catch)
 import Control.Exception
 
@@ -128,3 +138,45 @@ sendTransaction nettle@(Nettle _ _ _ txHandlers) sw reqs callback = do
   atomicModifyIORef txHandlers (\hs -> (Map.insert txId handler hs, ()))
   mapM_ (sendToSwitch sw) (zip [txId ..] reqs)
   return ()
+
+ethVLANId :: EthernetHeader -> VLANID
+ethVLANId (Ethernet8021Q _ _ _ _ _ vlanId) = vlanId
+ethVLANId (EthernetHeader {}) = 0xffffff
+
+ethVLANPcp :: EthernetHeader -> VLANPriority
+ethVLANPcp (EthernetHeader _ _ _) = 0
+ethVLANPcp (Ethernet8021Q _ _ _ pri _ _) = pri
+
+stripIP (IPAddress a) = a
+
+ethSrcIP (IPInEthernet (HCons hdr _)) = Just (stripIP (ipSrcAddress hdr))
+ethSrcIP (ARPInEthernet (ARPQuery q)) = Just (stripIP (querySenderIPAddress q))
+ethSrcIP (ARPInEthernet (ARPReply r)) = Just (stripIP (replySenderIPAddress r))
+ethSrcIP (UninterpretedEthernetBody _) = Nothing
+
+ethDstIP (IPInEthernet (HCons hdr _)) = Just (stripIP (ipDstAddress hdr))
+ethDstIP (ARPInEthernet (ARPQuery q)) = Just (stripIP (queryTargetIPAddress q))
+ethDstIP (ARPInEthernet (ARPReply r)) = Just (stripIP (replyTargetIPAddress r))
+ethDstIP (UninterpretedEthernetBody _) = Nothing
+
+ethProto (IPInEthernet (HCons hdr _)) = Just (ipProtocol hdr)
+ethProto (ARPInEthernet (ARPQuery _)) = Just 1
+ethProto (ARPInEthernet (ARPReply _)) = Just 2
+ethProto (UninterpretedEthernetBody _) = Nothing
+
+ethTOS (IPInEthernet (HCons hdr _)) = Just (dscp hdr)
+ethTOS _ = Nothing
+
+srcPort (IPInEthernet (HCons _ (HCons pk _))) = case pk of
+  TCPInIP (src, dst) -> Just src
+  UDPInIP (src, dst) _ -> Just src
+  ICMPInIP (typ, cod) -> Just (fromIntegral typ)
+  UninterpretedIPBody _ -> Nothing
+srcPort _ = Nothing
+
+dstPort (IPInEthernet (HCons _ (HCons pk _))) = case pk of
+  TCPInIP (src, dst) -> Just dst
+  UDPInIP (src, dst) _ -> Just dst
+  ICMPInIP (typ, cod) -> Just (fromIntegral cod)
+  UninterpretedIPBody _ -> Nothing
+dstPort _ = Nothing

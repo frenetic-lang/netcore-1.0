@@ -148,16 +148,18 @@ instance Matchable Match where
 
 
 nettleEthernetFrame pkt = case enclosedFrame pkt of
-    Left err -> error ("Expected an Ethernet frame: " ++ err)
-    Right ef -> ef
+    Left err -> Nothing
+    Right ef -> Just ef
 
 nettleEthernetHeaders pkt = case enclosedFrame pkt of
-  Right (HCons hdr _) -> hdr
-  Left _ -> error "no ethernet headers"
+  Right (HCons hdr _) -> Just hdr
+  Left _ -> Nothing
 
 nettleEthernetBody pkt = case enclosedFrame pkt of
-  Right (HCons _ (HCons body _)) -> body
-  Left _ -> error "no ethernet body"
+  Right (HCons _ (HCons body _)) -> Just body
+  Left _ -> Nothing
+
+
 
 data OpenFlow = OpenFlow Nettle
 
@@ -185,6 +187,10 @@ toOFAct p = OFAct p []
 instance Show (ActionImpl OpenFlow) where
   show (OFAct acts ls) = show acts ++ " and " ++ show (length ls) ++ " queries"
 
+ifNothing :: Maybe a -> a -> a
+ifNothing (Just a) _ = a
+ifNothing Nothing b = b
+
 instance FreneticImpl OpenFlow where
   data PacketImpl OpenFlow = OFPkt PacketInfo deriving (Show, Eq)
   data PatternImpl OpenFlow = OFPat Match deriving (Show, Eq)
@@ -192,64 +198,27 @@ instance FreneticImpl OpenFlow where
                                      actQueries :: [Query] }
     deriving (Eq)
 
-  ptrnMatchPkt (OFPkt pkt) (OFPat ptrn) =
-    matches (receivedOnPort pkt, nettleEthernetFrame pkt) ptrn
+  ptrnMatchPkt (OFPkt pkt) (OFPat ptrn) = case nettleEthernetFrame pkt of
+    Just frame -> matches (receivedOnPort pkt, frame) ptrn
+    Nothing -> False
 
-  toPacket (OFPkt pkt) = Packet {
-      pktInPort = receivedOnPort pkt,
-      pktDlSrc =
-        ethToWord48 $ sourceMACAddress $ nettleEthernetHeaders pkt,
-      pktDlDst =
-        ethToWord48 $ destMACAddress $ nettleEthernetHeaders pkt,
-      pktDlTyp =
-        typeCode $ nettleEthernetHeaders pkt,
-      pktDlVlan =
-        case nettleEthernetHeaders pkt of
-          EthernetHeader _ _ _ -> 0xfffff
-          Ethernet8021Q _ _ _ _ _ vlan -> vlan,
-      pktDlVlanPcp =
-        case nettleEthernetHeaders pkt of
-          EthernetHeader _ _ _ -> 0
-          Ethernet8021Q _ _ _ pri _ _ -> pri,
-      pktNwSrc =
-        stripIPAddr $ case nettleEthernetBody pkt of
-          IPInEthernet (HCons hdr _) -> ipSrcAddress hdr
-          ARPInEthernet (ARPQuery q) -> querySenderIPAddress q
-          ARPInEthernet (ARPReply r) -> replySenderIPAddress r
-          _ -> ipAddress 0 0 0 0,
-      pktNwDst =
-        stripIPAddr $ case nettleEthernetBody pkt of
-          IPInEthernet (HCons hdr _) -> ipDstAddress hdr
-          ARPInEthernet (ARPQuery q) -> queryTargetIPAddress q
-          ARPInEthernet (ARPReply r) -> replyTargetIPAddress r
-          _ -> ipAddress 0 0 0 0,
-      pktNwProto =
-        case nettleEthernetBody pkt of
-          IPInEthernet (HCons hdr _) -> ipProtocol hdr
-          ARPInEthernet (ARPQuery _) -> 1
-          ARPInEthernet (ARPReply _) -> 2
-          _ -> 0,
-      pktNwTos =
-          case nettleEthernetBody pkt of
-            IPInEthernet (HCons hdr _) -> dscp hdr
-            _ -> 0 ,
-      pktTpSrc =
-        case nettleEthernetBody pkt of
-          IPInEthernet (HCons _ (HCons (TCPInIP (src,dst)) _)) -> src
-          IPInEthernet (HCons _ (HCons (UDPInIP (src,dst) _) _)) -> src
-          IPInEthernet (HCons _ (HCons (ICMPInIP (typ,cod)) _)) ->
-            fromIntegral typ
-          _ -> 0,
-      pktTpDst =
-        case nettleEthernetBody pkt of
-          IPInEthernet (HCons _ (HCons (TCPInIP (src,dst)) _)) -> dst
-          IPInEthernet (HCons _ (HCons (UDPInIP (src,dst) _) _)) -> dst
-          IPInEthernet (HCons _ (HCons (ICMPInIP (typ,cod)) _)) ->
-            fromIntegral cod
-          _ -> 0
-          }
-    where
-      stripIPAddr (IPAddress a) = a
+  toPacket (OFPkt pkt) = do
+    hdrs <- nettleEthernetHeaders pkt
+    body <- nettleEthernetBody pkt
+    proto <- ethProto body
+    tos <- ethTOS body
+    return $ Packet (ethToWord48 (sourceMACAddress hdrs))
+                    (ethToWord48 (destMACAddress hdrs))
+                    (typeCode hdrs)
+                    (ethVLANId hdrs)
+                    (ethVLANPcp hdrs) 
+                    (ethSrcIP body)
+                    (ethDstIP body)
+                    proto
+                    tos
+                    (srcPort body)
+                    (dstPort body)
+                    (receivedOnPort pkt) 
 
   fromPattern ptrn = OFPat $ Match {
     srcEthAddress = wildcardToMaybe $ fmap word48ToEth (ptrnDlSrc ptrn),
@@ -357,6 +326,8 @@ instance FreneticImpl OpenFlow where
   
   actnControllerPart (OFAct _ queries) switchID ofPkt  = do
     let pktChans = map pktQueryChan . filter isPktQuery $ queries
-    let pkt = toPacket ofPkt
-    mapM_ (\chan -> writeChan chan (switchID, pkt)) pktChans
+    let sendParsablePkt chan = case toPacket ofPkt of
+          Nothing -> return ()
+          Just pk -> writeChan chan (switchID, pk)
+    mapM_ sendParsablePkt pktChans
     

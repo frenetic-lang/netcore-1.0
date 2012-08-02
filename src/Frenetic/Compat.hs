@@ -74,7 +74,7 @@ class (Show (PatternImpl a),
 
   -- |'ptrnMatchPkt pkt pat' is 'True' if 'pat' matches 'pkt'.
   ptrnMatchPkt :: PacketImpl a -> PatternImpl a -> Bool
-  toPacket :: PacketImpl a -> Packet
+  toPacket :: PacketImpl a -> Maybe Packet
 
   updatePacket :: PacketImpl a -> Packet -> PacketImpl a
 
