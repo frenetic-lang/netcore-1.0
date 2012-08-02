@@ -3,6 +3,9 @@ module Frenetic.TopoGen
   , linearHosts
   , kComplete
   , kCompleteHosts
+  , waxman
+  , smallworld
+  , fattree
   ) where
 
 import Data.Graph.Inductive.Graph
@@ -92,7 +95,7 @@ kCompleteHosts n = buildGraph $ hostLinks ++ pairs where
     h2 = 102 + 10 * i
 
 -- |Build a Waxman random graph with n nodes, h hosts on each node, and
--- parameters a and b
+-- parameters a and b.  Suggested parameters:  a=0.8, b=0.18
 waxman :: (Integral n, Integral h) => n -> h -> Double -> Double -> IO Topo
 waxman n h a b = do
   plotted <- sequence [ do
@@ -106,7 +109,7 @@ waxman n h a b = do
   let link (i, ip) (j, jp) = do
         let d = distance ip jp
         rv <- rand01IO
-        if rv < a * (-d / (b * maxDistance)) then return $ Just (i, j)
+        if rv < a * (exp (-d / (b * maxDistance))) then return $ Just (i, j)
                                              else return Nothing
   edges <- sequence [ link i j | i : js <- List.tails plotted, j <- js]
   let edges' = Maybe.catMaybes edges
@@ -119,7 +122,7 @@ waxman n h a b = do
 -- |Build a Watts-Strogatz graph on n nodes, with degree k (even, n >> k >>
 -- ln(n) >> 1) and rewiring likelihood 0 <= b <= 1.  See
 -- en.wikipedia.org/wiki/Watts_and_Strogatz_model for more information, and the
--- algorithm we follow.
+-- algorithm we follow.  Suggested parameters: k = n/3, b=0.3
 smallworld :: (Integral n, Integral h, Integral k) =>
               n -> h -> k -> Double -> IO Topo
 smallworld n h k b = do

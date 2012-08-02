@@ -4,17 +4,19 @@ module Frenetic.Slices.Slice
   , Loc (..)
   -- * Utilities
   , internalSlice
+  , simpleSlice
   , localize
   , switchesOfPredicate
   , poUsesVlans
   , actUsesVlans
   ) where
 
-import Data.Word
 import Data.Graph.Inductive.Graph
+import Data.List
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.MultiSet as MS
+import qualified Data.Set as Set
+import Data.Word
 import Frenetic.NetCore
 import Frenetic.Pattern
 import Frenetic.Topo
@@ -28,11 +30,28 @@ data Slice = Slice {
 , egress  :: Map.Map Loc Predicate
 } deriving (Eq, Ord, Show)
 
+linkToLoc (n, _, p) = Loc (fromIntegral n) p
+
 -- |Produce a slice that exactly covers the given topology, with no ingress or
 -- egress ports.
 internalSlice :: Topo -> Slice
 internalSlice topo = Slice locations Map.empty Map.empty where
-  locations = Set.fromList . map (\(n, _, p) -> Loc (fromIntegral n) p) . labEdges $ topo
+  locations = Set.fromList . map linkToLoc . labEdges $ topo
+
+-- |Produce a slice with all the switches in topo, and predicate applied to all
+-- in- and out-bound connections to hosts
+simpleSlice :: Topo -> Predicate -> Slice
+simpleSlice topo pred = Slice int (Map.fromList $ zip ext (repeat pred))
+                                  (Map.fromList $ zip ext (repeat pred))
+  where
+  links = labEdges topo
+  -- Only get links coming from switches, and segregate based on pointing to a
+  -- host or not.
+  (intLinks, extLinks) = partition (\(_, n2, _) -> not $ isHost topo n2) .
+                         filter (\(_, _, p) -> p /= 0) $
+                         links
+  int = Set.fromList $ map linkToLoc intLinks
+  ext = map linkToLoc extLinks
 
 -- |Transform policy running on slice into a FLOOD- and unbound port-free (i.e.,
 -- every port has an unambiguous switch associated with it) version with the

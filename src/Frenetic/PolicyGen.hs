@@ -3,6 +3,8 @@ module Frenetic.PolicyGen
   , realFlood
   , simuFlood
   , simuFloodQuery
+  , shortestPath
+  , multicast
   ) where
 
 import Data.Graph.Inductive.Graph
@@ -65,8 +67,8 @@ simuFloodQuery topo q = poNaryUnion policies where
 
 -- |Construct an all-pairs-shortest-path routing policy between hosts, using the
 -- ID of the host as the MAC address.
-shortestPaths :: Topo -> Policy
-shortestPaths topo = poNaryUnion policies where
+shortestPath :: Topo -> Policy
+shortestPath topo = poNaryUnion policies where
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (hosts topo)
   policies = map pathPolicy $ Set.toList hostsSet
@@ -92,8 +94,8 @@ shortestPaths topo = poNaryUnion policies where
 
 -- |Construct a policy that routes traffic to DlDst:FF:FF:FF:FF:FF:FF to all
 -- hosts except the one it came in on
-spanningTree :: Topo -> Policy
-spanningTree topo = poNaryUnion policies % dlDst 0xFFFFFFFFFFFF where
+multicast :: Topo -> Policy
+multicast topo = poNaryUnion policies % dlDst 0xFFFFFFFFFFFF where
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (hosts topo)
   tree = msTree routingTopo

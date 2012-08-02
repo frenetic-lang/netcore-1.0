@@ -5,6 +5,7 @@ module Frenetic.Topo
   , getEdge
   , reverseLoc
   , subgraph
+  , isHost
   , switches
   , hosts
   , lPorts
