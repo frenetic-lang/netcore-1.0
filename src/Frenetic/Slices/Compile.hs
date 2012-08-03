@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.NetCore
+import Frenetic.Pattern
 import Frenetic.NetCore.Reduce
 import Frenetic.NetCore.Short
 import Frenetic.Slices.Slice

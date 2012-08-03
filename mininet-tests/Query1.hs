@@ -8,7 +8,7 @@ import System.IO
 
 main = do
   (ch, queryAct) <- query 1000
-  let pol = PoBasic (PrPattern top) (allPorts unmodified <+> queryAct)
+  let pol = matchAll ==> (allPorts unmodified <+> queryAct)
   forkIO $ forever $ do
     (sw, n) <- readChan ch
     putStrLn ("Counter is: " ++ show n)

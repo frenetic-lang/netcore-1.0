@@ -5,10 +5,9 @@ import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
 import Test.HUnit hiding (Node)
 import Test.Framework.Providers.HUnit
-
+import Frenetic.Pattern hiding (intersect)
 import Tests.Frenetic.Util
-
-import Frenetic.NetCore hiding (intersect)
+import Frenetic.NetCore
 import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Reduce
 

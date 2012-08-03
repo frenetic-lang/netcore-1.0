@@ -5,9 +5,8 @@ import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
 import Test.HUnit
 import Test.Framework.Providers.HUnit
-
 import Tests.Frenetic.Util
-
+import Frenetic.Pattern
 import Frenetic.NetCore
 import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Short

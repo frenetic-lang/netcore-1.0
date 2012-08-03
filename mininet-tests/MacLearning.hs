@@ -55,7 +55,7 @@ learnRoutes pktChan = do
         let floodPol = neg (poDom fwdPol) ==> allPorts unmodified
         writeChan polChan (fwdPol <+> floodPol)
         loop locs'
-  writeChan polChan (top ==> allPorts unmodified)
+  writeChan polChan (matchAll ==> allPorts unmodified)
   forkIO (loop Map.empty)
   return polChan
 

@@ -14,7 +14,7 @@ reduce = reducePo
 
 reducePo :: Policy -> Policy
 reducePo PoBottom = PoBottom
-reducePo (PoBasic pr act) = if pr' == neg top || act == mempty
+reducePo (PoBasic pr act) = if pr' == matchNone || act == mempty
                               then PoBottom
                               else PoBasic pr' act' where
   pr' = reducePr pr
@@ -36,7 +36,7 @@ reducePr p@(PrUnion _ _) = prOr leaves where
 reducePr p@(PrIntersect _ _) = result where
   leaves = Set.toList . Set.fromList . map reducePr . prUnIntersect $ p
   nSwitches = Set.size .Set.fromList . catMaybes . map switchOfPred $ leaves
-  result = if nSwitches > 1 then neg top
+  result = if nSwitches > 1 then matchNone
            else prAnd leaves
 
 reducePr (PrNegate (PrNegate p)) = reducePr p

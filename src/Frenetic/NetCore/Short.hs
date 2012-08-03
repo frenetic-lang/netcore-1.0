@@ -4,6 +4,8 @@ module Frenetic.NetCore.Short
     inport
   , (<||>)
   , (<&&>)
+  , matchAll
+  , matchNone
   , neg
   , prSubtract
   , prOr
@@ -53,6 +55,14 @@ import qualified Data.MultiSet as MS
 import Frenetic.Pattern
 import Frenetic.NetCore.Types
 import Data.Monoid
+
+-- |Matches all packets.
+matchAll :: Predicate
+matchAll = top
+
+-- |Matches no packets.
+matchNone :: Predicate
+matchNone = PrNegate top
 
 -- |Construct the predicate matching packets on this switch and port
 inport :: Switch -> Port -> Predicate

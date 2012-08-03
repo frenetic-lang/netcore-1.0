@@ -10,9 +10,13 @@ module Frenetic.NetCore
   -- * Predicates
   , Predicate (..)
   , Pattern (..)
+  , Wildcard (..)
+  , Prefix (..)
   , inport
   , (<||>)
   , (<&&>)
+  , matchAll
+  , matchNone
   , neg
   , prSubtract
   , prOr
@@ -66,7 +70,6 @@ module Frenetic.NetCore
   , modNwTos
   , modTpSrc
   , modTpDst
-  , module Frenetic.Pattern
   ) where
 
 import Frenetic.Server

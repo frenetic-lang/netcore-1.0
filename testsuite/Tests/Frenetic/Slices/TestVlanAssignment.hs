@@ -5,10 +5,9 @@ import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
 import Test.HUnit hiding (Node)
 import Test.Framework.Providers.HUnit
-
+import Frenetic.Pattern
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-
 import Frenetic.NetCore
 import Frenetic.Slices.Slice
 import Frenetic.Slices.VlanAssignment
