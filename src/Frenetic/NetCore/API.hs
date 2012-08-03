@@ -64,6 +64,7 @@ module Frenetic.NetCore.API
   , prUnUnion
   , poUnUnion
   , poDom
+  , size
   ) where
 
 import Data.Bits
@@ -337,3 +338,17 @@ poDom :: Policy -> Predicate
 poDom PoBottom = PrNegate top
 poDom (PoBasic pred _) = pred
 poDom (PoUnion pol1 pol2) = PrUnion (poDom pol1) (poDom pol2)
+
+-- |Returns the approximate size of the policy
+size :: Policy -> Int
+size PoBottom = 1
+size (PoBasic p _) = prSize p + 1
+size (PoUnion p1 p2) = size p1 + size p2 + 1
+
+-- |Returns the approximate size of the predicate
+prSize :: Predicate -> Int
+prSize (PrPattern _) = 1
+prSize (PrTo _) = 1
+prSize (PrUnion p1 p2) = prSize p1 + prSize p2 + 1
+prSize (PrIntersect p1 p2) = prSize p1 + prSize p2 + 1
+prSize (PrNegate p) = prSize p + 1
