@@ -9,6 +9,8 @@ import Data.List
 import qualified Data.MultiSet as MS
 import Frenetic.NetCore hiding (empty)
 import System.IO
+import Frenetic.NetCore.Short hiding (empty)
+import Frenetic.NetCore.Types
 import Text.PrettyPrint.ANSI.Leijen
 
 ribbonFrac = 0.8

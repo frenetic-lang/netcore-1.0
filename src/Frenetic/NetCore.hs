@@ -2,8 +2,70 @@
 -- a backend.
 module Frenetic.NetCore
   ( module Frenetic.Server
-  , module Frenetic.NetCore.Types
-  , module Frenetic.NetCore.Short
+  -- * Policies
+  , Policy (..)
+  , (==>)
+  , (<%>)
+  , Addable (..)
+  -- * Predicates
+  , Predicate (..)
+  , Pattern (..)
+  , inport
+  , (<||>)
+  , (<&&>)
+  , neg
+  , prSubtract
+  , prOr
+  , prAnd
+  -- ** Exact match predicate constructors
+  , onSwitch
+  , dlSrc
+  , dlDst
+  , dlTyp
+  , dlVlan
+  , dlVlanPcp
+  , nwSrc
+  , nwDst
+  , nwSrcPrefix
+  , nwDstPrefix
+  , nwProto
+  , nwTos
+  , tpSrc
+  , tpDst
+  , inPort
+  -- * Actions
+  , Action (..)
+  , Query (..)
+  , Modification (..)
+  , unmodified
+  , query
+  , pktQuery
+  , isPktQuery
+  , dropPkt
+  , allPorts
+  , forward
+  , modify
+  , actionForwardsTo
+  , unionAction
+  -- * Network Elements
+  , Switch
+  , Port
+  , Vlan
+  , Loc (..)
+  , PseudoPort (..)
+  , Word48
+  -- * Packets
+  , Packet (..)
+  -- * Packet modifications
+  , modDlSrc
+  , modDlDst
+  , modDlVlan
+  , modDlVlanPcp
+  , modNwSrc
+  , modNwDst
+  , modNwTos
+  , modTpSrc
+  , modTpDst
   , module Frenetic.Pattern
   ) where
 

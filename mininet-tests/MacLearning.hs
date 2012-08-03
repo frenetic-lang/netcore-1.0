@@ -8,6 +8,7 @@ import System.IO
 import Data.Map (Map)
 import qualified Data.Map as Map
 import System.Log.Logger
+import Frenetic.NetCore.Types (poDom)
 
 ethernetFloodMAC = 0xFFFFFFFFFFFF
 isFlood = dlDst ethernetFloodMAC

@@ -6,6 +6,7 @@ import Data.Maybe
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.NetCore
+import Frenetic.NetCore.Types
 
 -- |Reduce the policy to produce a smaller, more readable policy
 reduce = reducePo
