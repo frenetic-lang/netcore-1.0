@@ -7,6 +7,7 @@ import Control.Monad
 import qualified Repeater
 import qualified Query1
 import qualified MacLearning
+import qualified Internet
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
 import System.Log.Handler.Simple
@@ -30,6 +31,8 @@ argSpec =
       "a repeater that also counts packets"
   , Option [] ["maclearning"] (NoArg (Example MacLearning.main))
       "a learning switch"
+  , Option [] ["internet"] (NoArg (Example Internet.main))
+      "tests connecting Mininet to the Internet"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
   ]
 
