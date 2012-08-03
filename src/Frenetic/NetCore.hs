@@ -1,7 +1,9 @@
 -- |Everything necessary to build a controller atop NetCore, using Nettle as
 -- a backend.
 module Frenetic.NetCore
-  ( module Frenetic.Server
+  ( -- * OpenFlow Controllers
+    controller
+  , dynController
   -- * Policies
   , Policy (..)
   , (==>)

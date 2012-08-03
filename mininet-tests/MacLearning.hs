@@ -80,4 +80,4 @@ learningSwitch = do
 
 main = do
   polChan <- learningSwitch
-  freneticServer polChan
+  dynController polChan

@@ -13,6 +13,4 @@ main = do
     (sw, n) <- readChan ch
     putStrLn ("Counter is: " ++ show n)
     hFlush stdout
-  polChan <- newChan
-  writeChan polChan pol
-  freneticServer polChan
+  controller pol
