@@ -29,7 +29,7 @@
 --------------------------------------------------------------------------------
 module Frenetic.Hosts.Nettle where
 
--- TODO(arjun): builtin catch is deprecated. Seriously?
+import Frenetic.Common
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Frenetic.LargeWord
@@ -43,7 +43,7 @@ import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
-import Frenetic.Util
+
 
 mkFlowMod :: (Match, ActionSequence)
           -> Priority

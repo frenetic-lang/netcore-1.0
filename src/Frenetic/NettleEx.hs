@@ -18,7 +18,7 @@ module Frenetic.NettleEx
   , dstPort
   ) where
 
-import Frenetic.Util
+import Frenetic.Common
 import qualified Data.Map as Map
 import Nettle.OpenFlow hiding (intersect)
 import qualified Nettle.Servers.Server as Server

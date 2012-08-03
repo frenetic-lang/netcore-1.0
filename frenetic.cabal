@@ -35,7 +35,7 @@ Library
     Frenetic.NetCore.API,
     Frenetic.Server
   other-modules:
-    Frenetic.Util
+    Frenetic.Common
     Frenetic.Switches.OpenFlow
     Frenetic.NetCore.Compiler
     Frenetic.Hosts.Nettle

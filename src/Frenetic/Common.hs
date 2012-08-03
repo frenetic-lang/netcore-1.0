@@ -1,8 +1,10 @@
-module Frenetic.Util
+-- |Functions and types that heavily used by the Frenetic implementation.
+module Frenetic.Common
   ( newLift
   , newLift2
   , Set
   , Map
+  , MultiSet
   , module Control.Concurrent.Chan
   , module Control.Concurrent
   , module System.Log.Logger
@@ -15,6 +17,7 @@ import Control.Concurrent
 import Control.Monad
 import Data.Set (Set)
 import Data.Map (Map)
+import Data.MultiSet
 import Control.Newtype
 
 newLift :: (Newtype n o) => (o -> o) -> n -> n

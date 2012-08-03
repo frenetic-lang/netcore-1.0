@@ -3,11 +3,10 @@ module MacLearning where
 import Control.Concurrent
 import Control.Monad
 import Frenetic.NetCore
-import Frenetic.Util
+import Frenetic.Common
 import System.IO
 import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.MultiSet as MS
 import System.Log.Logger
 
 ethernetFloodMAC = 0xFFFFFFFFFFFF

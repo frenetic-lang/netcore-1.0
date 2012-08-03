@@ -45,7 +45,7 @@ import qualified Data.Set as Set
 import Data.Word
 import Frenetic.LargeWord
 import Frenetic.Pattern
-import Frenetic.Util
+import Frenetic.Common
 import System.IO.Unsafe
 import Data.Maybe (catMaybes)
 

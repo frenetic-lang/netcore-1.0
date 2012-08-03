@@ -44,7 +44,7 @@ module Frenetic.NetCore.Compiler
 
 import           Frenetic.Compat
 import           Frenetic.Pattern
-import           Frenetic.Util
+import           Frenetic.Common
 import           Frenetic.NetCore.API
 import           Frenetic.NetCore.Semantics
 import           Frenetic.NetCore.Short

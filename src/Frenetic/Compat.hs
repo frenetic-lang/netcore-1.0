@@ -34,7 +34,7 @@ module Frenetic.Compat
   , FreneticImpl (..)
   )  where
 
-import Frenetic.Util
+import Frenetic.Common
 import Frenetic.NetCore.API
 import qualified Data.List          as List
 import           Data.Bits

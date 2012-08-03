@@ -31,7 +31,7 @@ module Frenetic.Server where
 
 import Frenetic.Hosts.Nettle
 import Frenetic.NetCore.API
-import Frenetic.Util
+import Frenetic.Common
 
 freneticServer :: Chan Policy -> IO ()
 freneticServer = nettleServer
