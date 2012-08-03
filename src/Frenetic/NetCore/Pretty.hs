@@ -7,9 +7,9 @@ module Frenetic.NetCore.Pretty
 
 import Data.List
 import qualified Data.MultiSet as MS
-import Frenetic.NetCore hiding (empty)
+import Frenetic.NetCore
 import System.IO
-import Frenetic.NetCore.Short hiding (empty)
+import Frenetic.NetCore.Short
 import Frenetic.NetCore.Types
 import Text.PrettyPrint.ANSI.Leijen
 

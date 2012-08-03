@@ -11,6 +11,7 @@ module Frenetic.Slices.Slice
   , actUsesVlans
   ) where
 
+import Frenetic.Common
 import Data.Graph.Inductive.Graph
 import Data.List
 import qualified Data.Map as Map
@@ -64,7 +65,7 @@ localize slice policy = case policy of
   PoUnion p1 p2 -> localize slice p1 <+> localize slice p2
   PoBasic pred act ->
     let ss = Set.toList (switchesOfPredicate switches pred) in
-    unions [localizeMods (pred' <&&> PrTo s) act
+    mconcat [localizeMods (pred' <&&> PrTo s) act
                               (Map.findWithDefault Set.empty s ports)
                 | s <- ss]
     where
@@ -86,7 +87,7 @@ onSlice (Slice int ing egr) = prOr .
 -- |Transform potentially non-local forwarding actions into explicitly local
 -- ones on the switch.
 localizeMods :: Predicate -> Action -> Set.Set Port -> Policy
-localizeMods pred (Action m obs) ports = unions (forwardPol : floodPols)
+localizeMods pred (Action m obs) ports = mconcat (forwardPol : floodPols)
   where
   (forwards, floods) = MS.mapEither split m
   -- partial match is safe because we split it

@@ -50,7 +50,7 @@ learnRoutes pktChan = do
       loop locs = do
         (sw, pkt) <- readChan pktChan
         let locs' = Map.insert (sw, pktDlSrc pkt) (pktInPort pkt) locs
-        let fwdPol = unions (concatMap (mkRule locs') (Map.toList locs'))
+        let fwdPol = mconcat (concatMap (mkRule locs') (Map.toList locs'))
         debugM "maclearning" $ "forwarding policy is " ++ show fwdPol
         let floodPol = neg (poDom fwdPol) ==> allPorts unmodified
         writeChan polChan (fwdPol <+> floodPol)

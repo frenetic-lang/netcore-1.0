@@ -7,6 +7,7 @@ module Frenetic.PolicyGen
   , multicast
   ) where
 
+import Frenetic.Common
 import Data.Graph.Inductive.Graph
 import Data.Graph.Inductive.Tree
 import Data.Graph.Inductive.Query.MST
@@ -41,7 +42,7 @@ queries = do
 
 -- | For each switch, just allPorts every packet.
 realFlood :: Topo -> Policy
-realFlood topo = unions policies where
+realFlood topo = mconcat policies where
   ss = switches topo
   policies = [PrTo (fromIntegral s) ==> allPorts unmodified | s <- ss]
 
@@ -49,7 +50,7 @@ realFlood topo = unions policies where
 -- the topology.  Different from realFlood when dealing with subgraphs because
 -- simuFlood preserves behavior when composed into a larger graph.
 simuFlood :: Topo -> Policy
-simuFlood topo = unions policies where
+simuFlood topo = mconcat policies where
   ss = switches topo
   policies = [PrTo (fromIntegral s) <&&> validPort s ==>
               modify (ports' s) | s <- ss]
@@ -58,7 +59,7 @@ simuFlood topo = unions policies where
 
 -- |Simulate flooding, and observe all packets with query.
 simuFloodQuery :: Topo -> Action -> Policy
-simuFloodQuery topo q = unions policies where
+simuFloodQuery topo q = mconcat policies where
   ss = switches topo
   policies = [PrTo (fromIntegral s) <&&> validPort s ==>
               (modify (ports' s) <+> q) | s <- ss]
@@ -68,11 +69,11 @@ simuFloodQuery topo q = unions policies where
 -- |Construct an all-pairs-shortest-path routing policy between hosts, using the
 -- ID of the host as the MAC address.
 shortestPath :: Topo -> Policy
-shortestPath topo = unions policies where
+shortestPath topo = mconcat policies where
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (hosts topo)
   policies = map pathPolicy $ Set.toList hostsSet
-  pathPolicy h1 = unions policies where
+  pathPolicy h1 = mconcat policies where
     otherHosts = Set.delete h1 hostsSet
     paths = spTree h1 routingTopo
     policies = [ buildPath (fromIntegral h1) (fromIntegral h2) $
@@ -80,7 +81,7 @@ shortestPath topo = unions policies where
                | h2 <- Set.toList otherHosts ]
   buildPath _ _ [] = PoBottom
   buildPath _ _ [_] = PoBottom
-  buildPath source dest path = unions policies where
+  buildPath source dest path = mconcat policies where
     hops = toHops path
     policies = catMaybes . map (buildHop source dest) $ hops
   buildHop source dest (s1, s2) =
@@ -95,7 +96,7 @@ shortestPath topo = unions policies where
 -- |Construct a policy that routes traffic to DlDst:FF:FF:FF:FF:FF:FF to all
 -- hosts except the one it came in on
 multicast :: Topo -> Policy
-multicast topo = unions policies <%> dlDst 0xFFFFFFFFFFFF where
+multicast topo = mconcat policies <%> dlDst 0xFFFFFFFFFFFF where
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (hosts topo)
   tree = msTree routingTopo
@@ -107,7 +108,7 @@ multicast topo = unions policies <%> dlDst 0xFFFFFFFFFFFF where
          map (map fst) .
          map (\(LP x) -> x) $ tree
   policies = [ buildSwitch s | s <- switches topo ]
-  buildSwitch s = unions policies where
+  buildSwitch s = mconcat policies where
     ports = Set.fromList [p | (dest, p) <- lPorts topo s,
                               Set.member (s, dest) hops]
     s' = fromIntegral s

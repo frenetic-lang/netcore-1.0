@@ -6,7 +6,7 @@ module Frenetic.NetCore
   , Policy (..)
   , (==>)
   , (<%>)
-  , Addable (..)
+  , (<+>)
   -- * Predicates
   , Predicate (..)
   , Pattern (..)

@@ -10,6 +10,7 @@ module Frenetic.Slices.Compile
   , matchesSwitch
   ) where
 
+import Frenetic.Common
 import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
@@ -27,7 +28,7 @@ vlanMatch vlan = dlVlan vlan
 -- |Produce the combined policy by compiling a list of slices and policies with
 -- the vanilla compiler
 transform :: [(Slice, Policy)] -> Policy
-transform combined = unions policies
+transform combined = mconcat policies
   where
     tagged = sequential combined
     policies = map (\(vlan, (slice, policy)) -> compileSlice slice vlan policy)
@@ -36,7 +37,7 @@ transform combined = unions policies
 -- |Produce the combined policy by compiling a list of slices and policies with
 -- the edge compiler
 transformEdge :: Topo -> [(Slice, Policy)] -> Policy
-transformEdge topo combined = unions policies where
+transformEdge topo combined = mconcat policies where
   tagged = edge topo combined
   policies = map (\(assignment, (slice, policy)) ->
                    edgeCompileSlice slice assignment policy)
@@ -59,7 +60,7 @@ compileSlice slice vlan policy =
 -- | Compile a slice with an assignment of VLAN tags to ports.  For this to work
 -- properly, the assignment of tags to both ends of an edge must be the same
 edgeCompileSlice :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
-edgeCompileSlice slice assignment policy = unions (queryPols : forwardPols)
+edgeCompileSlice slice assignment policy = mconcat (queryPols : forwardPols)
   where
     localPolicy = localize slice policy
     -- separate out queries to avoid multiplying them during the fracturing that

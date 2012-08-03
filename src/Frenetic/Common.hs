@@ -8,6 +8,7 @@ module Frenetic.Common
   , module Control.Concurrent.Chan
   , module Control.Concurrent
   , module System.Log.Logger
+  , module Data.Monoid
   , mergeChan
   ) where
 
@@ -15,6 +16,7 @@ import System.Log.Logger hiding (Priority)
 import Control.Concurrent.Chan
 import Control.Concurrent
 import Control.Monad
+import Data.Monoid
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.MultiSet

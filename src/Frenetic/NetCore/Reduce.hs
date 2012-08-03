@@ -2,6 +2,7 @@ module Frenetic.NetCore.Reduce
   ( reduce
   ) where
 
+import Frenetic.Common
 import Data.Maybe
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
@@ -13,7 +14,7 @@ reduce = reducePo
 
 reducePo :: Policy -> Policy
 reducePo PoBottom = PoBottom
-reducePo (PoBasic pr act) = if pr' == neg top || act == empty
+reducePo (PoBasic pr act) = if pr' == neg top || act == mempty
                               then PoBottom
                               else PoBasic pr' act' where
   pr' = reducePr pr

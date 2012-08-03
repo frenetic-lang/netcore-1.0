@@ -16,7 +16,7 @@ module Frenetic.NetCore.Short
   -- ** Policies
   , (==>)
   , (<%>)
-  , Addable (..)
+  , (<+>)
   -- * Exact match predicate constructors
   , onSwitch
   , dlSrc
@@ -52,14 +52,7 @@ import qualified Data.List as List
 import qualified Data.MultiSet as MS
 import Frenetic.Pattern
 import Frenetic.NetCore.Types
-
-class Addable a where
-  empty :: a
-  (<+>) :: a -> a -> a
-  unions :: [a] -> a
-
-  unions [] = empty
-  unions as = List.foldr1 (<+>) as
+import Data.Monoid
 
 -- |Construct the predicate matching packets on this switch and port
 inport :: Switch -> Port -> Predicate
@@ -96,10 +89,14 @@ modify mods = Action (MS.fromList lst) MS.empty
 
 onSwitch = PrTo
 
-instance Addable Action where
-  (Action fwd1 q1) <+> (Action fwd2 q2) =
+instance Monoid Action where
+  mappend (Action fwd1 q1) (Action fwd2 q2) =
     Action (fwd1 `MS.union` fwd2) (q1 `MS.union` q2)
-  empty = dropPkt
+  mempty = dropPkt
+
+-- |Shorthand for combining policies and actions.
+(<+>) :: Monoid a => a -> a -> a
+(<+>) = mappend 
 
 (<||>) = PrUnion
 
@@ -115,9 +112,9 @@ policy <%> pred = case policy of
   PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
   PoUnion p1 p2 -> PoUnion (p1 <%> pred) (p2 <%> pred)
 
-instance Addable Policy where
-  (<+>) = PoUnion
-  empty = PoBottom
+instance Monoid Policy where
+  mappend = PoUnion
+  mempty = PoBottom
 
 
 dlSrc     :: Word48     -> Predicate
