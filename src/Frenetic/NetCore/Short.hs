@@ -51,7 +51,7 @@ import Data.Word
 import qualified Data.List as List
 import qualified Data.MultiSet as MS
 import Frenetic.Pattern
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 
 class Addable a where
   empty :: a

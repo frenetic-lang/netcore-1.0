@@ -24,7 +24,7 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /testsuite/Frenetic/ArbitraryAPI                                           --
+-- /testsuite/Frenetic/ArbitraryTypes                                           --
 --                                                                            --
 -- $Id$ --
 --------------------------------------------------------------------------------
@@ -35,7 +35,7 @@ import Nettle.OpenFlow
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
-import Frenetic.NetCore.API hiding (Action, PseudoPort)
+import Frenetic.NetCore.Types hiding (Action, PseudoPort)
 
 instance Arbitrary Match where
   arbitrary = do

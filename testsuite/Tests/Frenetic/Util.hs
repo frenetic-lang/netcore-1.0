@@ -13,7 +13,7 @@ module Tests.Frenetic.Util
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.PolicyGen

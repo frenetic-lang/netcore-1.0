@@ -36,7 +36,7 @@
 import Test.Framework
 import Test.Framework.Providers.QuickCheck2
 
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 
 main = defaultMain tests
 

@@ -29,7 +29,7 @@
 --------------------------------------------------------------------------------
 
 import Frenetic.Server
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Action
 import Frenetic.Compat
 import Frenetic.Pattern

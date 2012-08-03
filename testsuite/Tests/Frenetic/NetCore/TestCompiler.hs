@@ -53,7 +53,7 @@ import Tests.Frenetic.ArbitraryCompat
 import Frenetic.Pattern
 import Tests.Frenetic.ArbitraryPattern
 import Frenetic.NetCore
-import Tests.Frenetic.NetCore.ArbitraryAPI
+import Tests.Frenetic.NetCore.ArbitraryTypes
 
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow

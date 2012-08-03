@@ -58,7 +58,7 @@ import qualified Nettle.IPv4.IPAddress as IPAddr
 import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
 import Frenetic.Compat
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Control.Concurrent
 import Frenetic.NettleEx hiding (AllPorts)
 import qualified Frenetic.NettleEx as NettleEx

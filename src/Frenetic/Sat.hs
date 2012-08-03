@@ -20,7 +20,7 @@ module Frenetic.Sat
   ) where
 
 import Frenetic.Z3
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.Pattern hiding (match)
 import Frenetic.Topo
 import Data.Bits

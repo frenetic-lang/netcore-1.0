@@ -35,7 +35,7 @@ module Policies.ShortestPath where
 import Topologies
 import Frenetic.Compat
 import Frenetic.Pattern
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Action
 import Data.Graph.Inductive.Graph
 import Data.Graph.Inductive.PatriciaTree

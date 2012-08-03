@@ -14,7 +14,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import System.Random
 
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.Topo
 
 distance (x1, y1) (x2, y2) = ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5

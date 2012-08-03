@@ -1,4 +1,4 @@
-module Frenetic.NetCore.API
+module Frenetic.NetCore.Types
   ( -- * Basic types
     Switch
   , Port
@@ -37,6 +37,7 @@ module Frenetic.NetCore.API
   , poDom
   ) where
 
+import Frenetic.Common
 import Data.Bits
 import Data.IORef
 import qualified Data.List as List
@@ -45,44 +46,78 @@ import qualified Data.Set as Set
 import Data.Word
 import Frenetic.LargeWord
 import Frenetic.Pattern
-import Frenetic.Common
 import System.IO.Unsafe
 import Data.Maybe (catMaybes)
 
-{-| The type of switches in the network. -}
+-- |A switch's unique identifier.
 type Switch = Word64
 
-{-| The type of switch ports. -}
+-- |The number of a physical port.
 type Port = Word16
 
-{-| The type of vlan tags -}
+-- |'Loc' uniquely identifies a port at a switch.
+data Loc = Loc Switch Port 
+  deriving (Eq, Ord, Show)
+
+-- |Logical ports.
+data PseudoPort 
+  = Physical Port 
+  | AllPorts 
+  deriving (Eq, Ord, Show)
+
+-- |VLAN tags. Only the lower 12-bits are used.
 type Vlan = Word16
 
--- |Fully qualified port locations
-data Loc = Loc Switch Port deriving (Eq, Ord, Show)
 
-{-| The type of logical switch ports. -}
-data PseudoPort = Physical Port | AllPorts deriving (Ord, Eq, Show)
+-- |Ethernet addresses are 48-bits wide.
+type Word48 
+  = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 
+      (LargeKey Word8 (LargeKey Word8 Word8))))
 
-{-| Auxillary value for ethernet addresses.  -}
-type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
-
--- |Frenetic packets
+-- |Packets' headers.
 data Packet = Packet {
-  pktDlSrc :: Word48,
-  pktDlDst :: Word48,
-  pktDlTyp :: Word16,
-  pktDlVlan :: Vlan,
-  pktDlVlanPcp :: Word8,
-  pktNwSrc :: Maybe Word32,
-  pktNwDst :: Maybe Word32,
-  pktNwProto :: Word8,
-  pktNwTos :: Word8,
-  pktTpSrc :: Maybe Word16,
-  pktTpDst :: Maybe Word16,
-  pktInPort :: Port
+  pktDlSrc :: Word48, -- ^source ethernet address
+  pktDlDst :: Word48, -- ^destination ethernet address
+  pktDlTyp :: Word16, -- ^ethernet type code (e.g., 0x800 for IP packets)
+  pktDlVlan :: Vlan,  -- ^VLAN tag
+  pktDlVlanPcp :: Word8, -- ^VLAN priority code
+  pktNwSrc :: Maybe Word32, -- ^source IP address for IP packets
+  pktNwDst :: Maybe Word32, -- ^destination IP address for IP packets
+  pktNwProto :: Word8, -- ^IP protocol number (e.g., 6 for TCP segments)
+  pktNwTos :: Word8, -- ^IP TOS field
+  pktTpSrc :: Maybe Word16, -- ^source port for IP packets
+  pktTpDst :: Maybe Word16, -- ^destination port for IP packets
+  pktInPort :: Port -- ^ingress port on the switch where the packet was
+                    -- received
 } deriving (Show, Eq, Ord)
 
+-- |Patterns to match packets. Patterns translate directly to a single OpenFlow
+-- match rule.
+data Pattern = Pattern {
+    ptrnDlSrc :: Wildcard Word48
+  , ptrnDlDst :: Wildcard Word48
+  , ptrnDlTyp :: Wildcard Word16
+  , ptrnDlVlan :: Wildcard Vlan
+  , ptrnDlVlanPcp :: Wildcard Word8
+  , ptrnNwSrc :: Prefix Word32
+  , ptrnNwDst :: Prefix Word32
+  , ptrnNwProto :: Wildcard Word8
+  , ptrnNwTos :: Wildcard Word8
+  , ptrnTpSrc :: Wildcard Word16
+  , ptrnTpDst :: Wildcard Word16
+  , ptrnInPort :: Wildcard Port
+ } deriving (Ord, Eq)
+
+-- |Predicates to match packets.
+data Predicate 
+  = PrPattern Pattern -- ^Match with a simple pattern.
+  | PrTo Switch -- ^Match only at this switch.
+  | PrUnion Predicate Predicate -- ^Match both predicates.
+  | PrIntersect Predicate Predicate -- ^Match either predicate.
+  | PrNegate Predicate -- ^Match packets to do not match the predicate.
+  deriving (Eq, Ord)
+
+-- |Names of common header fields.
 data Field 
   = DlSrc | DlDst | DlVlan | DlVlanPcp | NwSrc | NwDst | NwTos | TpSrc | TpDst
   deriving (Eq, Ord, Show)
@@ -118,21 +153,6 @@ modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
            , case modifyTpDst of { Just _ -> Just TpDst; Nothing -> Nothing }
            ]
 
--- |Frenetic patterns
-data Pattern = Pattern {
-  ptrnDlSrc :: Wildcard Word48
-  , ptrnDlDst :: Wildcard Word48
-  , ptrnDlTyp :: Wildcard Word16
-  , ptrnDlVlan :: Wildcard Vlan
-  , ptrnDlVlanPcp :: Wildcard Word8
-  , ptrnNwSrc :: Prefix Word32
-  , ptrnNwDst :: Prefix Word32
-  , ptrnNwProto :: Wildcard Word8
-  , ptrnNwTos :: Wildcard Word8
-  , ptrnTpSrc :: Wildcard Word16
-  , ptrnTpDst :: Wildcard Word16
-  , ptrnInPort :: Wildcard Port
-  } deriving (Ord, Eq)
 
 instance Matchable Pattern where
   top = Pattern {
@@ -244,13 +264,6 @@ idOfQuery :: Query -> QueryID
 idOfQuery (NumPktQuery queryID _ _) = queryID
 idOfQuery (PktQuery {pktQueryID=queryID}) = queryID
 
-{-| Predicates denote sets of (switch, packet) pairs. -}
-data Predicate = PrPattern Pattern
-               | PrTo Switch
-               | PrUnion Predicate Predicate
-               | PrIntersect Predicate Predicate
-               | PrNegate Predicate
-  deriving (Eq, Ord)
 
 -- |Get back all predicates in the intersection.  Does not return any naked intersections.
 prUnIntersect :: Predicate -> [Predicate]

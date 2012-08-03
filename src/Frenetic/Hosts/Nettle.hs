@@ -36,7 +36,7 @@ import Frenetic.LargeWord
 import Control.Exception.Base
 import Control.Monad.State
 import System.IO
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow

@@ -35,7 +35,7 @@ module Frenetic.Compat
   )  where
 
 import Frenetic.Common
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import qualified Data.List          as List
 import           Data.Bits
 import           Data.Word

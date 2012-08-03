@@ -14,7 +14,7 @@ module Frenetic.Slices.Sat
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import Frenetic.Sat
 import Frenetic.Slices.Slice

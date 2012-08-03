@@ -15,7 +15,7 @@ import Data.Graph.Inductive.Internal.RootPath
 import Data.Maybe
 import qualified Data.Set as Set
 import Data.Tuple
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.Topo

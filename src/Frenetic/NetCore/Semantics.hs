@@ -5,7 +5,7 @@ module Frenetic.NetCore.Semantics where
 import Frenetic.Compat
 import Frenetic.Pattern
 import Frenetic.Common
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import qualified Data.MultiSet as MS
 
