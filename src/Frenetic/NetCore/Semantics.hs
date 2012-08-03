@@ -36,7 +36,7 @@ interpretPolicy (PoBasic pred acts) tr = case interpretPredicate pred tr of
   True -> acts
   False -> dropPkt
 interpretPolicy (PoUnion p1 p2) tr =
-  interpretPolicy p1 tr `unionAction` interpretPolicy p2 tr
+  interpretPolicy p1 tr <+> interpretPolicy p2 tr
 
 instance Matchable (PatternImpl ()) where
   top = FreneticPat top

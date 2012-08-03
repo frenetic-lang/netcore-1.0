@@ -47,7 +47,7 @@ import Test.QuickCheck.Property (Property, morallyDubiousIOProperty)
 import Test.QuickCheck.Text
 import Test.HUnit
 import Test.Framework.Providers.HUnit
-
+import Frenetic.NetCore.Types
 import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
 import Frenetic.Pattern

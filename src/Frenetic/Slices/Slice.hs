@@ -21,6 +21,7 @@ import Data.Word
 import Frenetic.NetCore
 import Frenetic.Pattern
 import Frenetic.Topo
+import Frenetic.NetCore.Types
 
 data Slice = Slice {
   -- |Ports internal to the slice.

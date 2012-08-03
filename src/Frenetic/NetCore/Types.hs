@@ -15,8 +15,6 @@ module Frenetic.NetCore.Types
   -- ** Basic actions
   , query
   , pktQuery
-  -- ** Action composition
-  , unionAction
   -- ** Inspecting actions
   , actionForwardsTo
   -- * Patterns
@@ -228,6 +226,7 @@ data Query
   | PktQuery { pktQueryChan :: (Chan (Switch, Packet)), pktQueryID :: QueryID }
   deriving (Eq)
 
+-- |Actions to perform on packets.
 data Action = Action {
   actionForwards :: MS.MultiSet (PseudoPort, Modification),
   actionQueries :: MS.MultiSet Query
@@ -239,10 +238,6 @@ isPktQuery _               = False
 actionForwardsTo :: Action -> MS.MultiSet PseudoPort
 actionForwardsTo (Action m _) = 
   MS.map fst m
-
-unionAction :: Action -> Action -> Action
-unionAction (Action fwd1 q1) (Action fwd2 q2) =
-  Action (fwd1 `MS.union` fwd2) (q1 `MS.union` q2)
 
 query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do

@@ -37,7 +37,9 @@
  #-}
 
 module Tests.Frenetic.ArbitraryCompat where
+
 import Frenetic.NetCore.Semantics
+import Frenetic.NetCore.Types
 import qualified Data.Set as Set
 import Data.Word
 import Data.Bits
@@ -176,7 +178,7 @@ instance Arbitrary Action where
     -- TODO(arjun): queries
     oneof [ return $ allPorts unmodified,
             do ports <- listOf arbitrary
-               return $ foldr unionAction dropPkt (map forward ports)
+               return $ foldr (<+>) dropPkt (map forward ports)
           ]
 
 instance Arbitrary (PatternImpl ()) where

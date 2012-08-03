@@ -11,9 +11,6 @@ module Frenetic.NetCore
   , (<+>)
   -- * Predicates
   , Predicate (..)
-  , Pattern (..)
-  , Wildcard (..)
-  , Prefix (..)
   , inport
   , (<||>)
   , (<&&>)
@@ -46,13 +43,10 @@ module Frenetic.NetCore
   , unmodified
   , query
   , pktQuery
-  , isPktQuery
   , dropPkt
   , allPorts
   , forward
   , modify
-  , actionForwardsTo
-  , unionAction
   -- * Network Elements
   , Switch
   , Port

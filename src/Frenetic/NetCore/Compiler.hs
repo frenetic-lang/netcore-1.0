@@ -211,7 +211,7 @@ compilePolicy s (PoUnion po1 po2) =
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
             (skel12', skel1', skel2') =
-              skelCart unionAction skel1 skel2
+              skelCart (<+>) skel1 skel2
 
 {-| Compile a policy to a classifier. -}
 compile :: FreneticImpl a
