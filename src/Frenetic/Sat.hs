@@ -198,31 +198,30 @@ produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
                                                  (Primitive (fint port'))]
                        -- Flood means to forward out all ports but the one we
                        -- came in
-                       PhysicalFlood  -> [Not (Equals (port p') (port q'))]) ++
-        [ updateField p q "DlSrc"     ((fmap fint) (ptrnDlSrc m))
-        , updateField p q "DlDst"     ((fmap fint) (ptrnDlDst m))
-        , updateField p q "DlTyp"     ((fmap fint) (ptrnDlTyp m))
-        , updateField p q "DlVlan"    ((fmap fint) (ptrnDlVlan m))
-        , updateField p q "DlVlanPcp" ((fmap fint) (ptrnDlVlanPcp m))
-        , updateField p q "NwSrc"     (fromPrefix  (ptrnNwSrc m))
-        , updateField p q "NwDst"     (fromPrefix  (ptrnNwDst m))
-        , updateField p q "NwProto"   ((fmap fint) (ptrnNwProto m))
-        , updateField p q "NwTos"     ((fmap fint) (ptrnNwTos m))
-        , updateField p q "TpSrc"     ((fmap fint) (ptrnTpSrc m))
-        , updateField p q "TpDst"     ((fmap fint) (ptrnTpDst m))
+                       AllPorts  -> [Not (Equals (port p') (port q'))]) ++
+        [ updateField p q "DlSrc"     ((fmap fint) (modifyDlSrc m))
+        , updateField p q "DlDst"     ((fmap fint) (modifyDlDst m))
+        , updateField p q "DlTyp"     Nothing
+        , updateField p q "DlVlan"    ((fmap fint) (modifyDlVlan m))
+        , updateField p q "DlVlanPcp" ((fmap fint) (modifyDlVlanPcp m))
+        , updateField p q "NwSrc"     ((fmap fint) (modifyNwSrc m))
+        , updateField p q "NwDst"     ((fmap fint) (modifyNwDst m))
+        , updateField p q "NwProto"   Nothing
+        , updateField p q "NwTos"     ((fmap fint) (modifyNwTos m))
+        , updateField p q "TpSrc"     ((fmap fint) (modifyTpSrc m))
+        , updateField p q "TpDst"     ((fmap fint) (modifyTpDst m))
         ]
 
 -- |Determine if an action emits an observation
 observesAct :: Action -> Bool
-observesAct (Action _ []) = False
-observesAct (Action _ qs) = True
+observesAct (Action _ qs) = not (MS.null qs)
 
 -- |Determine if an action emits a particular observation
 queryAct :: Action -> Z3Int -> BoolExp
 queryAct (Action _ qs) qid = nOr queries where
   queries = map (\qid' -> Equals (Variable qid) (Primitive qid')) .
             map fromIntegral . map idOfQuery $
-            qs
+            MS.toList qs
 
 vlanOfPacket :: (Z3Packet, Maybe Z3Int) -> IntExp
 vlanOfPacket (pkt, Just vl) = Variable vl
@@ -230,13 +229,13 @@ vlanOfPacket (pkt, Nothing) = PktHeader "DlVlan" pkt
 
 updateField :: (Z3Packet, Maybe Z3Int) ->
                (Z3Packet, Maybe Z3Int) ->
-               String -> Wildcard Integer ->
+               String -> Maybe Integer ->
                BoolExp
-updateField _ q "DlVlan" (Exact value) =
+updateField _ q "DlVlan" (Just value) =
   Equals (Primitive value) (vlanOfPacket q)
-updateField p q "DlVlan" (Wildcard) =
+updateField p q "DlVlan" Nothing =
   Equals (vlanOfPacket p) (vlanOfPacket q)
-updateField _ (q', _) field (Exact value) =
+updateField _ (q', _) field (Just value) =
   Equals (Primitive value) (PktHeader field q')
-updateField (p', _) (q', _) field Wildcard =
+updateField (p', _) (q', _) field Nothing =
   Equals (PktHeader field p') (PktHeader field q')

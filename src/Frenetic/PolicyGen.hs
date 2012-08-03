@@ -33,46 +33,46 @@ toHops [_] = []
 toHops all@(_ : tail) = zip all tail
 
 -- |Get an infinite stream of fresh queries
-queries :: IO [Query]
+queries :: IO [Action]
 queries = do
   (_, q) <- query 1
   rest <- unsafeInterleaveIO queries
   return (q : rest)
 
--- | For each switch, just flood every packet.
+-- | For each switch, just allPorts every packet.
 realFlood :: Topo -> Policy
-realFlood topo = poNaryUnion policies where
+realFlood topo = unions policies where
   ss = switches topo
-  policies = [PrTo (fromIntegral s) ==> flood | s <- ss]
+  policies = [PrTo (fromIntegral s) ==> allPorts unmodified | s <- ss]
 
 -- | For each switch, direct each packet to every port on that switch that's in
 -- the topology.  Different from realFlood when dealing with subgraphs because
 -- simuFlood preserves behavior when composed into a larger graph.
 simuFlood :: Topo -> Policy
-simuFlood topo = poNaryUnion policies where
+simuFlood topo = unions policies where
   ss = switches topo
-  policies = [PrTo (fromIntegral s) <&> validPort s ==>
-              forwardMods (ports' s) | s <- ss]
-  ports' s = zip (ports topo s) (repeat top)
-  validPort s = prNaryUnion . map (\p -> inPort p) $ ports topo s
+  policies = [PrTo (fromIntegral s) <&&> validPort s ==>
+              modify (ports' s) | s <- ss]
+  ports' s = zip (ports topo s) (repeat unmodified)
+  validPort s = prOr . map (\p -> inPort p) $ ports topo s
 
 -- |Simulate flooding, and observe all packets with query.
-simuFloodQuery :: Topo -> Query -> Policy
-simuFloodQuery topo q = poNaryUnion policies where
+simuFloodQuery :: Topo -> Action -> Policy
+simuFloodQuery topo q = unions policies where
   ss = switches topo
-  policies = [PrTo (fromIntegral s) <&> validPort s ==>
-              forwardModsQuery (ports' s) [q] | s <- ss]
-  ports' s = zip (ports topo s) (repeat top)
-  validPort s = prNaryUnion . map (\p -> inPort p) $ ports topo s
+  policies = [PrTo (fromIntegral s) <&&> validPort s ==>
+              (modify (ports' s) <+> q) | s <- ss]
+  ports' s = zip (ports topo s) (repeat unmodified)
+  validPort s = prOr . map (\p -> inPort p) $ ports topo s
 
 -- |Construct an all-pairs-shortest-path routing policy between hosts, using the
 -- ID of the host as the MAC address.
 shortestPath :: Topo -> Policy
-shortestPath topo = poNaryUnion policies where
+shortestPath topo = unions policies where
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (hosts topo)
   policies = map pathPolicy $ Set.toList hostsSet
-  pathPolicy h1 = poNaryUnion policies where
+  pathPolicy h1 = unions policies where
     otherHosts = Set.delete h1 hostsSet
     paths = spTree h1 routingTopo
     policies = [ buildPath (fromIntegral h1) (fromIntegral h2) $
@@ -80,13 +80,13 @@ shortestPath topo = poNaryUnion policies where
                | h2 <- Set.toList otherHosts ]
   buildPath _ _ [] = PoBottom
   buildPath _ _ [_] = PoBottom
-  buildPath source dest path = poNaryUnion policies where
+  buildPath source dest path = unions policies where
     hops = toHops path
     policies = catMaybes . map (buildHop source dest) $ hops
   buildHop source dest (s1, s2) =
     if Set.member s1 hostsSet then Nothing
-    else Just (PrTo (fromIntegral s1) <&>
-               dlSrc source <&> dlDst dest ==> forward destPort)
+    else Just (PrTo (fromIntegral s1) <&&>
+               dlSrc source <&&> dlDst dest ==> forward [destPort])
     where
     destPort = case getEdgeLabel topo s1 s2 of
                  Just port -> port
@@ -95,7 +95,7 @@ shortestPath topo = poNaryUnion policies where
 -- |Construct a policy that routes traffic to DlDst:FF:FF:FF:FF:FF:FF to all
 -- hosts except the one it came in on
 multicast :: Topo -> Policy
-multicast topo = poNaryUnion policies % dlDst 0xFFFFFFFFFFFF where
+multicast topo = unions policies <%> dlDst 0xFFFFFFFFFFFF where
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (hosts topo)
   tree = msTree routingTopo
@@ -107,9 +107,9 @@ multicast topo = poNaryUnion policies % dlDst 0xFFFFFFFFFFFF where
          map (map fst) .
          map (\(LP x) -> x) $ tree
   policies = [ buildSwitch s | s <- switches topo ]
-  buildSwitch s = poNaryUnion policies where
+  buildSwitch s = unions policies where
     ports = Set.fromList [p | (dest, p) <- lPorts topo s,
                               Set.member (s, dest) hops]
     s' = fromIntegral s
-    policies = [ inport s' p ==> forwardMany (Set.toList $ Set.delete p ports)
+    policies = [ inport s' p ==> forward (Set.toList $ Set.delete p ports)
                | p <- Set.toList ports ]

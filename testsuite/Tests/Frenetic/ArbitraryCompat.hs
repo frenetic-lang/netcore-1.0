@@ -174,7 +174,7 @@ instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) wh
 instance Arbitrary Action where
   arbitrary = do
     -- TODO(arjun): queries
-    oneof [ return flood,
+    oneof [ return $ allPorts unmodified,
             do ports <- listOf arbitrary
                return $ foldr unionAction dropPkt (map forward ports)
           ]

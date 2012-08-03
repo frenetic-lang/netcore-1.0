@@ -19,37 +19,32 @@ sliceCompileTests = $(testGroupGenerator)
 
 -- Construct a bunch of basically meaningless objects for testing
 
-a1 = Action (MS.fromList [ (Physical 1, patDlSrc 10)
-                         , (Physical 2, patDlSrc 10)
-                         , (Physical 3, patDlSrc 10)])
-            []
-a2 = Action (MS.fromList [ (Physical 2, patDlDst 20)
-                         , (Physical 3, patDlDst 20)])
-            []
-a3 = Action (MS.fromList [ (Physical 2, patDlTyp 30)])
-            []
-a4 = Action (MS.fromList [ (Physical 4, patNwSrc 40)
-                         , (Physical 5, patNwSrc 40)
-                         , (Physical 6, patNwSrc 40)])
-            []
-a5 = Action (MS.fromList [ (Physical 3, patNwSrc 50)
-                         , (Physical 4, patNwSrc 50)
-                         , (Physical 5, patNwSrc 50)
-                         , (Physical 6, patNwSrc 50)])
-            []
+a1 = modify [ (1, modDlSrc 10)
+            , (2, modDlSrc 10)
+            , (3, modDlSrc 10)]
+a2 = modify [ (2, modDlDst 20)
+            , (3, modDlDst 20)]
+a3 = modify [ (2, modNwDst 30)]
+a4 = modify [ (4, modNwSrc 40)
+            , (5, modNwSrc 40)
+            , (6, modNwSrc 40)]
+a5 = modify [ (3, modNwSrc 50)
+            , (4, modNwSrc 50)
+            , (5, modNwSrc 50)
+            , (6, modNwSrc 50)]
 
 pr1 = inport 1 0
-pr2 = inport 1 0 <|> inport 2 3
-pr3 = inport 3 3 <&> PrPattern (patDlSrc 10)
-pr4 = pr3 <&> neg (PrPattern (patDlDst  20))
+pr2 = inport 1 0 <||> inport 2 3
+pr3 = inport 3 3 <&&> dlSrc 10
+pr4 = pr3 <&&> neg (dlDst  20)
 
 po1 = pr1 ==> a1
 po2 = pr2 ==> a2
 po3 = pr3 ==> a3
 po4 = pr4 ==> a4
-po5 = pr1 <&> pr4 ==> a5
+po5 = pr1 <&&> pr4 ==> a5
 
-bigPolicy = ((po3 <+> po4 <+> po5) % pr2) <+> po1 <+> po2
+bigPolicy = ((po3 <+> po4 <+> po5) <%> pr2) <+> po1 <+> po2
 baseForwards = forwardsOfPolicy bigPolicy
 
 forwardsOfPolicy PoBottom        = MS.empty
@@ -60,7 +55,7 @@ forwardsOfPolicy (PoUnion p1 p2) = MS.union (forwardsOfPolicy p1)
 forwardsOfAction (Action ms _) = ms
 
 case_testModifyVlan = do
-  let expected = MS.map (\ (port, pat) -> (port, pat {ptrnDlVlan = Exact 1234}))
+  let expected = MS.map (\ (port, m) -> (port, m {modifyDlVlan = Just 1234}))
                         baseForwards
   let observedPolicy = modifyVlan 1234 bigPolicy
   let observedForwards = forwardsOfPolicy observedPolicy
@@ -80,15 +75,15 @@ case_testMatchesSwitch = do
 
 case_testSetVlanSimple = do
   let pol = pr1 ==> a3
-  let expected = MS.singleton (Physical 2, top { ptrnDlTyp = Exact 30
-                                               , ptrnDlVlan = Exact 1234})
+  let expected = MS.singleton (Physical 2, unmodified { modifyNwDst = Just 30
+                                                      , modifyDlVlan = Just 1234})
   let observed = forwardsOfPolicy $ setVlan 1234 (Loc 1 2) pol
   assertEqual "setVlan set vlan on Loc 1 2" expected observed
 
 case_testSetVlanComplex = do
   let pol = (pr3 ==> a1) <+> (pr3 ==> a5)
   let expected = MS.map (\ (p, m) -> if p == Physical 3
-                                   then (p, m {ptrnDlVlan = Exact 1234})
+                                   then (p, m {modifyDlVlan = Just 1234})
                                    else (p, m))
                     (forwardsOfPolicy pol)
   let observed = forwardsOfPolicy $ setVlan 1234 (Loc 3 3) pol

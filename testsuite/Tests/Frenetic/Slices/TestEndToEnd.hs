@@ -46,7 +46,7 @@ case_testFloodCompile = do
   qs <- queries
   let topo = buildGraph [ ((1, 0), (9, 1))
                         , ((2, 0), (9, 2)) ]
-  let p = PrTo 9 ==> flood
+  let p = PrTo 9 ==> allPorts unmodified
   let slice = Slice Set.empty (Map.fromList [(Loc 9 1, top), (Loc 9 2, top)])
                               (Map.fromList [(Loc 9 1, top), (Loc 9 2, top)])
   let c = compileSlice slice 1 p

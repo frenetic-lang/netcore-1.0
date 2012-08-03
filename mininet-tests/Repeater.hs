@@ -3,7 +3,7 @@ module Repeater where
 import Frenetic.NetCore
 import Control.Concurrent.Chan
 
-policy = PoBasic (PrPattern top) flood
+policy = top ==> allPorts unmodified
 
 main = do
   polChan <- newChan

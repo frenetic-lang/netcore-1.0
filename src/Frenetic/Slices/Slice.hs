@@ -64,7 +64,7 @@ localize slice policy = case policy of
   PoUnion p1 p2 -> localize slice p1 <+> localize slice p2
   PoBasic pred act ->
     let ss = Set.toList (switchesOfPredicate switches pred) in
-    poNaryUnion [localizeMods (pred' <&> PrTo s) act
+    unions [localizeMods (pred' <&&> PrTo s) act
                               (Map.findWithDefault Set.empty s ports)
                 | s <- ss]
     where
@@ -74,10 +74,10 @@ localize slice policy = case policy of
                   Map.empty locations
       locations = Set.union (internal slice)
                             (Set.fromList . Map.keys $ egress slice)
-      pred' = pred <&> onSlice slice
+      pred' = pred <&&> onSlice slice
 
 onSlice :: Slice -> Predicate
-onSlice (Slice int ing egr) = prNaryUnion .
+onSlice (Slice int ing egr) = prOr .
                               map (\(Loc s p) -> inport s p) .
                               Set.toList .
                               Set.unions $
@@ -86,7 +86,7 @@ onSlice (Slice int ing egr) = prNaryUnion .
 -- |Transform potentially non-local forwarding actions into explicitly local
 -- ones on the switch.
 localizeMods :: Predicate -> Action -> Set.Set Port -> Policy
-localizeMods pred (Action m obs) ports = poNaryUnion (forwardPol : floodPols)
+localizeMods pred (Action m obs) ports = unions (forwardPol : floodPols)
   where
   (forwards, floods) = MS.mapEither split m
   -- partial match is safe because we split it
@@ -94,12 +94,12 @@ localizeMods pred (Action m obs) ports = poNaryUnion (forwardPol : floodPols)
   -- Put the observations with the forwards so we don't duplicate them
   forwardPol = pred ==> Action forwards' obs
   floodPols = [mkFlood p mods | p <- Set.toList ports, mods <- MS.toList floods]
-  mkFlood port mods = pred <&> inPort port ==> Action mods' [] where
+  mkFlood port mods = pred <&&> inPort port ==> Action mods' MS.empty where
     mods' = MS.fromList [(Physical p, mods) | p <- otherPorts]
     otherPorts = Set.toList $ Set.delete port ports
 
 split (Physical p, rewrite) = Left (Physical p, rewrite)
-split (PhysicalFlood, rewrite) = Right (rewrite)
+split (AllPorts, rewrite) = Right (rewrite)
 
 -- |Starting with a set of switches, get the switches the predicate might match.
 switchesOfPredicate :: Set.Set Switch -> Predicate -> Set.Set Switch
@@ -128,4 +128,4 @@ prUsesVlans (PrNegate p) = prUsesVlans p
 
 actUsesVlans :: Action -> Bool
 actUsesVlans (Action ms _) =
-  MS.fold (\ (_, m) accum -> accum || m {ptrnDlVlan = wild} /= m) False ms
+  any (\(_, m) -> modifyDlVlan m /= Nothing) $ MS.toList ms

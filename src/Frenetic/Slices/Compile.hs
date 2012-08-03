@@ -27,7 +27,7 @@ vlanMatch vlan = dlVlan vlan
 -- |Produce the combined policy by compiling a list of slices and policies with
 -- the vanilla compiler
 transform :: [(Slice, Policy)] -> Policy
-transform combined = poNaryUnion policies
+transform combined = unions policies
   where
     tagged = sequential combined
     policies = map (\(vlan, (slice, policy)) -> compileSlice slice vlan policy)
@@ -36,7 +36,7 @@ transform combined = poNaryUnion policies
 -- |Produce the combined policy by compiling a list of slices and policies with
 -- the edge compiler
 transformEdge :: Topo -> [(Slice, Policy)] -> Policy
-transformEdge topo combined = poNaryUnion policies where
+transformEdge topo combined = unions policies where
   tagged = edge topo combined
   policies = map (\(assignment, (slice, policy)) ->
                    edgeCompileSlice slice assignment policy)
@@ -59,7 +59,7 @@ compileSlice slice vlan policy =
 -- | Compile a slice with an assignment of VLAN tags to ports.  For this to work
 -- properly, the assignment of tags to both ends of an edge must be the same
 edgeCompileSlice :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
-edgeCompileSlice slice assignment policy = poNaryUnion (queryPols : forwardPols)
+edgeCompileSlice slice assignment policy = unions (queryPols : forwardPols)
   where
     localPolicy = localize slice policy
     -- separate out queries to avoid multiplying them during the fracturing that
@@ -70,11 +70,11 @@ edgeCompileSlice slice assignment policy = poNaryUnion (queryPols : forwardPols)
 -- |Produce a list of policies that together implement just the query portion of
 -- the policy running on the slice
 queryOnly :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
-queryOnly slice assignment policy = justQueries % (onSlice <|> inBound) where
-  onSlice = prNaryUnion . map onPort . Set.toList $ (internal slice)
-  inBound = ingressPredicate slice <&> dlVlan 0
+queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
+  onSlice = prOr . map onPort . Set.toList $ (internal slice)
+  inBound = ingressPredicate slice <&&> dlVlan 0
   justQueries = removeForwards policy
-  onPort l@(Loc s p) = inport s p <&> dlVlan vlan <&>
+  onPort l@(Loc s p) = inport s p <&&> dlVlan vlan <&&>
                        Map.findWithDefault top l (ingress slice) where
     vlan = case Map.lookup l assignment of
            Just v -> v
@@ -94,7 +94,7 @@ removeForwards (PoUnion p1 p2) = PoUnion p1' p2' where
 -- |Remove queries from policy leaving only forwarding actions
 removeQueries :: Policy -> Policy
 removeQueries PoBottom = PoBottom
-removeQueries (PoBasic pred (Action fs _)) = PoBasic pred (Action fs [])
+removeQueries (PoBasic pred (Action fs _)) = PoBasic pred (Action fs MS.empty)
 removeQueries (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeQueries p1
   p2' = removeQueries p2
@@ -105,7 +105,7 @@ justTo _ PoBottom = PoBottom
 justTo p (PoBasic pred (Action fs qs)) = PoBasic pred (Action fs' qs) where
   fs' = MS.filter matches fs
   matches (Physical p', _) = p == p'
-  matches (PhysicalFlood, _) = error "Flood found while compiling."
+  matches (AllPorts, _) = error "AllPorts found while compiling."
 justTo p (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = justTo p p1
   p2' = justTo p p2
@@ -130,10 +130,10 @@ forwardEdges slice assignment policy = concat . map buildPort $ locs where
               else case Map.lookup l assignment of
                      Just v -> v
                      Nothing -> error "Vlan assignment malformed."
-    restriction = inport s p <&>
-                  dlVlan ourVlan <&>
+    restriction = inport s p <&&>
+                  dlVlan ourVlan <&&>
                   Map.findWithDefault top l (ingress slice)
-    policy' = policy % restriction
+    policy' = policy <%> restriction
     hop :: Port -> Policy -- Get the policies for one switch forwarding
     hop port = policy''' where
       loc = Loc s port
@@ -155,10 +155,10 @@ portsOfSet = Map.fromListWith Set.union .
 -- ports.  Note that if the policy does not modify vlans, then it also only
 -- emits traffic on this vlan.
 isolate :: Slice -> Vlan -> Policy -> Policy
-isolate slice vlan policy = policy % (vlPred <&> intern)
+isolate slice vlan policy = policy <%> (vlPred <&&> intern)
   where
     vlPred = vlanMatch vlan
-    intern = prNaryUnion . map (\(Loc s p) -> inport s p) . Set.toList $
+    intern = prOr . map (\(Loc s p) -> inport s p) . Set.toList $
              internal slice
 
 locToPred :: Loc -> Predicate
@@ -170,7 +170,7 @@ inportPo :: Slice -> Vlan -> Policy -> Policy
 inportPo slice vlan policy =
   let incoming = ingressPredicate slice in
   let policyIntoVlan = modifyVlan vlan policy in
-  policyIntoVlan % (incoming <&> dlVlan 0)
+  policyIntoVlan <%> (incoming <&&> dlVlan 0)
 
 -- |Produce a new policy the same as the old, but wherever a packet leaves an
 -- outgoing edge, set its VLAN to 0.  Precondition:  every PoBasic must match at
@@ -183,7 +183,7 @@ outport slice policy = foldr stripVlan policy locs
 -- specified
 ingressPredicate :: Slice -> Predicate
 ingressPredicate slice =
-  prNaryUnion . map ingressSpecToPred . Map.assocs $ ingress slice
+  prOr . map ingressSpecToPred . Map.assocs $ ingress slice
 
 -- |Produce a predicate matching the ingress predicate at a particular location
 ingressSpecToPred :: (Loc, Predicate) -> Predicate
@@ -193,12 +193,10 @@ ingressSpecToPred (loc, pred) = PrIntersect pred (locToPred loc)
 -- action
 modifyVlan :: Vlan -> Policy -> Policy
 modifyVlan _ PoBottom = PoBottom
-modifyVlan vlan (PoBasic pred (Action m obs)) =
-  PoBasic pred (Action m' obs)
-    where
-      m' = MS.map setVlans m
-      setVlans (p, mod) = (p, setVlan mod)
-      setVlan pattern = pattern {ptrnDlVlan = Exact vlan}
+modifyVlan vlan (PoBasic pred (Action m obs)) = PoBasic pred (Action m' obs)
+  where
+    m' = MS.map setVlans m
+    setVlans (p, mod) = (p, mod {modifyDlVlan = Just vlan})
 modifyVlan vlan (PoUnion p1 p2) = PoUnion (modifyVlan vlan p1)
                                           (modifyVlan vlan p2)
 
@@ -221,10 +219,10 @@ setVlan vlan (Loc switch port) pol@(PoBasic pred (Action m obs)) =
   where
     m' = MS.map setVlanOnPort m
     setVlanOnPort (Physical p, mod) =
-      if p == port then (Physical p, mod {ptrnDlVlan = Exact vlan})
+      if p == port then (Physical p, mod {modifyDlVlan = Just vlan})
                    else (Physical p, mod)
-    setVlanOnPort (PhysicalFlood, mod) =
-      error "FLOOD encountered in slice compilation.  Did you first localize?"
+    setVlanOnPort (AllPorts, mod) =
+      error "AllPorts encountered in slice compilation.  Did you first localize?"
 
 -- |Determine if a predicate can match any packets on a switch (overapproximate)
 matchesSwitch :: Switch -> Predicate -> Bool

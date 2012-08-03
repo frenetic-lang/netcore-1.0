@@ -1,32 +1,3 @@
---------------------------------------------------------------------------------
--- The Frenetic Project                                                       --
--- frenetic@frenetic-lang.org                                                 --
---------------------------------------------------------------------------------
--- Licensed to the Frenetic Project by one or more contributors. See the      --
--- NOTICE file distributed with this work for additional information          --
--- regarding copyright and ownership. The Frenetic Project licenses this      --
--- file to you under the following license.                                   --
---                                                                            --
--- Redistribution and use in source and binary forms, with or without         --
--- modification, are permitted provided the following conditions are met:     --
--- - Redistributions of source code must retain the above copyright           --
---   notice, this list of conditions and the following disclaimer.            --
--- - Redistributions of binaries must reproduce the above copyright           --
---   notice, this list of conditions and the following disclaimer in          --
---   the documentation or other materials provided with the distribution.     --
--- - The names of the copyright holds and contributors may not be used to     --
---   endorse or promote products derived from this work without specific      --
---   prior written permission.                                                --
---                                                                            --
--- Unless required by applicable law or agreed to in writing, software        --
--- distributed under the License is distributed on an "AS IS" BASIS, WITHOUT  --
--- WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the   --
--- LICENSE file distributed with this work for specific language governing    --
--- permissions and limitations under the License.                             --
---------------------------------------------------------------------------------
--- /src/Frenetic/NetCore/API.hs                                               --
---------------------------------------------------------------------------------
-
 module Frenetic.NetCore.API
   ( -- * Basic types
     Switch
@@ -37,9 +8,9 @@ module Frenetic.NetCore.API
   , Word48
   -- * Actions
   , Action (..)
-  , Rewrite
-  , Forward
   , Query (..)
+  , Modification (..)
+  , unmodified
   , isPktQuery
   -- ** Basic actions
   , query
@@ -59,7 +30,7 @@ module Frenetic.NetCore.API
   -- * Tools
   , idOfQuery
   , interesting
-  , interestingFields
+  , modifiedFields
   , prUnIntersect
   , prUnUnion
   , poUnUnion
@@ -76,6 +47,7 @@ import Frenetic.LargeWord
 import Frenetic.Pattern
 import Frenetic.Util
 import System.IO.Unsafe
+import Data.Maybe (catMaybes)
 
 {-| The type of switches in the network. -}
 type Switch = Word64
@@ -90,7 +62,7 @@ type Vlan = Word16
 data Loc = Loc Switch Port deriving (Eq, Ord, Show)
 
 {-| The type of logical switch ports. -}
-data PseudoPort = Physical Port | PhysicalFlood deriving (Ord, Eq, Show)
+data PseudoPort = Physical Port | AllPorts deriving (Ord, Eq, Show)
 
 {-| Auxillary value for ethernet addresses.  -}
 type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
@@ -110,6 +82,41 @@ data Packet = Packet {
   pktTpDst :: Maybe Word16,
   pktInPort :: Port
 } deriving (Show, Eq, Ord)
+
+data Field 
+  = DlSrc | DlDst | DlVlan | DlVlanPcp | NwSrc | NwDst | NwTos | TpSrc | TpDst
+  deriving (Eq, Ord, Show)
+
+-- |Frenetic packet modifyifications
+data Modification = Modification {
+  modifyDlSrc :: Maybe Word48,
+  modifyDlDst :: Maybe Word48,
+  modifyDlVlan :: Maybe Vlan,
+  modifyDlVlanPcp :: Maybe Word8,
+  modifyNwSrc :: Maybe Word32,
+  modifyNwDst :: Maybe Word32,
+  modifyNwTos :: Maybe Word8,
+  modifyTpSrc :: Maybe Word16,
+  modifyTpDst :: Maybe Word16
+} deriving (Ord, Eq, Show)
+
+unmodified :: Modification
+unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing 
+                          Nothing Nothing Nothing
+
+modifiedFields :: Modification -> Set Field
+modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
+  fields = [ case modifyDlSrc of { Just _ -> Just DlSrc; Nothing -> Nothing }
+           , case modifyDlDst of { Just _ -> Just DlDst; Nothing -> Nothing }
+           , case modifyDlVlan of { Just _ -> Just DlVlan; Nothing -> Nothing }
+           , case modifyDlVlanPcp of { Just _ -> Just DlVlanPcp; 
+                                    Nothing -> Nothing }
+           , case modifyNwSrc of { Just _ -> Just NwSrc; Nothing -> Nothing }
+           , case modifyNwDst of { Just _ -> Just NwDst; Nothing -> Nothing }
+           , case modifyNwTos of { Just _ -> Just NwTos; Nothing -> Nothing }
+           , case modifyTpSrc of { Just _ -> Just TpSrc; Nothing -> Nothing }
+           , case modifyTpDst of { Just _ -> Just TpDst; Nothing -> Nothing }
+           ]
 
 -- |Frenetic patterns
 data Pattern = Pattern {
@@ -174,24 +181,6 @@ instance Show Pattern where
   show p = "{" ++ contents ++ "}"  where
     contents = concat (List.intersperse ", " (interesting " = " p))
 
--- |Build a list of the non-wildcarded pattern fields
-interestingFields :: Pattern -> Set String
-interestingFields (Pattern {..}) = Set.fromList stringList where
-  stringList = filter (\l -> l /= "") $ lines 
-  lines = [ case ptrnDlSrc     of {Exact v -> "DlSrc";      Wildcard -> ""}
-          , case ptrnDlDst     of {Exact v -> "DlDst";      Wildcard -> ""}
-          , case ptrnDlTyp     of {Exact v -> "DlTyp";      Wildcard -> ""}
-          , case ptrnDlVlan    of {Exact v -> "DlVlan";     Wildcard -> ""}
-          , case ptrnDlVlanPcp of {Exact v -> "DlVlanPcp";  Wildcard -> ""}
-          , case ptrnNwSrc     of {Prefix _ 0 -> "";        p -> "NwSrc"}
-          , case ptrnNwDst     of {Prefix _ 0 -> "";        p -> "NwDst"}
-          , case ptrnNwProto   of {Exact v -> "NwProto";    Wildcard -> ""}
-          , case ptrnNwTos     of {Exact v -> "NwTos";      Wildcard -> ""}
-          , case ptrnTpSrc     of {Exact v -> "TpSrc";      Wildcard -> ""}
-          , case ptrnTpDst     of {Exact v -> "TpDst";      Wildcard -> ""}
-          , case ptrnInPort    of {Exact v -> "InPort";     Wildcard -> ""}
-          ]
-
 -- |Build a list of the non-wildcarded patterns with sep between field and value
 interesting :: String -> Pattern -> [String]
 interesting sep (Pattern {..}) = filter (\l -> l /= "") $ lines where
@@ -209,14 +198,6 @@ interesting sep (Pattern {..}) = filter (\l -> l /= "") $ lines where
           , case ptrnInPort    of {Exact v -> "InPort"    ++ sep ++ show v; Wildcard -> ""}
           ]
 
-type Rewrite = Pattern
-
--- | Forward represents a set of forwards with modifications on a switch,
--- including forwarding multiple packets, so long as they are *different*
--- packets (i.e., have a different modification applied to each).  Flood is
--- encoded by using the PseudoPort Flood rather than
-type Forward = MS.MultiSet (PseudoPort, Rewrite)
-
 type QueryID = Int
 
 nextQueryID :: IORef QueryID
@@ -228,8 +209,8 @@ data Query
   deriving (Eq)
 
 data Action = Action {
-  actionForwards :: Forward,
-  actionQueries :: [Query]
+  actionForwards :: MS.MultiSet (PseudoPort, Modification),
+  actionQueries :: MS.MultiSet Query
 } deriving (Eq, Ord)
 
 isPktQuery (PktQuery _ _) = True
@@ -239,28 +220,25 @@ actionForwardsTo :: Action -> MS.MultiSet PseudoPort
 actionForwardsTo (Action m _) = 
   MS.map fst m
 
-unionForward :: Forward -> Forward -> Forward
-unionForward m1 m2 =
-  MS.union m1 m2
-
 unionAction :: Action -> Action -> Action
 unionAction (Action fwd1 q1) (Action fwd2 q2) =
-  Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
-    where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
+  Action (fwd1 `MS.union` fwd2) (q1 `MS.union` q2)
 
-query :: Int -> IO (Chan (Switch, Integer), Query)
+query :: Int -> IO (Chan (Switch, Integer), Action)
 query millisecondInterval = do
   ch <- newChan
   queryID <- readIORef nextQueryID
   modifyIORef nextQueryID (+ 1)
-  return (ch, NumPktQuery queryID ch millisecondInterval)
+  let q = NumPktQuery queryID ch millisecondInterval
+  return (ch, Action MS.empty (MS.singleton q))
 
-pktQuery :: IO (Chan (Switch, Packet), Query)
+pktQuery :: IO (Chan (Switch, Packet), Action)
 pktQuery = do
   ch <- newChan
   queryID <- readIORef nextQueryID
   modifyIORef nextQueryID (+1)
-  return (ch, PktQuery ch queryID)
+  let q = PktQuery ch queryID
+  return (ch, Action MS.empty (MS.singleton q))
 
 idOfQuery :: Query -> QueryID
 idOfQuery (NumPktQuery queryID _ _) = queryID

@@ -7,6 +7,7 @@ import Frenetic.Pattern
 import Frenetic.Util
 import Frenetic.NetCore.API
 import Frenetic.NetCore.Short
+import qualified Data.MultiSet as MS
 
 -- |Implements the denotation function for predicates.
 interpretPredicate :: FreneticImpl a
@@ -81,5 +82,5 @@ instance FreneticImpl () where
   actnTranslate x = FreneticAct x
   actnControllerPart (FreneticAct (Action _ queries)) switchID
                      (FreneticPkt pkt)  = do
-    let pktChans = map pktQueryChan . filter isPktQuery $ queries
+    let pktChans = map pktQueryChan . filter isPktQuery $ MS.toList queries
     mapM_ (\chan -> writeChan chan (switchID, pkt)) pktChans
