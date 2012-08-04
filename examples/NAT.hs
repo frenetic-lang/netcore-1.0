@@ -161,9 +161,18 @@ nat = do
     writeChan polChan (nonNATPolicy <+> fwdPol <+> queryPol)
   return polChan
 
-
 main = do
+  putStrLn "I am the NAT!"
   polChan <- nat
   pktChan <- newChan
-  dynController polChan pktChan
+  -- dynController polChan pktChan
+  (qchan, q) <- getPkts
+  let loop = do
+      packet <- readChan qchan
+      print packet
+  let badPolicy = (inPort 1 ==> forward [2]) <+>
+                  (inPort 2 ==> forward [1]) <+>
+                  (matchAll ==> q)
+  forkIO $ forever $ loop
+  controller badPolicy
 

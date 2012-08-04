@@ -47,6 +47,7 @@ print "Switch is %s" % s1
 wanPort = s1.newPort()
 s1.addIntf('gate-mn', wanPort)
 print "WAN port is %s" % wanPort
+print "Switch ports: %s" % s1.ports
 
 print "Hosts are:"
 for h in net.hosts:
