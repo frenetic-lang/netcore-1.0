@@ -104,11 +104,6 @@ instance Arbitrary PseudoPort where
 --           , return WithTable
           ]
 
-instance (Arbitrary ptrn, Arbitrary actn) => Arbitrary (Classifier ptrn actn) where
-  arbitrary = do
-    l <- listOf arbitrary
-    return $ Classifier l
-
 instance Arbitrary (PatternImpl OpenFlow) where
   arbitrary = do
     v <- arbitrary

@@ -1,8 +1,6 @@
 -- |Functions and types that heavily used by the Frenetic implementation.
 module Frenetic.Common
-  ( newLift
-  , newLift2
-  , Set
+  ( Set
   , Map
   , MultiSet
   , ByteString
@@ -21,14 +19,7 @@ import Data.Monoid
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.MultiSet
-import Control.Newtype
 import Data.ByteString (ByteString)
-
-newLift :: (Newtype n o) => (o -> o) -> n -> n
-newLift f = pack . f . unpack
-
-newLift2 :: (Newtype n o) => (o -> o -> o) -> n -> n -> n
-newLift2 f n1 n2 = pack (f (unpack n1) (unpack n2))
 
 mergeChan :: Chan a -> Chan b -> IO (Chan (Either a b))
 mergeChan chan1 chan2 = do

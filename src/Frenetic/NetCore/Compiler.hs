@@ -1,43 +1,8 @@
---------------------------------------------------------------------------------
--- The Frenetic Project                                                       --
--- frenetic@frenetic-lang.org                                                 --
---------------------------------------------------------------------------------
--- Licensed to the Frenetic Project by one or more contributors. See the      --
--- NOTICE file distributed with this work for additional information          --
--- regarding copyright and ownership. The Frenetic Project licenses this      --
--- file to you under the following license.                                   --
---                                                                            --
--- Redistribution and use in source and binary forms, with or without         --
--- modification, are permitted provided the following conditions are met:     --
--- - Redistributions of source code must retain the above copyright           --
---   notice, this list of conditions and the following disclaimer.            --
--- - Redistributions of binaries must reproduce the above copyright           --
---   notice, this list of conditions and the following disclaimer in          --
---   the documentation or other materials provided with the distribution.     --
--- - The names of the copyright holds and contributors may not be used to     --
---   endorse or promote products derived from this work without specific      --
---   prior written permission.                                                --
---                                                                            --
--- Unless required by applicable law or agreed to in writing, software        --
--- distributed under the License is distributed on an "AS IS" BASIS, WITHOUT  --
--- WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the   --
--- LICENSE file distributed with this work for specific language governing    --
--- permissions and limitations under the License.                             --
---------------------------------------------------------------------------------
--- /src/Compiler.hs                                                           --
--- NetCore compiler                                                           --
---------------------------------------------------------------------------------
-
-{-# LANGUAGE
-    TemplateHaskell,
-    MultiParamTypeClasses
- #-}
 module Frenetic.NetCore.Compiler
   ( compile
   , compilePredicate
   , Bone (..) -- TODO(arjun): do not export
-  , Skeleton (..) -- TODO(arjun): do not export
-  , Classifier (..)
+  , Classifier
   , classify
   , minimizeClassifier
   ) where
@@ -48,8 +13,6 @@ import           Frenetic.Common
 import           Frenetic.NetCore.Types
 import           Frenetic.NetCore.Semantics
 import           Frenetic.NetCore.Short
-import           Control.Newtype.TH
-import           Control.Newtype
 import           Data.Dynamic
 import qualified Data.List            as List
 import           Data.Maybe
@@ -76,19 +39,14 @@ cartMap f c (x:xs) ys =
         (c', Nothing, Nothing) -> (c', Nothing, ys)
 
 {-| Classifiers are the target of compilation. -}
-newtype Classifier ptrn a = Classifier [(ptrn, a)]
-$(mkNewTypes [''Classifier])
-
--- We can show classifiers. TODO: Make the display nicer.
-instance (Show ptrn, Show actn) => Show (Classifier ptrn actn) where
-  show = List.intercalate "\n" . List.map show . unpack
+type Classifier ptrn a = [(ptrn, a)]
 
 classify :: FreneticImpl a
          => Switch
          -> PacketImpl a
          -> Classifier (PatternImpl a) actn
          -> Maybe actn
-classify switch pkt (Classifier rules) = foldl f Nothing rules where
+classify switch pkt rules = foldl f Nothing rules where
     f (Just a) (ptrn, actn) = Just a
     f Nothing (ptrn, actn) = if ptrnMatchPkt pkt ptrn
                              then Just actn
@@ -119,29 +77,18 @@ minimizeShadowing getPat rules = reverse $ f $ reverse rules
 minimizeClassifier :: FreneticImpl a
                    => Classifier (PatternImpl a) (ActionImpl a)
                    -> Classifier (PatternImpl a) (ActionImpl a)
-minimizeClassifier (Classifier rules) = Classifier $ minimizeShadowing fst rules
+minimizeClassifier rules = minimizeShadowing fst rules
 
 {-| Each rule of the intermediate form is called a Bone. -}
 data Bone ptrn actn = Bone ptrn Pattern actn
   deriving (Show, Eq)
 
 {-| Skeletons are the intermediate form. -}
-newtype Skeleton ptrn actn = Skeleton [Bone ptrn actn]
-                           deriving (Eq)
-$(mkNewTypes [''Skeleton])
-
--- TODO: make this nicer.
-instance (Show ptrn, Show actn) => Show (Skeleton ptrn actn) where
-  show = List.intercalate "\n" . List.map show . unpack
-
-{-| Concatenate two intermediate forms. -}
-skelAppend :: Skeleton ptrn actn -> Skeleton ptrn actn -> Skeleton ptrn actn
-skelAppend = newLift2 (++)
+type Skeleton ptrn actn = [Bone ptrn actn]
 
 {-| Map the actions. |-}
 skelMap :: (a -> b) -> Skeleton ptrn a -> Skeleton ptrn b
-skelMap f (Skeleton bones) =
-  Skeleton $ map (\(Bone ptrn pr actns) -> Bone ptrn pr (f actns)) bones
+skelMap f bones = map (\(Bone ptrn pr actns) -> Bone ptrn pr (f actns)) bones
 
 {-| Cartesian combine two skeletons given a combination function for the actions. -}
 skelCart :: FreneticImpl a
@@ -151,11 +98,11 @@ skelCart :: FreneticImpl a
          -> (Skeleton (PatternImpl a) actn,
              Skeleton (PatternImpl a) actn,
              Skeleton (PatternImpl a) actn)
-skelCart f (Skeleton bs1) (Skeleton bs2) =
+skelCart f bs1 bs2 =
   let
     (bs1',bs2',bs3') = cartMap h [] bs1 bs2
   in
-   (Skeleton bs1', Skeleton bs2', Skeleton bs3')
+   (bs1', bs2', bs3')
   where
     h bs x@(Bone ptrn1 iptrn1 actns1) y@(Bone ptrn2 iptrn2 actns2) =
         case intersect ptrn1 ptrn2 of
@@ -173,7 +120,7 @@ skelCart f (Skeleton bs1) (Skeleton bs2) =
 skelMinimize :: FreneticImpl a
              => Skeleton (PatternImpl a) actn
              -> Skeleton (PatternImpl a) actn
-skelMinimize (Skeleton bones) = Skeleton $ minimizeShadowing getPat bones
+skelMinimize bones = minimizeShadowing getPat bones
   where getPat (Bone p1 p2 as) = FreneticPat p2
 
 {-| Compile a predicate to intermediate form. -}
@@ -181,33 +128,32 @@ compilePredicate :: FreneticImpl a
                  => Switch
                  -> Predicate
                  -> Skeleton (PatternImpl a) Bool
-compilePredicate s (PrPattern pat) =
-  Skeleton [Bone (fromPattern pat) pat True]
-compilePredicate s (PrTo s') | s == s' = Skeleton [Bone top top True]
-                             | otherwise = Skeleton []
+compilePredicate s (PrPattern pat) = [Bone (fromPattern pat) pat True]
+compilePredicate s (PrTo s') | s == s' = [Bone top top True]
+                             | otherwise = []
 compilePredicate s (PrIntersect pr1 pr2) = skelMinimize skel12'
     where
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
       (skel12', skel1', skel2') = skelCart (&&) skel1 skel2
-compilePredicate s (PrUnion pr1 pr2) = skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2'
+compilePredicate s (PrUnion pr1 pr2) = skelMinimize $ skel12' ++ skel1' ++ skel2'
     where
       skel1 = compilePredicate s pr1
       skel2 = compilePredicate s pr2
       (skel12', skel1', skel2') = skelCart (||) skel1 skel2
 compilePredicate s (PrNegate pr) =
-  skelMap not (compilePredicate s pr) `skelAppend` Skeleton [Bone top top True]
+  skelMap not (compilePredicate s pr) ++ [Bone top top True]
 
 {-| Compile a policy to intermediate form -}
 compilePolicy :: FreneticImpl a
               => Switch -> Policy -> Skeleton (PatternImpl a) Action
-compilePolicy _ PoBottom = Skeleton []
+compilePolicy _ PoBottom = []
 compilePolicy s (PoBasic po as) =
     skelMap f $ compilePredicate s po
       where f True = as
             f False = dropPkt
 compilePolicy s (PoUnion po1 po2) =
-   skelMinimize $ skel12' `skelAppend` skel1' `skelAppend` skel2'
+   skelMinimize $ skel12' ++ skel1' ++ skel2'
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
             (skel12', skel1', skel2') =
@@ -218,7 +164,7 @@ compile :: FreneticImpl a
         => Switch
         -> Policy
         -> Classifier (PatternImpl a) (ActionImpl a)
-compile s po = Classifier $ map f $ unpack skel
+compile s po = map f skel
   where
     f (Bone sptrn iptrn actn)
       | toPattern sptrn `match` iptrn = (sptrn, actnTranslate actn)

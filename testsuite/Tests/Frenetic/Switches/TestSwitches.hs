@@ -29,14 +29,6 @@
 -- $Id$ --
 --------------------------------------------------------------------------------
 
-{-# LANGUAGE
-    TemplateHaskell
-    , FlexibleContexts
-    , TypeOperators
-    , MultiParamTypeClasses
-    , FunctionalDependencies
-    , BangPatterns
- #-}
 module Tests.Frenetic.Switches.TestSwitches where
 
 import qualified Data.Set as Set
@@ -59,8 +51,6 @@ import Tests.Frenetic.Switches.ArbitraryOpenFlow
 import Nettle.OpenFlow hiding (match)
 import qualified Nettle.IPv4.IPPacket as IP
 import Frenetic.NetCore.Types
-import Control.Newtype.TH
-import Control.Newtype
 
 switchTests = $(testGroupGenerator)
 

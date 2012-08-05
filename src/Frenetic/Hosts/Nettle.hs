@@ -60,10 +60,10 @@ mkFlowMod (pat, acts) pri = FlowMod AddFlow {
   overlapAllowed=True
 }
 
-rawClassifier :: Classifier (PatternImpl OpenFlow) (ActionImpl OpenFlow)
+rawClassifier :: [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
               -> [(Match, ActionSequence)]
-rawClassifier (Classifier rules) =
-  map (\(p, a) -> (fromOFPat p, fromOFAct a)) rules
+rawClassifier classifier =
+  map (\(p, a) -> (fromOFPat p, fromOFAct a)) classifier
 
 -- |Installs the static portion of the policy, then react.
 handleSwitch :: Nettle 
@@ -85,11 +85,11 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   policiesAndMessages <- mergeChan policyChan msgChan
   let loop oldPolicy (Left policy) = do
         sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
-        let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
+        let classifier = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
         infoM "nettle" $ "policy is " ++ show policy ++ 
                           " and flow table is " ++ (concat $ intersperse "\n" (map show flowTbl))
-        runQueryOnSwitch nettle switch cl
+        runQueryOnSwitch nettle switch classifier
         -- Priority 65535 is for microflow rules from reactive-specialization
         let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
         mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)

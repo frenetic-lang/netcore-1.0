@@ -73,7 +73,7 @@ freneticToOFAct = fromOFAct.actnTranslate.fromFreneticAct
 case_test_query_1 = do
   (_, act) <- countPkts 1000
   let policy = PoBasic (PrTo 0) act
-  let (Classifier tbl) = compile 0 policy
+  let tbl = compile 0 policy
   case tbl of
     [(_, act)] -> assertEqual
       "query should create an empty action in the flow table"
@@ -86,7 +86,7 @@ test_query_2 = do
   let policy =
         PoUnion (PoBasic (PrPattern top) (allPorts unmodified))
                 (PoBasic (PrPattern $ top { ptrnDlDst = Exact 1 }) act)
-  let (Classifier tbl) = compile 0 policy
+  let tbl = compile 0 policy
   case tbl of
     [(_, act1), (_, act2)] -> do
       assertEqual "allPorts unmodified should come first in the flow-table"

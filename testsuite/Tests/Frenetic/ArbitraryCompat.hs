@@ -48,8 +48,6 @@ import Frenetic.LargeWord
 import Frenetic.Pattern
 import Test.QuickCheck
 import Tests.Frenetic.ArbitraryPattern
-import Control.Newtype.TH
-import Control.Newtype
 import Frenetic.Switches.OpenFlow
 import Frenetic.NetCore
 
