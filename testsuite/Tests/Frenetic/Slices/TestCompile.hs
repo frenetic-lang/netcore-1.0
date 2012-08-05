@@ -6,7 +6,7 @@ import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
 import Test.HUnit
 import Test.Framework.Providers.HUnit
-
+import Frenetic.NetCore.Types
 import Frenetic.NetCore
 import Frenetic.NetCore.Short
 

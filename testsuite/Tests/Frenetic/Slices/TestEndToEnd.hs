@@ -10,7 +10,7 @@ import Tests.Frenetic.Util
 import Frenetic.NetCore
 import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Reduce
-
+import Frenetic.NetCore.Types
 import Frenetic.PolicyGen
 import Frenetic.Slices.Compile
 import Frenetic.Slices.Slice

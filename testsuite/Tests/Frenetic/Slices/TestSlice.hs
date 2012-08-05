@@ -11,7 +11,7 @@ import Frenetic.Pattern
 import Frenetic.NetCore
 import Frenetic.NetCore.Short
 import Frenetic.NetCore.Semantics
-
+import Frenetic.NetCore.Types
 import Frenetic.Slices.Slice
 
 import qualified Data.Map as Map

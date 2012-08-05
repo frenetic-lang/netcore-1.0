@@ -18,8 +18,9 @@ pktsByLocation :: IO (Chan (Switch, Packet), Chan Policy)
 pktsByLocation = do
   uniqPktChan <- newChan
   polChan <- newChan
-  (pktChan, act) <- pktQuery 
-  let matchLoc ((sw, srcMac), port) = PrTo sw <&&> dlSrc srcMac <&&> inPort port
+  (pktChan, act) <- getPkts
+  let matchLoc ((sw, srcMac), port) = onSwitch sw <&&> 
+                                      dlSrc srcMac <&&> inPort port
   let loop locs = do
         (sw, pkt) <- readChan pktChan
         case Map.lookup (sw, pktDlSrc pkt) locs of
@@ -43,7 +44,7 @@ learnRoutes pktChan = do
   polChan <- newChan
   let mkRule locs ((sw, dstMac), port) = 
         map (\((_, srcMac), _) -> 
-          (PrTo sw <&&> dlSrc srcMac <&&> dlDst dstMac) ==> forward [port]) $
+          (onSwitch sw <&&> dlSrc srcMac <&&> dlDst dstMac) ==> forward [port]) $
           filter (\((sw', _), _) -> sw' == sw) $
             Map.toList locs
   let loop :: Map (Switch, Word48) Port -> IO ()

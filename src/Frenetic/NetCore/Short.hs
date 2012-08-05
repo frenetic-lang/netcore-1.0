@@ -86,13 +86,22 @@ prAnd ps = List.foldr1 (\ p1 p2 -> PrIntersect p1 p2) ps
 dropPkt :: Action
 dropPkt = Action MS.empty MS.empty
 
-allPorts :: Modification -> Action
+-- |Forward the packet out of all physical ports, except the packet's
+-- ingress port.
+allPorts :: Modification -- ^modifications to apply to the packet. Use
+                         -- 'allPorts unmodified' to make no modifications.
+         -> Action
 allPorts mod = Action (MS.singleton (AllPorts, mod)) MS.empty
 
+-- |Forward the packet out of the specified physical ports.
 forward :: [Port] -> Action
 forward ports = Action (MS.fromList lst) MS.empty
   where lst = [ (Physical p, unmodified) | p <- ports ]
 
+-- |Forward the packet out of the specified physical ports with modifications.
+--
+-- Each port has its own record of modifications, so modifications at one port
+-- do not interfere with modifications at another port.
 modify :: [(Port, Modification)] -> Action
 modify mods = Action (MS.fromList lst) MS.empty
   where lst = [ (Physical p, mod) | (p, mod) <- mods ]

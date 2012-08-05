@@ -13,8 +13,8 @@ module Frenetic.NetCore.Types
   , unmodified
   , isPktQuery
   -- ** Basic actions
-  , query
-  , pktQuery
+  , countPkts
+  , getPkts
   -- ** Inspecting actions
   , actionForwardsTo
   -- * Patterns
@@ -120,7 +120,7 @@ data Field
   = DlSrc | DlDst | DlVlan | DlVlanPcp | NwSrc | NwDst | NwTos | TpSrc | TpDst
   deriving (Eq, Ord, Show)
 
--- |Frenetic packet modifyifications
+-- |Frenetic packet modifications
 data Modification = Modification {
   modifyDlSrc :: Maybe Word48,
   modifyDlDst :: Maybe Word48,
@@ -239,16 +239,28 @@ actionForwardsTo :: Action -> MS.MultiSet PseudoPort
 actionForwardsTo (Action m _) = 
   MS.map fst m
 
-query :: Int -> IO (Chan (Switch, Integer), Action)
-query millisecondInterval = do
+-- ^Periodically polls the network to counts the number of packets received.
+--
+-- Returns an 'Action' and a channel. When the 'Action' is used in the
+-- active 'Policy', the controller periodically reads the packet counters
+-- on the network. The controller returns the number of matching packets
+-- on each switch.
+countPkts :: Int -- ^polling interval, in milliseconds
+          -> IO (Chan (Switch, Integer), Action)
+countPkts millisecondInterval = do
   ch <- newChan
   queryID <- readIORef nextQueryID
   modifyIORef nextQueryID (+ 1)
   let q = NumPktQuery queryID ch millisecondInterval
   return (ch, Action MS.empty (MS.singleton q))
 
-pktQuery :: IO (Chan (Switch, Packet), Action)
-pktQuery = do
+-- ^Sends packets to the controller.
+--
+-- Returns an 'Action' and a channel. When the 'Action' is used in the active
+-- 'Policy', all matching packets are sent to the controller. These packets
+-- are written into the channel.
+getPkts :: IO (Chan (Switch, Packet), Action)
+getPkts = do
   ch <- newChan
   queryID <- readIORef nextQueryID
   modifyIORef nextQueryID (+1)

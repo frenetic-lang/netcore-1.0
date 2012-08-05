@@ -10,7 +10,7 @@ module Frenetic.NetCore
   , (<%>)
   , (<+>)
   -- * Predicates
-  , Predicate (..)
+  , Predicate
   , inport
   , (<||>)
   , (<&&>)
@@ -37,22 +37,20 @@ module Frenetic.NetCore
   , tpDst
   , inPort
   -- * Actions
-  , Action (..)
-  , Query (..)
-  , Modification (..)
-  , unmodified
-  , query
-  , pktQuery
+  , Action
   , dropPkt
-  , allPorts
   , forward
+  , allPorts
   , modify
+  , countPkts
+  , getPkts
+  , Modification
+  , unmodified
   -- * Network Elements
   , Switch
   , Port
   , Vlan
   , Loc (..)
-  , PseudoPort (..)
   , Word48
   -- * Packets
   , Packet (..)

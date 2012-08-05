@@ -14,6 +14,7 @@ import Frenetic.Sat
 import Frenetic.Slices.Sat
 import Frenetic.Slices.Slice
 import Frenetic.Topo
+import Frenetic.NetCore.Types
 import Frenetic.Z3
 
 import Data.Maybe
@@ -79,8 +80,8 @@ case_testTransferBreaks = do
   assertBool "topology does not transfer" (not result)
 
 case_testBreaksObserves = do
-  (_, query1) <- query 1
-  (_, query2) <- query 1 -- different query ID
+  (_, query1) <- countPkts 1
+  (_, query2) <- countPkts 1 -- different query ID
   let o = PrTo 2 ==> query1
   let r = PrTo 2 ==> query2
   result <- checkBool $ breaksObserves topo Nothing o o
@@ -202,7 +203,7 @@ case_testCompiledCorrectly = do
   result <- compiledCorrectly smallTopo smallSlice o r
   assertBool "set vlans in compilation" result
 
-  (_, q) <- query 1
+  (_, q) <- countPkts 1
   let o = (inport 2 2)                 ==> (forward [1] <+> q)
   let r = (inport 2 2) <&&> (dlVlan 2) ==> (forward [1] <+> q)
   result <- compiledCorrectly smallTopo smallSlice o r
@@ -222,8 +223,8 @@ case_testBadCompile = do
   result <- compiledCorrectly topo slice o r
   assertBool "emits vlan traffic" (not result)
 
-  (_, q1) <- query 1
-  (_, q2) <- query 1
+  (_, q1) <- countPkts 1
+  (_, q2) <- countPkts 1
   let o = (inport 2 2)                 ==> (forward [1] <+> q1)
   let r = (inport 2 2) <&&> (dlVlan 2) ==> (forward [1] <+> q2)
   result <- compiledCorrectly smallTopo smallSlice o r

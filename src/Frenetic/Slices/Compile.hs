@@ -21,6 +21,7 @@ import Frenetic.NetCore.Short
 import Frenetic.Slices.Slice
 import Frenetic.Slices.VlanAssignment
 import Frenetic.Topo
+import Frenetic.NetCore.Types
 
 -- |Match a specific vlan tag
 vlanMatch :: Vlan -> Predicate

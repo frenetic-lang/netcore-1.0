@@ -36,7 +36,7 @@ toHops all@(_ : tail) = zip all tail
 -- |Get an infinite stream of fresh queries
 queries :: IO [Action]
 queries = do
-  (_, q) <- query 1
+  (_, q) <- countPkts 1
   rest <- unsafeInterleaveIO queries
   return (q : rest)
 
