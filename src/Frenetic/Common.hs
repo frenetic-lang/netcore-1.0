@@ -5,6 +5,7 @@ module Frenetic.Common
   , Set
   , Map
   , MultiSet
+  , ByteString
   , module Control.Concurrent.Chan
   , module Control.Concurrent
   , module System.Log.Logger
@@ -21,6 +22,7 @@ import Data.Set (Set)
 import Data.Map (Map)
 import Data.MultiSet
 import Control.Newtype
+import Data.ByteString (ByteString)
 
 newLift :: (Newtype n o) => (o -> o) -> n -> n
 newLift f = pack . f . unpack

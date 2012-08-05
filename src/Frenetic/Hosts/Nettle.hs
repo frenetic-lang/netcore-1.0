@@ -132,13 +132,17 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
           loop policy nextMsg
   loop PoBottom (Left initPolicy)
 
-nettleServer :: Chan Policy -> IO ()
-nettleServer policyChan = do
+nettleServer :: Chan Policy -> Chan (Loc, ByteString) -> IO ()
+nettleServer policyChan pktChan = do
   server <- startOpenFlowServerEx Nothing 6633
   currentPolicy <- newIORef PoBottom
   forkIO $ forever $ do
     pol <- readChan policyChan
     writeIORef currentPolicy pol
+  forkIO $ forever $ do
+    (Loc swID pt, pkt) <- readChan pktChan
+    let msg = PacketOut $ PacketOutRecord (Right pkt) Nothing (sendOnPort pt)
+    sendToSwitchWithID server swID (0,msg)
   forever $ do
     -- Nettle does the OpenFlow handshake
     (switch, switchFeatures, msgChan) <- acceptSwitch server
