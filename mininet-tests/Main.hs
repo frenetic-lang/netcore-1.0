@@ -4,10 +4,11 @@ import Prelude hiding (init)
 import System.Console.GetOpt
 import System.Environment
 import Control.Monad
-import qualified Repeater
-import qualified Query1
-import qualified MacLearning
+import qualified Arp
 import qualified Internet
+import qualified MacLearning
+import qualified Query1
+import qualified Repeater
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
 import System.Log.Handler.Simple
@@ -25,6 +26,8 @@ argSpec =
       "log to FILE"
   , Option ['v'] ["verbosity"] (ReqArg Verbosity "PRIORITY")
       "sets the verbosity of the log"
+  , Option ['a'] ["arp"] (NoArg (Example Arp.main))
+      "an interesting controller-based ARP cache"
   , Option ['r'] ["repeater"] (NoArg (Example Repeater.main)) 
       "a simple repeater"
   , Option [] ["query1"] (NoArg (Example Query1.main)) 

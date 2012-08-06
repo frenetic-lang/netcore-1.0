@@ -7,7 +7,7 @@ module Frenetic.NetCore.Pretty
 
 import Data.List
 import qualified Data.MultiSet as MS
-import Frenetic.NetCore
+import Frenetic.NetCore.Types
 import System.IO
 import Frenetic.NetCore.Short
 import Frenetic.NetCore.Types

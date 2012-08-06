@@ -30,12 +30,15 @@
 module Frenetic.Hosts.Nettle where
 
 import Frenetic.Common
+import qualified Data.ByteString as BS
+import Data.ByteString.Lazy (toChunks)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Frenetic.LargeWord
 import Control.Exception.Base
 import Control.Monad.State
 import System.IO
+import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
@@ -87,7 +90,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
         let classifier = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
-        infoM "nettle" $ "policy is " ++ show policy ++ 
+        infoM "nettle" $ "policy is \n" ++ toString policy ++ 
                           " and flow table is " ++ (concat $ intersperse "\n" (map show flowTbl))
         runQueryOnSwitch nettle switch classifier
         -- Priority 65535 is for microflow rules from reactive-specialization
@@ -141,7 +144,8 @@ nettleServer policyChan pktChan = do
     writeIORef currentPolicy pol
   forkIO $ forever $ do
     (Loc swID pt, pkt) <- readChan pktChan
-    let msg = PacketOut $ PacketOutRecord (Right pkt) Nothing (sendOnPort pt)
+    let msg = PacketOut $ PacketOutRecord (Right (BS.concat . toChunks $ pkt))
+                                          Nothing (sendOnPort pt)
     sendToSwitchWithID server swID (0,msg)
   forever $ do
     -- Nettle does the OpenFlow handshake

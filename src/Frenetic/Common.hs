@@ -19,7 +19,7 @@ import Data.Monoid
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.MultiSet
-import Data.ByteString (ByteString)
+import Data.ByteString.Lazy (ByteString)
 
 mergeChan :: Chan a -> Chan b -> IO (Chan (Either a b))
 mergeChan chan1 chan2 = do
