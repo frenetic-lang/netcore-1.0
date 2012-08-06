@@ -9,8 +9,7 @@ import qualified Data.Map as Map
 import Frenetic.Common (mergeChan)
 import Frenetic.NetCore.Types (poDom)
 
-ethernetFloodMAC = 0xFFFFFFFFFFFF
-isFlood = dlDst ethernetFloodMAC
+isFlood = dlDst broadcastAddress
 
 -- |Learns the location of hosts at each switch.
 --

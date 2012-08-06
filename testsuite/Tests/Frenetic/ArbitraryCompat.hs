@@ -56,26 +56,12 @@ buildWord48 w1 w2 w3 w4 w5 w6 =
     w1
     (LargeKey w2 (LargeKey w3 (LargeKey w4 (LargeKey w5 w6))))
 
-instance Arbitrary Word48 where
+instance Arbitrary EthernetAddress where
   arbitrary = do
-    w1 <- arbitrary
-    w2 <- arbitrary
-    w3 <- arbitrary
-    w4 <- arbitrary
-    w5 <- arbitrary
-    w6 <- arbitrary
-    return $ buildWord48 w1 w2 w3 w4 w5 w6
+    w64 <- arbitrary
+    return (ethernetAddress64 w64)
 
-  shrink (LargeKey
-           w1
-           (LargeKey w2 (LargeKey w3 (LargeKey w4 (LargeKey w5 w6))))) =
-    [buildWord48 s w2 w3 w4 w5 w6 | s <- shrink w1] ++
-    [buildWord48 w1 s w3 w4 w5 w6 | s <- shrink w2] ++
-    [buildWord48 w1 w2 s w4 w5 w6 | s <- shrink w3] ++
-    [buildWord48 w1 w2 w3 s w5 w6 | s <- shrink w4] ++
-    [buildWord48 w1 w2 w3 w4 s w6 | s <- shrink w5] ++
-    [buildWord48 w1 w2 w3 w4 w5 s | s <- shrink w6]
-
+  shrink eth = map ethernetAddress64 (shrink (unpackEth64 eth))
 
 instance Arbitrary Packet where
   arbitrary = do

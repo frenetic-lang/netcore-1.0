@@ -52,6 +52,8 @@ module Frenetic.NetCore
   , Vlan
   , Loc (..)
   , Word48
+  , broadcastAddress
+  , EthernetAddress
   -- * Packets
   , Packet (..)
   -- * Packet modifications

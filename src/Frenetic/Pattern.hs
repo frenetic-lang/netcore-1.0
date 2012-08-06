@@ -119,5 +119,5 @@ instance Eq a => Matchable (Wildcard a) where
   intersect Wildcard (Exact b) = Just (Exact b)
   intersect Wildcard Wildcard  = Just Wildcard
 
-wMatch :: (Bits a) => a -> Wildcard a -> Bool
+wMatch :: Eq a => a -> Wildcard a -> Bool
 wMatch b w = (Exact b) `match` w

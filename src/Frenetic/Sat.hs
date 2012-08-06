@@ -156,8 +156,8 @@ matchWith (PrNegate pred) p = Not (matchWith pred p)
 -- |Build the constraint for a packet matching a pattern
 matchPatternWith :: Pattern -> (Z3Packet, Maybe Z3Int) -> BoolExp
 matchPatternWith pat p = nAnd (catMaybes matches) where
-  matches = [ matchField p "DlSrc"     ((fmap fint) (ptrnDlSrc pat))
-            , matchField p "DlDst"     ((fmap fint) (ptrnDlDst pat))
+  matches = [ matchField p "DlSrc"   ((fmap (fint.unpackEth64)) (ptrnDlSrc pat))
+            , matchField p "DlDst"   ((fmap (fint.unpackEth64)) (ptrnDlDst pat))
             , matchField p "DlTyp"     ((fmap fint) (ptrnDlTyp pat))
             , matchField p "DlVlan"    ((fmap fint) (ptrnDlVlan pat))
             , matchField p "DlVlanPcp" ((fmap fint) (ptrnDlVlanPcp pat))
@@ -199,8 +199,8 @@ produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
                        -- Flood means to forward out all ports but the one we
                        -- came in
                        AllPorts  -> [Not (Equals (port p') (port q'))]) ++
-        [ updateField p q "DlSrc"     ((fmap fint) (modifyDlSrc m))
-        , updateField p q "DlDst"     ((fmap fint) (modifyDlDst m))
+        [ updateField p q "DlSrc"    ((fmap (fint.unpackEth64)) (modifyDlSrc m))
+        , updateField p q "DlDst"    ((fmap (fint.unpackEth64)) (modifyDlDst m))
         , updateField p q "DlTyp"     Nothing
         , updateField p q "DlVlan"    ((fmap fint) (modifyDlVlan m))
         , updateField p q "DlVlanPcp" ((fmap fint) (modifyDlVlanPcp m))

@@ -85,7 +85,7 @@ test_query_2 = do
   (_, act) <- countPkts 1000
   let policy =
         PoUnion (PoBasic (PrPattern top) (allPorts unmodified))
-                (PoBasic (PrPattern $ top { ptrnDlDst = Exact 1 }) act)
+                (PoBasic (PrPattern $ top { ptrnDlDst = Exact $ ethernetAddress64 1 }) act)
   let tbl = compile 0 policy
   case tbl of
     [(_, act1), (_, act2)] -> do
@@ -99,8 +99,8 @@ test_query_2 = do
 case_regress_1 = do
   let pred = PrNegate (PrNegate (PrTo 0))
   let policy = PoBasic pred (allPorts unmodified)
-  let pkt = FreneticPkt (Packet {pktDlSrc = 4410948387332,
-              pktDlDst = 6609988486150, pktDlTyp = 1, pktDlVlan = 4,
+  let pkt = FreneticPkt (Packet {pktDlSrc = ethernetAddress64 4410948387332,
+              pktDlDst = ethernetAddress64 6609988486150, pktDlTyp = 1, pktDlVlan = 4,
               pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5, 
               pktNwProto = 5,
               pktNwTos = 7, pktTpSrc = Just 5, pktTpDst = Just 0,
@@ -114,8 +114,8 @@ negation_regress_maker pred = do
   let act = forward [2]
   let act' = forward [90]
   let pol = PoUnion (PoBasic pred act) (PoBasic (PrNegate pred) act')
-  let pkt = Packet {pktDlSrc = 200,
-              pktDlDst = 500, pktDlTyp = 1, pktDlVlan = 4,
+  let pkt = Packet {pktDlSrc = ethernetAddress64 200,
+              pktDlDst = ethernetAddress64 500, pktDlTyp = 1, pktDlVlan = 4,
               pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5, 
               pktNwProto = 5,
               pktNwTos = 7, pktTpSrc = Just 5, pktTpDst = Just 0, pktInPort = 6}
@@ -124,7 +124,7 @@ negation_regress_maker pred = do
   let classAct = classify 0 (FreneticPkt pkt) (compile 0 pol)
   assertEqual "flow table should fwd 2"
     (Just (FreneticAct act)) classAct
-  let pkt' = pkt { pktDlDst = 501 }
+  let pkt' = pkt { pktDlDst = ethernetAddress64 501 }
   let polAct' = interpretPolicy pol (Transmission top 0 (FreneticPkt pkt'))
   assertEqual "policy should fwd 90"  act' polAct'
   let classAct' = classify 0 (FreneticPkt pkt') (compile 0 pol)
@@ -132,13 +132,14 @@ negation_regress_maker pred = do
     (Just (FreneticAct act')) classAct'
 
 case_regress_neg_1 = do
-  negation_regress_maker (dlDst 500 <&&> PrTo 0)
+  negation_regress_maker (dlDst (ethernetAddress64 500) <&&> PrTo 0)
 
 case_regress_neg_1_ok = do
-  negation_regress_maker (dlDst 500)
+  negation_regress_maker (dlDst (ethernetAddress64 500))
 
 case_regress_neg_1_2 = do
-  negation_regress_maker (dlDst 500 <&&> dlSrc 200)
+  negation_regress_maker (dlDst (ethernetAddress64 500) <&&> 
+                          dlSrc (ethernetAddress64 200))
 
 -- Invariant: given an arbitrary classifier c, minimze c yields an
 --            equivalent classifier.
@@ -196,8 +197,8 @@ case_quiescence_bug_1 = do
     classActs = classify 0 packet classifier
     policy = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) (allPorts unmodified)
     packet = FreneticPkt $ Packet {
-        pktDlSrc = 0
-      , pktDlDst = 0
+        pktDlSrc = ethernetAddress64 0
+      , pktDlDst = ethernetAddress64 0
       , pktDlTyp = 0
       , pktDlVlan = 0
       , pktDlVlanPcp = 0
@@ -224,8 +225,8 @@ case_quiescence_bug_2 = do
     p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) (allPorts unmodified)
     p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix  0x5000002 32}) (allPorts unmodified)
     packet = FreneticPkt $ Packet {
-        pktDlSrc = 0
-      , pktDlDst = 0
+        pktDlSrc = ethernetAddress64 0
+      , pktDlDst = ethernetAddress64 0
       , pktDlTyp = 0
       , pktDlVlan = 0
       , pktDlVlanPcp = 0
@@ -252,8 +253,8 @@ case_quiescence_bug_3 = do
     p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) (allPorts unmodified)
     p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000002 32}) (allPorts unmodified)
     packet = FreneticPkt $ Packet {
-        pktDlSrc = 0
-      , pktDlDst = 0
+        pktDlSrc = ethernetAddress64 0
+      , pktDlDst = ethernetAddress64 0
       , pktDlTyp = 0
       , pktDlVlan = 0
       , pktDlVlanPcp = 0
@@ -279,8 +280,8 @@ case_quiescence_bug_4 = do
     policy = PoBasic (PrUnion (PrPattern pattern) (PrTo switch)) (allPorts unmodified)
     switch = 0
     pattern = Pattern {
-        ptrnDlSrc = Exact 0
-      , ptrnDlDst = Exact 0
+        ptrnDlSrc = Exact (ethernetAddress64 0)
+      , ptrnDlDst = Exact (ethernetAddress64 0)
       , ptrnDlTyp = Exact 0
       , ptrnDlVlan = Exact 0
       , ptrnDlVlanPcp = Exact 0
@@ -293,8 +294,8 @@ case_quiescence_bug_4 = do
       , ptrnInPort = Wildcard
       }
     packet = FreneticPkt $ Packet {
-        pktDlSrc = 0
-      , pktDlDst = 0
+        pktDlSrc = ethernetAddress64 0
+      , pktDlDst = ethernetAddress64 0
       , pktDlTyp = 0
       , pktDlVlan = 0
       , pktDlVlanPcp = 0
@@ -320,8 +321,8 @@ case_quiescence_bug_5 = do
     policy = PrTo switch ==> forward [1]
     switch = 0
     packet = FreneticPkt $ Packet {
-        pktDlSrc = 1
-      , pktDlDst = 1
+        pktDlSrc = ethernetAddress64 1
+      , pktDlDst = ethernetAddress64 1
       , pktDlTyp = 1
       , pktDlVlan = 1
       , pktDlVlanPcp = 1

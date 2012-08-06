@@ -76,7 +76,8 @@ shortestPath topo = mconcat policies where
   pathPolicy h1 = mconcat policies where
     otherHosts = Set.delete h1 hostsSet
     paths = spTree h1 routingTopo
-    policies = [ buildPath (fromIntegral h1) (fromIntegral h2) $
+    policies = [ buildPath (ethernetAddress64 (fromIntegral h1))
+                           (ethernetAddress64 (fromIntegral h2)) $
                  getLPathNodes h2 paths
                | h2 <- Set.toList otherHosts ]
   buildPath _ _ [] = PoBottom
@@ -96,7 +97,7 @@ shortestPath topo = mconcat policies where
 -- |Construct a policy that routes traffic to DlDst:FF:FF:FF:FF:FF:FF to all
 -- hosts except the one it came in on
 multicast :: Topo -> Policy
-multicast topo = mconcat policies <%> dlDst 0xFFFFFFFFFFFF where
+multicast topo = mconcat policies <%> dlDst broadcastAddress where
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (hosts topo)
   tree = msTree routingTopo

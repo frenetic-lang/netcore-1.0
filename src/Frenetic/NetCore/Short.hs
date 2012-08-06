@@ -137,11 +137,11 @@ instance Monoid Policy where
 
 -- |Match ethernet source address.
 dlSrc     :: Word48     -> Predicate
-dlSrc     value = PrPattern (top {ptrnDlSrc = exact value})
+dlSrc     value = PrPattern (top {ptrnDlSrc = Exact value})
 
 -- |Match ethernet destination address.
 dlDst     :: Word48     -> Predicate
-dlDst     value = PrPattern (top {ptrnDlDst = exact value})
+dlDst     value = PrPattern (top {ptrnDlDst = Exact value})
 
 -- |Match ethernet type code (e.g., 0x0800 for IP packets).
 dlTyp     :: Word16     -> Predicate

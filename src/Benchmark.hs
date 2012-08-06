@@ -87,7 +87,7 @@ start options = do
                  ShortestPath -> shortestPath
                  Multicast -> multicast
                $ g
-  let slice = simpleSlice g (dlDst 0xFFffFFffFFff)
+  let slice = simpleSlice g (dlDst broadcastAddress)
   let compiled = compileSlice slice 1 policy
   correct <- compiledCorrectly g slice policy compiled
   print correct

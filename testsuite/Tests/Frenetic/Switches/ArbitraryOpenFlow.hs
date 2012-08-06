@@ -35,7 +35,7 @@ import Nettle.OpenFlow
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
-import Frenetic.NetCore.Types hiding (Action, PseudoPort)
+import Frenetic.NetCore.Types hiding (Action, PseudoPort, EthernetAddress, ethernetAddress)
 
 instance Arbitrary Match where
   arbitrary = do

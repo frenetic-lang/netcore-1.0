@@ -33,6 +33,7 @@ module Frenetic.NetCore.Types
   , prUnUnion
   , poUnUnion
   , poDom
+  , module Frenetic.EthernetAddress
   ) where
 
 import Frenetic.Common
@@ -46,6 +47,7 @@ import Frenetic.LargeWord
 import Frenetic.Pattern
 import System.IO.Unsafe
 import Data.Maybe (catMaybes)
+import Frenetic.EthernetAddress
 
 -- |A switch's unique identifier.
 type Switch = Word64
@@ -68,9 +70,7 @@ type Vlan = Word16
 
 
 -- |Ethernet addresses are 48-bits wide.
-type Word48 
-  = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 
-      (LargeKey Word8 (LargeKey Word8 Word8))))
+type Word48 = EthernetAddress
 
 -- |Packets' headers.
 data Packet = Packet {

@@ -60,17 +60,19 @@ import Frenetic.Pattern
 import Frenetic.Compat
 import Frenetic.NetCore.Types
 import Control.Concurrent
-import Frenetic.NettleEx hiding (AllPorts)
+import Frenetic.NettleEx hiding (AllPorts, ethernetAddress64)
 import qualified Frenetic.NettleEx as NettleEx
 
 {-| Convert an EthernetAddress to a Word48. -}
-ethToWord48 eth =
-  LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))
-     where (f, e, d, c, b, a) = unpack eth
+ethToWord48 :: NettleEx.EthernetAddress 
+            -> Frenetic.NetCore.Types.EthernetAddress
+ethToWord48 = ethernetAddress64.unpack64
 
 {-| Convert a Word48 to an EthernetAddress. -}
-word48ToEth (LargeKey a (LargeKey b (LargeKey c (LargeKey d (LargeKey e f))))) =
-    ethernetAddress f e d c b a
+word48ToEth :: Frenetic.NetCore.Types.EthernetAddress
+            -> NettleEx.EthernetAddress
+word48ToEth = (NettleEx.ethernetAddress64).unpackEth64
+
 
 {-| Convert a pattern Prefix to an IPAddressPrefix. -}
 prefixToIPAddressPrefix :: Prefix Word32 -> IPAddressPrefix

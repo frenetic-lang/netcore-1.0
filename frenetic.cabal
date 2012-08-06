@@ -31,7 +31,9 @@ Library
     Frenetic.LargeWord,
     Frenetic.Pattern,
     Frenetic.NetCore.Types,
-    Frenetic.Server
+    Frenetic.Server,
+    Frenetic.EthernetAddress,
+    Frenetic.NetworkFrames
   other-modules:
     Frenetic.Common
     Frenetic.Switches.OpenFlow

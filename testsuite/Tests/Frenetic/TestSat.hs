@@ -113,12 +113,12 @@ case_testBreaksForwards = do
   assertBool "match vlans rev" (not result)
 
   let o = onSwitch 2 <&&> inPort 1
-                   <&&> dlSrc 32432
-                   <&&> dlDst 324322
+                   <&&> dlSrc (ethernetAddress64 32432)
+                   <&&> dlDst (ethernetAddress64 324322)
           ==> forward [1]
   let r = onSwitch 2 <&&> inPort 1
-                     <&&> dlSrc 32432
-                     <&&> dlDst 324322
+                     <&&> dlSrc (ethernetAddress64 32432)
+                     <&&> dlDst (ethernetAddress64 324322)
           ==> modify [(1, modDlVlan 2)]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "set vlans" (not result)
