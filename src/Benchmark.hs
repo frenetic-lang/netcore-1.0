@@ -5,6 +5,7 @@ import Control.Monad
 import qualified Data.Map as Map
 import Frenetic.NetCore
 import Frenetic.NetCore.Pretty
+import Frenetic.NetCore.Types (size)
 import Frenetic.TopoGen
 import Frenetic.PolicyGen
 import Frenetic.Slices.Compile
@@ -123,7 +124,7 @@ start options = do
                  ShortestPath -> shortestPath
                  Multicast -> multicast
                $ g
-  let slice = (simpleSlice g (neg top)) {egress = Map.empty}
+  let slice = (simpleSlice g matchNone) {egress = Map.empty}
   let (compiled1, compiled2) =
         if optEdge options then
           -- Force them to be distinct

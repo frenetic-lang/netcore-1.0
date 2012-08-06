@@ -38,12 +38,14 @@ module Frenetic.NetCore
   , inPort
   -- * Actions
   , Action
+  -- ** Constructors
   , dropPkt
   , forward
   , allPorts
   , modify
   , countPkts
   , getPkts
+  -- ** Modifications
   , Modification
   , unmodified
   -- * Network Elements
