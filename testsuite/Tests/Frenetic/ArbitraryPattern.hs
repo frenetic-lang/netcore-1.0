@@ -33,8 +33,6 @@ module Tests.Frenetic.ArbitraryPattern where
 import Data.Bits
 import Frenetic.Pattern
 import Test.QuickCheck
-import Control.Newtype.TH
-import Control.Newtype
 
 instance (Arbitrary a) => Arbitrary (Wildcard a) where
   arbitrary = oneof [ do { v <- arbitrary; return (Exact v) }

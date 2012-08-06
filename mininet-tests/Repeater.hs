@@ -1,11 +1,7 @@
 module Repeater where
 
 import Frenetic.NetCore
-import Control.Concurrent.Chan
 
-policy = PoBasic (PrPattern top) flood
+policy = matchAll ==> allPorts unmodified
 
-main = do
-  polChan <- newChan
-  writeChan polChan policy
-  freneticServer polChan
+main = controller policy

@@ -2,17 +2,19 @@ module Frenetic.NetCore.Reduce
   ( reduce
   ) where
 
+import Frenetic.Common
 import Data.Maybe
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.NetCore
+import Frenetic.NetCore.Types
 
 -- |Reduce the policy to produce a smaller, more readable policy
 reduce = reducePo
 
 reducePo :: Policy -> Policy
 reducePo PoBottom = PoBottom
-reducePo (PoBasic pr act) = if pr' == neg top || act == Action MS.empty []
+reducePo (PoBasic pr act) = if pr' == matchNone || act == mempty
                               then PoBottom
                               else PoBasic pr' act' where
   pr' = reducePr pr
@@ -28,14 +30,14 @@ reducePo (PoUnion p1 p2) = if p1' == PoBottom then p2'
 -- TODO(astory): do reductions beyond common subexpression reduction.  Ideas:
 -- top reduction, bottom reduction, empty intersection reduction.
 reducePr :: Predicate -> Predicate
-reducePr p@(PrUnion _ _) = prNaryUnion leaves where
+reducePr p@(PrUnion _ _) = prOr leaves where
   leaves = Set.toList . Set.fromList . map reducePr . prUnUnion $ p
 
 reducePr p@(PrIntersect _ _) = result where
   leaves = Set.toList . Set.fromList . map reducePr . prUnIntersect $ p
   nSwitches = Set.size .Set.fromList . catMaybes . map switchOfPred $ leaves
-  result = if nSwitches > 1 then neg top
-           else prNaryIntersect leaves
+  result = if nSwitches > 1 then matchNone
+           else prAnd leaves
 
 reducePr (PrNegate (PrNegate p)) = reducePr p
 reducePr (PrNegate p) = PrNegate (reducePr p)

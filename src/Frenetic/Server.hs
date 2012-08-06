@@ -1,37 +1,26 @@
---------------------------------------------------------------------------------
--- The Frenetic Project                                                       --
--- frenetic@frenetic-lang.org                                                 --
---------------------------------------------------------------------------------
--- Licensed to the Frenetic Project by one or more contributors. See the      --
--- NOTICE file distributed with this work for additional information          --
--- regarding copyright and ownership. The Frenetic Project licenses this      --
--- file to you under the following license.                                   --
---                                                                            --
--- Redistribution and use in source and binary forms, with or without         --
--- modification, are permitted provided the following conditions are met:     --
--- - Redistributions of source code must retain the above copyright           --
---   notice, this list of conditions and the following disclaimer.            --
--- - Redistributions of binaries must reproduce the above copyright           --
---   notice, this list of conditions and the following disclaimer in          --
---   the documentation or other materials provided with the distribution.     --
--- - The names of the copyright holds and contributors may not be used to     --
---   endorse or promote products derived from this work without specific      --
---   prior written permission.                                                --
---                                                                            --
--- Unless required by applicable law or agreed to in writing, software        --
--- distributed under the License is distributed on an "AS IS" BASIS, WITHOUT  --
--- WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the   --
--- LICENSE file distributed with this work for specific language governing    --
--- permissions and limitations under the License.                             --
---------------------------------------------------------------------------------
--- /src/Server.hs                                                            --
--- Frenetic front-end                                                         --
---------------------------------------------------------------------------------
-module Frenetic.Server where
+module Frenetic.Server
+  ( controller
+  , dynController
+  ) where
 
 import Frenetic.Hosts.Nettle
-import Frenetic.NetCore.API
-import Frenetic.Util
+import Frenetic.NetCore.Types
+import Frenetic.Common
 
-freneticServer :: Chan Policy -> IO ()
-freneticServer = nettleServer
+-- |Starts an OpenFlow controller that runs dynamic NetCore programs.
+--
+-- The controller reads NetCore programs from the given channel. When
+-- the controller receives a program on the channel, it compiles it and
+-- reconfigures the network to run it.
+dynController :: Chan Policy 
+              -> Chan (Loc, ByteString) -- ^packets to emit
+              -> IO ()
+dynController = nettleServer
+
+-- |Starts an OpenFlow controller that runs a static NetCore program.
+controller :: Policy -> IO ()
+controller policy = do
+  ch <- newChan
+  writeChan ch policy
+  pktChan <- newChan
+  dynController ch pktChan

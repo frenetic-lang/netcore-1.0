@@ -4,9 +4,10 @@ module Frenetic.NetCore.Semantics where
 
 import Frenetic.Compat
 import Frenetic.Pattern
-import Frenetic.Util
-import Frenetic.NetCore.API
+import Frenetic.Common
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
+import qualified Data.MultiSet as MS
 
 -- |Implements the denotation function for predicates.
 interpretPredicate :: FreneticImpl a
@@ -35,7 +36,7 @@ interpretPolicy (PoBasic pred acts) tr = case interpretPredicate pred tr of
   True -> acts
   False -> dropPkt
 interpretPolicy (PoUnion p1 p2) tr =
-  interpretPolicy p1 tr `unionAction` interpretPolicy p2 tr
+  interpretPolicy p1 tr <+> interpretPolicy p2 tr
 
 instance Matchable (PatternImpl ()) where
   top = FreneticPat top
@@ -81,5 +82,5 @@ instance FreneticImpl () where
   actnTranslate x = FreneticAct x
   actnControllerPart (FreneticAct (Action _ queries)) switchID
                      (FreneticPkt pkt)  = do
-    let pktChans = map pktQueryChan . filter isPktQuery $ queries
+    let pktChans = map pktQueryChan . filter isPktQuery $ MS.toList queries
     mapM_ (\chan -> writeChan chan (switchID, pkt)) pktChans

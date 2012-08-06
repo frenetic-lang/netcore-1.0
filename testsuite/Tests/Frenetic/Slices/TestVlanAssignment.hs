@@ -5,10 +5,9 @@ import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
 import Test.HUnit hiding (Node)
 import Test.Framework.Providers.HUnit
-
+import Frenetic.Pattern
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-
 import Frenetic.NetCore
 import Frenetic.Slices.Slice
 import Frenetic.Slices.VlanAssignment
@@ -34,7 +33,7 @@ case_testBasicEdge = do
   let topo = kComplete 10
   let slices = take 10 . repeat $ internalSlice topo
   -- Policies don't matter, just need to be non-identical
-  let policies = [top ==> forward i | i <- [1..10]]
+  let policies = [top ==> forward [i] | i <- [1..10]]
   let combined = zip slices policies
   let result = edge topo combined
   assertEqual "inputs unchanged" combined (map snd result)

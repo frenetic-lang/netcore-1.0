@@ -14,7 +14,7 @@ module Frenetic.Slices.Sat
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import Frenetic.Sat
 import Frenetic.Slices.Slice
@@ -79,8 +79,8 @@ printResult i = do
 -- that vlan = 0
 realSlice :: Slice -> Slice
 realSlice (Slice int ing egr) = Slice int ing' egr' where
-  ing' = Map.map (\pred -> pred <&> (dlVlan 0)) ing
-  egr' = Map.map (\pred -> pred <&> (dlVlan 0)) egr
+  ing' = Map.map (\pred -> pred <&&> (dlVlan 0)) ing
+  egr' = Map.map (\pred -> pred <&&> (dlVlan 0)) egr
 
 -- | Try to find some packets outside the interior or ingress of the slice that
 -- the policy forwards or observes.

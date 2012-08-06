@@ -12,8 +12,6 @@ Library
     multiset >= 0.2.1,
     mtl >= 2.0.1.0,
     fgl,
-    newtype,
-    newtype-th,
     process,
     random,
     HList,
@@ -32,10 +30,10 @@ Library
     Frenetic.Compat,
     Frenetic.LargeWord,
     Frenetic.Pattern,
-    Frenetic.NetCore.API,
+    Frenetic.NetCore.Types,
     Frenetic.Server
   other-modules:
-    Frenetic.Util
+    Frenetic.Common
     Frenetic.Switches.OpenFlow
     Frenetic.NetCore.Compiler
     Frenetic.Hosts.Nettle
@@ -76,8 +74,6 @@ Executable frenetic-example-suite
     containers >= 0.4.2.1,
     multiset >= 0.2.1,
     mtl >= 2.0.1.0,
-    newtype,
-    newtype-th,
     HList,
     hslogger == 1.2.*,
     binary == 0.5.1.*,
@@ -107,8 +103,6 @@ Executable frenetic-benchmark
                  fgl,
                  multiset >= 0.2.1,
                  mtl >= 2.0.1.0,
-                 newtype,
-                 newtype-th,
                  process,
                  random,
                  HList,
@@ -140,8 +134,6 @@ Test-Suite frenetic-tests
     containers,
     fgl,
     multiset,
-    newtype,
-    newtype-th,
     mtl,
     process,
     random,

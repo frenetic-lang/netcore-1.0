@@ -7,11 +7,11 @@ import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
 import Test.HUnit
 import Test.Framework.Providers.HUnit
-
+import Frenetic.Pattern
 import Frenetic.NetCore
 import Frenetic.NetCore.Short
 import Frenetic.NetCore.Semantics
-
+import Frenetic.NetCore.Types
 import Frenetic.Slices.Slice
 
 import qualified Data.Map as Map
@@ -22,24 +22,20 @@ sliceTests = $(testGroupGenerator)
 
 -- Construct a bunch of basically meaningless objects for testing
 
-a1 = Action (MS.fromList [ (Physical 1, patDlSrc 10)
-                         , (Physical 2, patDlSrc 10)
-                         , (Physical 3, patDlSrc 10)])
-            []
-a2 = Action (MS.fromList [ (Physical 2, patDlDst 20)
-                         , (Physical 3, patDlDst 20)])
-            []
-a3 = Action (MS.fromList [ (Physical 2, patDlTyp 30)])
-            []
-a4 = Action (MS.fromList [ (Physical 4, patNwSrc 40)
-                         , (Physical 5, patNwSrc 40)
-                         , (Physical 6, patNwSrc 40)])
-            []
+a1 = modify [ (1, modDlSrc 10)
+            , (2, modDlSrc 10)
+            , (3, modDlSrc 10)]
+a2 = modify [ (2, modDlDst 20)
+            , (3, modDlDst 20)]
+a3 = modify [ (2, modNwDst 30)]
+a4 = modify [ (4, modNwSrc 40)
+            , (5, modNwSrc 40)
+            , (6, modNwSrc 40)]
 
 pr1 = inport 1 0
-pr2 = inport 1 0 <|> inport 2 3
-pr3 = inport 3 3 <&> dlSrc 10
-pr4 = pr3 <&> neg (dlDst  20)
+pr2 = inport 1 0 <||> inport 2 3
+pr3 = inport 3 3 <&&> dlSrc 10
+pr4 = pr3 <&&> neg (dlDst  20)
 
 po1 = pr1 ==> a1
 po2 = pr2 ==> a2
@@ -53,13 +49,13 @@ case_testSwitchesOfPredicate = do
   Set.fromList [1, 2] @=? sop switches pr2
   Set.fromList [3] @=? sop switches pr3
   Set.fromList [3] @=? sop switches pr4
-  Set.fromList [] @=? sop switches (inport 1 0 <&> inport 2 0)
+  Set.fromList [] @=? sop switches (inport 1 0 <&&> inport 2 0)
 
 case_testPoUsesVlans = do
-  False @=? poUsesVlans (po1 <+> po2 <+> po3 <+> po4)
-  True @=? poUsesVlans (PrPattern (patDlVlan 3) ==> Action MS.empty [])
-  True @=? poUsesVlans (top ==> Action (MS.singleton (Physical 1, patDlVlan 3)) [])
-  False @=? poUsesVlans ((PrTo 0 ==> forward 2) <+> (PrTo 2 ==> forward 1))
+  assertBool "1" $ not (poUsesVlans (po1 <+> po2 <+> po3 <+> po4))
+  assertBool "2" $ poUsesVlans (dlVlan 3 ==> dropPkt)
+  assertBool "3" $ poUsesVlans (top ==> modify [(1, modDlVlan 3)])
+  assertBool "4" $ not (poUsesVlans ((PrTo 0 ==> forward [2]) <+> (PrTo 2 ==> forward [1])))
 
 slice = Slice (Set.fromList [ Loc 1 1
                             , Loc 1 2

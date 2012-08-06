@@ -7,6 +7,7 @@ module Frenetic.NettleEx
   , closeServer
   , acceptSwitch
   , sendToSwitch
+  , sendToSwitchWithID
   , startOpenFlowServerEx
   , ethVLANId
   , ethVLANPcp
@@ -18,11 +19,12 @@ module Frenetic.NettleEx
   , dstPort
   ) where
 
-import Frenetic.Util
+import Frenetic.Common
 import qualified Data.Map as Map
 import Nettle.OpenFlow hiding (intersect)
 import qualified Nettle.Servers.Server as Server
-import Nettle.Servers.Server hiding (acceptSwitch, closeServer, sendToSwitch)
+import Nettle.Servers.Server hiding (acceptSwitch, closeServer, sendToSwitch,
+  sendToSwitchWithID)
 import Nettle.Ethernet.EthernetFrame
 import Nettle.Ethernet.AddressResolutionProtocol
 import Prelude hiding (catch)
@@ -79,6 +81,14 @@ sendToSwitch sw (xid, msg) = do
   debugM "nettle" $ "msg to switch with xid=" ++ show xid ++ "; msg=" ++ 
                     show msg
   Server.sendToSwitch sw (xid, msg)
+
+sendToSwitchWithID :: Nettle -> SwitchID -> (TransactionID, CSMessage) -> IO ()
+sendToSwitchWithID nettle sw (xid, msg) = do
+  debugM "nettle" $ "msg to switch with xid=" ++ show xid ++ "; msg=" ++ 
+                    show msg
+  Server.sendToSwitchWithID (server nettle) sw (xid, msg)
+
+
 
 -- |spin-lock until we acquire a 'TransactionID'
 reserveTxId :: Nettle -> IO TransactionID

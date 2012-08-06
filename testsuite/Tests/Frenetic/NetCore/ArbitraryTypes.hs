@@ -24,7 +24,7 @@
 -- LICENSE file distributed with this work for specific language governing    --
 -- permissions and limitations under the License.                             --
 --------------------------------------------------------------------------------
--- /testsuite/Frenetic/ArbitraryAPI                                           --
+-- /testsuite/Frenetic/ArbitraryTypes                                           --
 --                                                                            --
 -- $Id$ --
 --------------------------------------------------------------------------------
@@ -33,10 +33,10 @@
     TypeSynonymInstances
  #-}
 
-module Tests.Frenetic.NetCore.ArbitraryAPI where
+module Tests.Frenetic.NetCore.ArbitraryTypes where
 import Data.Set                                 as Set
 
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
 

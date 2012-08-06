@@ -2,27 +2,25 @@ module Frenetic.NetCore.Short
   ( -- * Shorthand constructors
   -- ** Predicates
     inport
-  , (<|>)
-  , (<&>)
+  , (<||>)
+  , (<&&>)
+  , matchAll
+  , matchNone
   , neg
-  , prDifference
-  , prNaryUnion
-  , prNaryIntersect
+  , prSubtract
+  , prOr
+  , prAnd
   -- ** Actions
   , dropPkt
-  , flood
+  , allPorts
   , forward
-  , forwardMany
-  , forwardQuery
-  , forwardMods
-  , forwardModsQuery
+  , modify
   -- ** Policies
   , (==>)
-  , (%)
+  , (<%>)
   , (<+>)
-  , poRestrict
-  , poNaryUnion
   -- * Exact match predicate constructors
+  , onSwitch
   , dlSrc
   , dlDst
   , dlTyp
@@ -30,31 +28,41 @@ module Frenetic.NetCore.Short
   , dlVlanPcp
   , nwSrc
   , nwDst
+  , nwSrcPrefix
+  , nwDstPrefix
   , nwProto
   , nwTos
   , tpSrc
   , tpDst
   , inPort
-  -- * Exact match pattern constructors
-  , patDlSrc
-  , patDlDst
-  , patDlTyp
-  , patDlVlan
-  , patDlVlanPcp
-  , patNwSrc
-  , patNwDst
-  , patNwProto
-  , patNwTos
-  , patTpSrc
-  , patTpDst
-  , patInPort
+  -- * Packet modifications
+  , Modification (..)
+  , unmodified
+  , modDlSrc
+  , modDlDst
+  , modDlVlan
+  , modDlVlanPcp
+  , modNwSrc
+  , modNwDst
+  , modNwTos
+  , modTpSrc
+  , modTpDst
   ) where
 
 import Data.Word
 import qualified Data.List as List
 import qualified Data.MultiSet as MS
 import Frenetic.Pattern
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
+import Data.Monoid
+
+-- |Matches all packets.
+matchAll :: Predicate
+matchAll = top
+
+-- |Matches no packets.
+matchNone :: Predicate
+matchNone = PrNegate top
 
 -- |Construct the predicate matching packets on this switch and port
 inport :: Switch -> Port -> Predicate
@@ -62,110 +70,135 @@ inport switch port = PrIntersect (PrTo switch)
                                  (PrPattern (top {ptrnInPort = Exact port}))
 
 -- |Construct the set difference between p1 and p2
-prDifference :: Predicate -> Predicate -> Predicate
-prDifference p1 p2 = PrIntersect p1 (PrNegate p2)
+prSubtract :: Predicate -> Predicate -> Predicate
+prSubtract p1 p2 = PrIntersect p1 (PrNegate p2)
 
 -- |Construct nary union of a list of predicates
-prNaryUnion :: [Predicate] -> Predicate
-prNaryUnion [] = neg top
-prNaryUnion ps = List.foldr1 (\ p1 p2 -> PrUnion p1 p2) ps
+prOr :: [Predicate] -> Predicate
+prOr [] = neg top
+prOr ps = List.foldr1 (\ p1 p2 -> PrUnion p1 p2) ps
 
 -- |Construct the intersect of a list of predicates
-prNaryIntersect :: [Predicate] -> Predicate
-prNaryIntersect [] = top
-prNaryIntersect ps = List.foldr1 (\ p1 p2 -> PrIntersect p1 p2) ps
+prAnd :: [Predicate] -> Predicate
+prAnd [] = top
+prAnd ps = List.foldr1 (\ p1 p2 -> PrIntersect p1 p2) ps
 
 dropPkt :: Action
-dropPkt = Action MS.empty []
+dropPkt = Action MS.empty MS.empty
 
-flood :: Action
-flood = Action (MS.singleton (PhysicalFlood, top)) []
+-- |Forward the packet out of all physical ports, except the packet's
+-- ingress port.
+allPorts :: Modification -- ^modifications to apply to the packet. Use
+                         -- 'allPorts unmodified' to make no modifications.
+         -> Action
+allPorts mod = Action (MS.singleton (AllPorts, mod)) MS.empty
 
-forward :: Port -> Action
-forward port = forwardModsQuery [(port, top)] []
+-- |Forward the packet out of the specified physical ports.
+forward :: [Port] -> Action
+forward ports = Action (MS.fromList lst) MS.empty
+  where lst = [ (Physical p, unmodified) | p <- ports ]
 
-forwardMany :: [Port] -> Action
-forwardMany ports = forwardMods (zip ports (repeat top))
+-- |Forward the packet out of the specified physical ports with modifications.
+--
+-- Each port has its own record of modifications, so modifications at one port
+-- do not interfere with modifications at another port.
+modify :: [(Port, Modification)] -> Action
+modify mods = Action (MS.fromList lst) MS.empty
+  where lst = [ (Physical p, mod) | (p, mod) <- mods ]
 
-forwardQuery :: Port -> Query -> Action
-forwardQuery port query = forwardModsQuery [(port, top)] [query]
+onSwitch = PrTo
 
-forwardMods :: [(Port, Rewrite)] -> Action
-forwardMods mods = forwardModsQuery mods []
+instance Monoid Action where
+  mappend (Action fwd1 q1) (Action fwd2 q2) =
+    Action (fwd1 `MS.union` fwd2) (q1 `MS.union` q2)
+  mempty = dropPkt
 
-forwardModsQuery :: [(Port, Rewrite)] -> [Query] -> Action
-forwardModsQuery mods queries = Action (MS.fromList mods') queries where
-  mods' = map (\(p, m) -> (Physical p, m)) mods
+-- |Shorthand for combining policies and actions.
+(<+>) :: Monoid a => a -> a -> a
+(<+>) = mappend 
 
-(<|>) = PrUnion
-(<&>) = PrIntersect
+(<||>) = PrUnion
+
+(<&&>) = PrIntersect
+
 neg = PrNegate
 
 (==>) = PoBasic
-(%) = poRestrict
-(<+>) = PoUnion
 
 -- |Construct the policy restricted by the predicate
-poRestrict :: Policy -> Predicate -> Policy
-poRestrict policy pred=
-  case policy of
-    PoBottom -> PoBottom
-    PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
-    PoUnion p1 p2 -> PoUnion (poRestrict p1 pred) (poRestrict p2 pred)
+policy <%> pred = case policy of
+  PoBottom -> PoBottom
+  PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
+  PoUnion p1 p2 -> PoUnion (p1 <%> pred) (p2 <%> pred)
 
--- |Construct the union of a list of policies
-poNaryUnion :: [Policy] -> Policy
-poNaryUnion [] = PoBottom
-poNaryUnion ps = List.foldr1 (\ p1 p2 -> PoUnion p1 p2) ps
+instance Monoid Policy where
+  mappend = PoUnion
+  mempty = PoBottom
 
+-- |Match ethernet source address.
 dlSrc     :: Word48     -> Predicate
-dlDst     :: Word48     -> Predicate
-dlTyp     :: Word16     -> Predicate
-dlVlan    :: Word16     -> Predicate
-dlVlanPcp :: Word8      -> Predicate
-nwSrc     :: Word32     -> Predicate
-nwDst     :: Word32     -> Predicate
-nwProto   :: Word8      -> Predicate
-nwTos     :: Word8      -> Predicate
-tpSrc     :: Word16     -> Predicate
-tpDst     :: Word16     -> Predicate
-inPort    :: Port       -> Predicate
-
 dlSrc     value = PrPattern (top {ptrnDlSrc = exact value})
+
+-- |Match ethernet destination address.
+dlDst     :: Word48     -> Predicate
 dlDst     value = PrPattern (top {ptrnDlDst = exact value})
+
+-- |Match ethernet type code (e.g., 0x0800 for IP packets).
+dlTyp     :: Word16     -> Predicate
 dlTyp     value = PrPattern (top {ptrnDlTyp = exact value})
+
+-- |Match VLAN tag.
+dlVlan    :: Word16     -> Predicate
 dlVlan    value = PrPattern (top {ptrnDlVlan = exact value})
+
+-- |Match VLAN priority
+dlVlanPcp :: Word8      -> Predicate
 dlVlanPcp value = PrPattern (top {ptrnDlVlanPcp = exact value})
+
+-- |Match source IP address.
+--
+-- This is only meaningful in combination with 'dlTyp 0x0800'.
+nwSrc     :: Word32     -> Predicate
 nwSrc     value = PrPattern (top {ptrnNwSrc = Prefix value 32})
+
+-- |Match destination IP address.
+nwDst     :: Word32     -> Predicate
 nwDst     value = PrPattern (top {ptrnNwDst = Prefix value 32})
+
+-- |Match a prefix of the source IP address.
+nwSrcPrefix :: Word32 -> Int -> Predicate
+nwSrcPrefix value prefix = PrPattern (top {ptrnNwSrc = Prefix value prefix})
+
+-- |Match a prefix of the destination IP address.
+nwDstPrefix :: Word32 -> Int -> Predicate
+nwDstPrefix value prefix = PrPattern (top {ptrnNwDst = Prefix value prefix})
+
+-- |Match IP protocol code (e.g., 0x6 indicates TCP segments).
+nwProto   :: Word8      -> Predicate
 nwProto   value = PrPattern (top {ptrnNwProto = exact value})
+
+-- |Match IP TOS field.
+nwTos     :: Word8      -> Predicate
 nwTos     value = PrPattern (top {ptrnNwTos = exact value})
+
+-- |Match IP source port.
+tpSrc     :: Word16     -> Predicate
 tpSrc     value = PrPattern (top {ptrnTpSrc = exact value})
+
+-- |Match IP destination port.
+tpDst     :: Word16     -> Predicate
 tpDst     value = PrPattern (top {ptrnTpDst = exact value})
-inPort    value = PrPattern (top {ptrnInPort = Exact value})
 
-patDlSrc     :: Word48     -> Pattern
-patDlDst     :: Word48     -> Pattern
-patDlTyp     :: Word16     -> Pattern
-patDlVlan    :: Word16     -> Pattern
-patDlVlanPcp :: Word8      -> Pattern
-patNwSrc     :: Word32     -> Pattern
-patNwDst     :: Word32     -> Pattern
-patNwProto   :: Word8      -> Pattern
-patNwTos     :: Word8      -> Pattern
-patTpSrc     :: Word16     -> Pattern
-patTpDst     :: Word16     -> Pattern
-patInPort    :: Port       -> Pattern
+-- |Match the ingress port on which packets arrive.
+inPort    :: Port       -> Predicate
+inPort    value = PrPattern (top {ptrnInPort = exact value})
 
-patDlSrc     value = top {ptrnDlSrc = exact value}
-patDlDst     value = top {ptrnDlDst = exact value}
-patDlTyp     value = top {ptrnDlTyp = exact value}
-patDlVlan    value = top {ptrnDlVlan = exact value}
-patDlVlanPcp value = top {ptrnDlVlanPcp = exact value}
-patNwSrc     value = top {ptrnNwSrc = Prefix value 32}
-patNwDst     value = top {ptrnNwDst = Prefix value 32}
-patNwProto   value = top {ptrnNwProto = exact value}
-patNwTos     value = top {ptrnNwTos = exact value}
-patTpSrc     value = top {ptrnTpSrc = exact value}
-patTpDst     value = top {ptrnTpDst = exact value}
-patInPort    value = top {ptrnInPort = Exact value}
+modDlSrc     value = unmodified {modifyDlSrc = Just value}
+modDlDst     value = unmodified {modifyDlDst = Just value}
+modDlVlan    value = unmodified {modifyDlVlan = Just value}
+modDlVlanPcp value = unmodified {modifyDlVlanPcp = Just value}
+modNwSrc     value = unmodified {modifyNwSrc = Just value}
+modNwDst     value = unmodified {modifyNwDst = Just value}
+modNwTos     value = unmodified {modifyNwTos = Just value}
+modTpSrc     value = unmodified {modifyTpSrc = Just value}
+modTpDst     value = unmodified {modifyTpDst = Just value}

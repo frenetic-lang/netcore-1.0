@@ -29,21 +29,21 @@
 --------------------------------------------------------------------------------
 module Frenetic.Hosts.Nettle where
 
--- TODO(arjun): builtin catch is deprecated. Seriously?
+import Frenetic.Common
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Frenetic.LargeWord
 import Control.Exception.Base
 import Control.Monad.State
 import System.IO
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
-import Frenetic.Util
+
 
 mkFlowMod :: (Match, ActionSequence)
           -> Priority
@@ -60,10 +60,10 @@ mkFlowMod (pat, acts) pri = FlowMod AddFlow {
   overlapAllowed=True
 }
 
-rawClassifier :: Classifier (PatternImpl OpenFlow) (ActionImpl OpenFlow)
+rawClassifier :: [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
               -> [(Match, ActionSequence)]
-rawClassifier (Classifier rules) =
-  map (\(p, a) -> (fromOFPat p, fromOFAct a)) rules
+rawClassifier classifier =
+  map (\(p, a) -> (fromOFPat p, fromOFAct a)) classifier
 
 -- |Installs the static portion of the policy, then react.
 handleSwitch :: Nettle 
@@ -85,11 +85,11 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   policiesAndMessages <- mergeChan policyChan msgChan
   let loop oldPolicy (Left policy) = do
         sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
-        let classifier@(Classifier cl) = compile (handle2SwitchID switch) policy
+        let classifier = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
         infoM "nettle" $ "policy is " ++ show policy ++ 
                           " and flow table is " ++ (concat $ intersperse "\n" (map show flowTbl))
-        runQueryOnSwitch nettle switch cl
+        runQueryOnSwitch nettle switch classifier
         -- Priority 65535 is for microflow rules from reactive-specialization
         let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
         mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
@@ -132,13 +132,17 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
           loop policy nextMsg
   loop PoBottom (Left initPolicy)
 
-nettleServer :: Chan Policy -> IO ()
-nettleServer policyChan = do
+nettleServer :: Chan Policy -> Chan (Loc, ByteString) -> IO ()
+nettleServer policyChan pktChan = do
   server <- startOpenFlowServerEx Nothing 6633
   currentPolicy <- newIORef PoBottom
   forkIO $ forever $ do
     pol <- readChan policyChan
     writeIORef currentPolicy pol
+  forkIO $ forever $ do
+    (Loc swID pt, pkt) <- readChan pktChan
+    let msg = PacketOut $ PacketOutRecord (Right pkt) Nothing (sendOnPort pt)
+    sendToSwitchWithID server swID (0,msg)
   forever $ do
     -- Nettle does the OpenFlow handshake
     (switch, switchFeatures, msgChan) <- acceptSwitch server

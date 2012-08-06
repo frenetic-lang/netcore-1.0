@@ -1,62 +1,68 @@
+-- ^Uses NetCore to implement mac learning
+--
+-- Does not work on networks with loops.
 module MacLearning where
 
 import Control.Concurrent
-import Control.Monad
 import Frenetic.NetCore
-import Frenetic.Util
-import System.IO
-import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.MultiSet as MS
-import System.Log.Logger
+import Frenetic.Common (mergeChan)
+import Frenetic.NetCore.Types (poDom)
 
 ethernetFloodMAC = 0xFFFFFFFFFFFF
 isFlood = dlDst ethernetFloodMAC
 
--- TODO(arjun): Doesn't work with forwarding loops.
-pktsByLocation :: IO (Chan (Switch, Packet), Chan Policy)
+-- |Learns the location of hosts at each switch.
+--
+-- The NetCore program inspects packets at all switches to learn the route
+-- to each host from each switch. The route to a host is the port on which
+-- the switch receives packets from that host. The program handles
+-- host mobility: if the host starts sending from a new port, the program
+-- learns the new location of the host. 
+pktsByLocation :: IO (Chan (Word48, Loc), Chan Policy)
 pktsByLocation = do
   uniqPktChan <- newChan
   polChan <- newChan
-  (pktChan, q) <- pktQuery 
-  let act = Action MS.empty [q]
-  let matchLoc ((sw, srcMac), port) = PrTo sw <&> dlSrc srcMac <&> inPort port
-  let loop locs = do
+  (pktChan, act) <- getPkts
+  let loop :: Map.Map (Switch, Word48) (Port, Predicate) -> IO ()
+      loop locs = do
         (sw, pkt) <- readChan pktChan
-        case Map.lookup (sw, pktDlSrc pkt) locs of
-          Just port | pktInPort pkt == port -> do
+        let port = pktInPort pkt
+        let srcMac = pktDlSrc pkt
+        case Map.lookup (sw, srcMac) locs of
+          Just (port', _) | port == port' -> do
             -- Not a new location, nothing to do.
             loop locs
           otherwise -> do
             -- pktDlSrc pkt is either completely new or has moved.
-            let locs' = Map.insert (sw, pktDlSrc pkt) (pktInPort pkt) locs
-            let pred = neg (isFlood <|>
-                            prNaryUnion (map matchLoc (Map.toList locs')))
-            writeChan uniqPktChan (sw, pkt)
-            writeChan polChan (pred ==> act)
+            let pred = onSwitch sw <&&> dlSrc srcMac <&&> inPort port
+            let locs' = Map.insert (sw, srcMac) (port, pred) locs
+            writeChan uniqPktChan (srcMac, Loc sw port)
+            writeChan polChan $
+              neg (isFlood <||> prOr (map snd (Map.elems locs'))) ==> act
             loop locs'
+  -- Initially, inspect all packets except floods.
   writeChan polChan (neg isFlood ==> act)
   forkIO (loop Map.empty)
   return (uniqPktChan, polChan)
 
-learnRoutes :: Chan (Switch, Packet) -> IO (Chan Policy)
+learnRoutes :: Chan (Word48, Loc) -> IO (Chan Policy)
 learnRoutes pktChan = do
   polChan <- newChan
   let mkRule locs ((sw, dstMac), port) = 
         map (\((_, srcMac), _) -> 
-          (PrTo sw <&> dlSrc srcMac <&> dlDst dstMac) ==> forward port) $
+          (onSwitch sw <&&> dlSrc srcMac <&&> dlDst dstMac) ==> forward [port]) $
           filter (\((sw', _), _) -> sw' == sw) $
             Map.toList locs
-  let loop :: Map (Switch, Word48) Port -> IO ()
+  let loop :: Map.Map (Switch, Word48) Port -> IO ()
       loop locs = do
-        (sw, pkt) <- readChan pktChan
-        let locs' = Map.insert (sw, pktDlSrc pkt) (pktInPort pkt) locs
-        let fwdPol = poNaryUnion (concatMap (mkRule locs') (Map.toList locs'))
-        debugM "maclearning" $ "forwarding policy is " ++ show fwdPol
-        let floodPol = neg (poDom fwdPol) ==> flood
+        (dlSrc, Loc sw pt) <- readChan pktChan
+        let locs' = Map.insert (sw, dlSrc) pt locs
+        let fwdPol = foldr (<+>) PoBottom (concatMap (mkRule locs') (Map.toList locs'))
+        let floodPol = neg (poDom fwdPol) ==> allPorts unmodified
         writeChan polChan (fwdPol <+> floodPol)
         loop locs'
-  writeChan polChan (top ==> flood)
+  writeChan polChan (matchAll ==> allPorts unmodified)
   forkIO (loop Map.empty)
   return polChan
 
@@ -81,4 +87,5 @@ learningSwitch = do
 
 main = do
   polChan <- learningSwitch
-  freneticServer polChan
+  pktChan <- newChan
+  dynController polChan pktChan

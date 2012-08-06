@@ -1,33 +1,4 @@
---------------------------------------------------------------------------------
--- The Frenetic Project                                                       --
--- frenetic@frenetic-lang.org                                                 --
---------------------------------------------------------------------------------
--- Licensed to the Frenetic Project by one or more contributors. See the      --
--- NOTICE file distributed with this work for additional information          --
--- regarding copyright and ownership. The Frenetic Project licenses this      --
--- file to you under the following license.                                   --
---                                                                            --
--- Redistribution and use in source and binary forms, with or without         --
--- modification, are permitted provided the following conditions are met:     --
--- - Redistributions of source code must retain the above copyright           --
---   notice, this list of conditions and the following disclaimer.            --
--- - Redistributions of binaries must reproduce the above copyright           --
---   notice, this list of conditions and the following disclaimer in          --
---   the documentation or other materials provided with the distribution.     --
--- - The names of the copyright holds and contributors may not be used to     --
---   endorse or promote products derived from this work without specific      --
---   prior written permission.                                                --
---                                                                            --
--- Unless required by applicable law or agreed to in writing, software        --
--- distributed under the License is distributed on an "AS IS" BASIS, WITHOUT  --
--- WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the   --
--- LICENSE file distributed with this work for specific language governing    --
--- permissions and limitations under the License.                             --
---------------------------------------------------------------------------------
--- /src/Frenetic/NetCore/API.hs                                               --
---------------------------------------------------------------------------------
-
-module Frenetic.NetCore.API
+module Frenetic.NetCore.Types
   ( -- * Basic types
     Switch
   , Port
@@ -37,15 +8,13 @@ module Frenetic.NetCore.API
   , Word48
   -- * Actions
   , Action (..)
-  , Rewrite
-  , Forward
   , Query (..)
+  , Modification (..)
+  , unmodified
   , isPktQuery
   -- ** Basic actions
-  , query
-  , pktQuery
-  -- ** Action composition
-  , unionAction
+  , countPkts
+  , getPkts
   -- ** Inspecting actions
   , actionForwardsTo
   -- * Patterns
@@ -59,7 +28,7 @@ module Frenetic.NetCore.API
   -- * Tools
   , idOfQuery
   , interesting
-  , interestingFields
+  , modifiedFields
   , prUnIntersect
   , prUnUnion
   , poUnUnion
@@ -67,6 +36,7 @@ module Frenetic.NetCore.API
   , size
   ) where
 
+import Frenetic.Common
 import Data.Bits
 import Data.IORef
 import qualified Data.List as List
@@ -75,46 +45,55 @@ import qualified Data.Set as Set
 import Data.Word
 import Frenetic.LargeWord
 import Frenetic.Pattern
-import Frenetic.Util
 import System.IO.Unsafe
+import Data.Maybe (catMaybes)
 
-{-| The type of switches in the network. -}
+-- |A switch's unique identifier.
 type Switch = Word64
 
-{-| The type of switch ports. -}
+-- |The number of a physical port.
 type Port = Word16
 
-{-| The type of vlan tags -}
+-- |'Loc' uniquely identifies a port at a switch.
+data Loc = Loc Switch Port 
+  deriving (Eq, Ord, Show)
+
+-- |Logical ports.
+data PseudoPort 
+  = Physical Port 
+  | AllPorts 
+  deriving (Eq, Ord, Show)
+
+-- |VLAN tags. Only the lower 12-bits are used.
 type Vlan = Word16
 
--- |Fully qualified port locations
-data Loc = Loc Switch Port deriving (Eq, Ord, Show)
 
-{-| The type of logical switch ports. -}
-data PseudoPort = Physical Port | PhysicalFlood deriving (Ord, Eq, Show)
+-- |Ethernet addresses are 48-bits wide.
+type Word48 
+  = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 
+      (LargeKey Word8 (LargeKey Word8 Word8))))
 
-{-| Auxillary value for ethernet addresses.  -}
-type Word48 = LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 (LargeKey Word8 Word8))))
-
--- |Frenetic packets
+-- |Packets' headers.
 data Packet = Packet {
-  pktDlSrc :: Word48,
-  pktDlDst :: Word48,
-  pktDlTyp :: Word16,
-  pktDlVlan :: Vlan,
-  pktDlVlanPcp :: Word8,
-  pktNwSrc :: Maybe Word32,
-  pktNwDst :: Maybe Word32,
-  pktNwProto :: Word8,
-  pktNwTos :: Word8,
-  pktTpSrc :: Maybe Word16,
-  pktTpDst :: Maybe Word16,
-  pktInPort :: Port
+  pktDlSrc :: Word48, -- ^source ethernet address
+  pktDlDst :: Word48, -- ^destination ethernet address
+  pktDlTyp :: Word16, -- ^ethernet type code (e.g., 0x800 for IP packets)
+  pktDlVlan :: Vlan,  -- ^VLAN tag
+  pktDlVlanPcp :: Word8, -- ^VLAN priority code
+  pktNwSrc :: Maybe Word32, -- ^source IP address for IP packets
+  pktNwDst :: Maybe Word32, -- ^destination IP address for IP packets
+  pktNwProto :: Word8, -- ^IP protocol number (e.g., 6 for TCP segments)
+  pktNwTos :: Word8, -- ^IP TOS field
+  pktTpSrc :: Maybe Word16, -- ^source port for IP packets
+  pktTpDst :: Maybe Word16, -- ^destination port for IP packets
+  pktInPort :: Port -- ^ingress port on the switch where the packet was
+                    -- received
 } deriving (Show, Eq, Ord)
 
--- |Frenetic patterns
+-- |Patterns to match packets. Patterns translate directly to a single OpenFlow
+-- match rule.
 data Pattern = Pattern {
-  ptrnDlSrc :: Wildcard Word48
+    ptrnDlSrc :: Wildcard Word48
   , ptrnDlDst :: Wildcard Word48
   , ptrnDlTyp :: Wildcard Word16
   , ptrnDlVlan :: Wildcard Vlan
@@ -126,7 +105,53 @@ data Pattern = Pattern {
   , ptrnTpSrc :: Wildcard Word16
   , ptrnTpDst :: Wildcard Word16
   , ptrnInPort :: Wildcard Port
-  } deriving (Ord, Eq)
+ } deriving (Ord, Eq)
+
+-- |Predicates to match packets.
+data Predicate 
+  = PrPattern Pattern -- ^Match with a simple pattern.
+  | PrTo Switch -- ^Match only at this switch.
+  | PrUnion Predicate Predicate -- ^Match both predicates.
+  | PrIntersect Predicate Predicate -- ^Match either predicate.
+  | PrNegate Predicate -- ^Match packets to do not match the predicate.
+  deriving (Eq, Ord)
+
+-- |Names of common header fields.
+data Field 
+  = DlSrc | DlDst | DlVlan | DlVlanPcp | NwSrc | NwDst | NwTos | TpSrc | TpDst
+  deriving (Eq, Ord, Show)
+
+-- |Frenetic packet modifications
+data Modification = Modification {
+  modifyDlSrc :: Maybe Word48,
+  modifyDlDst :: Maybe Word48,
+  modifyDlVlan :: Maybe Vlan,
+  modifyDlVlanPcp :: Maybe Word8,
+  modifyNwSrc :: Maybe Word32,
+  modifyNwDst :: Maybe Word32,
+  modifyNwTos :: Maybe Word8,
+  modifyTpSrc :: Maybe Word16,
+  modifyTpDst :: Maybe Word16
+} deriving (Ord, Eq, Show)
+
+unmodified :: Modification
+unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing 
+                          Nothing Nothing Nothing
+
+modifiedFields :: Modification -> Set Field
+modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
+  fields = [ case modifyDlSrc of { Just _ -> Just DlSrc; Nothing -> Nothing }
+           , case modifyDlDst of { Just _ -> Just DlDst; Nothing -> Nothing }
+           , case modifyDlVlan of { Just _ -> Just DlVlan; Nothing -> Nothing }
+           , case modifyDlVlanPcp of { Just _ -> Just DlVlanPcp; 
+                                    Nothing -> Nothing }
+           , case modifyNwSrc of { Just _ -> Just NwSrc; Nothing -> Nothing }
+           , case modifyNwDst of { Just _ -> Just NwDst; Nothing -> Nothing }
+           , case modifyNwTos of { Just _ -> Just NwTos; Nothing -> Nothing }
+           , case modifyTpSrc of { Just _ -> Just TpSrc; Nothing -> Nothing }
+           , case modifyTpDst of { Just _ -> Just TpDst; Nothing -> Nothing }
+           ]
+
 
 instance Matchable Pattern where
   top = Pattern {
@@ -175,24 +200,6 @@ instance Show Pattern where
   show p = "{" ++ contents ++ "}"  where
     contents = concat (List.intersperse ", " (interesting " = " p))
 
--- |Build a list of the non-wildcarded pattern fields
-interestingFields :: Pattern -> Set String
-interestingFields (Pattern {..}) = Set.fromList stringList where
-  stringList = filter (\l -> l /= "") $ lines 
-  lines = [ case ptrnDlSrc     of {Exact v -> "DlSrc";      Wildcard -> ""}
-          , case ptrnDlDst     of {Exact v -> "DlDst";      Wildcard -> ""}
-          , case ptrnDlTyp     of {Exact v -> "DlTyp";      Wildcard -> ""}
-          , case ptrnDlVlan    of {Exact v -> "DlVlan";     Wildcard -> ""}
-          , case ptrnDlVlanPcp of {Exact v -> "DlVlanPcp";  Wildcard -> ""}
-          , case ptrnNwSrc     of {Prefix _ 0 -> "";        p -> "NwSrc"}
-          , case ptrnNwDst     of {Prefix _ 0 -> "";        p -> "NwDst"}
-          , case ptrnNwProto   of {Exact v -> "NwProto";    Wildcard -> ""}
-          , case ptrnNwTos     of {Exact v -> "NwTos";      Wildcard -> ""}
-          , case ptrnTpSrc     of {Exact v -> "TpSrc";      Wildcard -> ""}
-          , case ptrnTpDst     of {Exact v -> "TpDst";      Wildcard -> ""}
-          , case ptrnInPort    of {Exact v -> "InPort";     Wildcard -> ""}
-          ]
-
 -- |Build a list of the non-wildcarded patterns with sep between field and value
 interesting :: String -> Pattern -> [String]
 interesting sep (Pattern {..}) = filter (\l -> l /= "") $ lines where
@@ -210,14 +217,6 @@ interesting sep (Pattern {..}) = filter (\l -> l /= "") $ lines where
           , case ptrnInPort    of {Exact v -> "InPort"    ++ sep ++ show v; Wildcard -> ""}
           ]
 
-type Rewrite = Pattern
-
--- | Forward represents a set of forwards with modifications on a switch,
--- including forwarding multiple packets, so long as they are *different*
--- packets (i.e., have a different modification applied to each).  Flood is
--- encoded by using the PseudoPort Flood rather than
-type Forward = MS.MultiSet (PseudoPort, Rewrite)
-
 type QueryID = Int
 
 nextQueryID :: IORef QueryID
@@ -228,9 +227,10 @@ data Query
   | PktQuery { pktQueryChan :: (Chan (Switch, Packet)), pktQueryID :: QueryID }
   deriving (Eq)
 
+-- |Actions to perform on packets.
 data Action = Action {
-  actionForwards :: Forward,
-  actionQueries :: [Query]
+  actionForwards :: MS.MultiSet (PseudoPort, Modification),
+  actionQueries :: MS.MultiSet Query
 } deriving (Eq, Ord)
 
 isPktQuery (PktQuery _ _) = True
@@ -240,40 +240,38 @@ actionForwardsTo :: Action -> MS.MultiSet PseudoPort
 actionForwardsTo (Action m _) = 
   MS.map fst m
 
-unionForward :: Forward -> Forward -> Forward
-unionForward m1 m2 =
-  MS.union m1 m2
-
-unionAction :: Action -> Action -> Action
-unionAction (Action fwd1 q1) (Action fwd2 q2) =
-  Action (unionForward fwd1 fwd2) (unionQuery q1 q2)
-    where unionQuery xs ys = xs ++ filter (\y -> not (y `elem` xs)) ys
-
-query :: Int -> IO (Chan (Switch, Integer), Query)
-query millisecondInterval = do
+-- ^Periodically polls the network to counts the number of packets received.
+--
+-- Returns an 'Action' and a channel. When the 'Action' is used in the
+-- active 'Policy', the controller periodically reads the packet counters
+-- on the network. The controller returns the number of matching packets
+-- on each switch.
+countPkts :: Int -- ^polling interval, in milliseconds
+          -> IO (Chan (Switch, Integer), Action)
+countPkts millisecondInterval = do
   ch <- newChan
   queryID <- readIORef nextQueryID
   modifyIORef nextQueryID (+ 1)
-  return (ch, NumPktQuery queryID ch millisecondInterval)
+  let q = NumPktQuery queryID ch millisecondInterval
+  return (ch, Action MS.empty (MS.singleton q))
 
-pktQuery :: IO (Chan (Switch, Packet), Query)
-pktQuery = do
+-- ^Sends packets to the controller.
+--
+-- Returns an 'Action' and a channel. When the 'Action' is used in the active
+-- 'Policy', all matching packets are sent to the controller. These packets
+-- are written into the channel.
+getPkts :: IO (Chan (Switch, Packet), Action)
+getPkts = do
   ch <- newChan
   queryID <- readIORef nextQueryID
   modifyIORef nextQueryID (+1)
-  return (ch, PktQuery ch queryID)
+  let q = PktQuery ch queryID
+  return (ch, Action MS.empty (MS.singleton q))
 
 idOfQuery :: Query -> QueryID
 idOfQuery (NumPktQuery queryID _ _) = queryID
 idOfQuery (PktQuery {pktQueryID=queryID}) = queryID
 
-{-| Predicates denote sets of (switch, packet) pairs. -}
-data Predicate = PrPattern Pattern
-               | PrTo Switch
-               | PrUnion Predicate Predicate
-               | PrIntersect Predicate Predicate
-               | PrNegate Predicate
-  deriving (Eq, Ord)
 
 -- |Get back all predicates in the intersection.  Does not return any naked intersections.
 prUnIntersect :: Predicate -> [Predicate]

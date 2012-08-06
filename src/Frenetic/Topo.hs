@@ -17,7 +17,7 @@ import Data.Graph.Inductive.Tree
 import qualified Data.List as List
 import qualified Data.Set as Set
 
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 
 type Topo = Gr () Port
 

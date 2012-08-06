@@ -5,13 +5,12 @@ import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2
 import Test.HUnit hiding (Node)
 import Test.Framework.Providers.HUnit
-
+import Frenetic.Pattern hiding (intersect)
 import Tests.Frenetic.Util
-
-import Frenetic.NetCore hiding (intersect)
+import Frenetic.NetCore
 import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Reduce
-
+import Frenetic.NetCore.Types
 import Frenetic.PolicyGen
 import Frenetic.Slices.Compile
 import Frenetic.Slices.Slice
@@ -46,7 +45,7 @@ case_testFloodCompile = do
   qs <- queries
   let topo = buildGraph [ ((1, 0), (9, 1))
                         , ((2, 0), (9, 2)) ]
-  let p = PrTo 9 ==> flood
+  let p = PrTo 9 ==> allPorts unmodified
   let slice = Slice Set.empty (Map.fromList [(Loc 9 1, top), (Loc 9 2, top)])
                               (Map.fromList [(Loc 9 1, top), (Loc 9 2, top)])
   let c = compileSlice slice 1 p

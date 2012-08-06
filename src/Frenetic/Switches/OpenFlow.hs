@@ -58,9 +58,10 @@ import qualified Nettle.IPv4.IPAddress as IPAddr
 import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
 import Frenetic.Compat
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 import Control.Concurrent
-import Frenetic.NettleEx
+import Frenetic.NettleEx hiding (AllPorts)
+import qualified Frenetic.NettleEx as NettleEx
 
 {-| Convert an EthernetAddress to a Word48. -}
 ethToWord48 eth =
@@ -84,7 +85,7 @@ instance Matchable IPAddressPrefix where
   intersect = IPAddr.intersect
 
 physicalPortOfPseudoPort (Physical p) = PhysicalPort p
-physicalPortOfPseudoPort PhysicalFlood = Flood
+physicalPortOfPseudoPort AllPorts = Flood
 
 toController :: ActionSequence
 toController = sendToController maxBound
@@ -191,6 +192,37 @@ ifNothing :: Maybe a -> a -> a
 ifNothing (Just a) _ = a
 ifNothing Nothing b = b
 
+modTranslate :: Modification -> ActionSequence
+modTranslate (Modification{..}) =
+  catMaybes [f1, f2, f3, f4, f5, f6, f7, f8, f9]
+    where f1 = case modifyDlSrc of 
+                 Nothing -> Nothing
+                 Just v -> Just $ SetEthSrcAddr $ word48ToEth v
+          f2 = case modifyDlDst of
+                 Nothing -> Nothing
+                 Just v -> Just $ SetEthDstAddr $ word48ToEth v
+          f3 = case modifyDlVlan of
+                 Nothing -> Nothing
+                 Just v -> Just $ SetVlanVID v
+          f4 = case modifyDlVlanPcp of
+                 Nothing -> Nothing
+                 Just v -> Just $ SetVlanPriority v
+          f5 = case modifyNwSrc of
+                Nothing -> Nothing
+                Just ip -> Just $ SetIPSrcAddr $ IPAddress ip
+          f6 = case modifyNwDst of
+                 Nothing -> Nothing
+                 Just ip -> Just $ SetIPDstAddr $ IPAddress ip
+          f7 = case modifyNwTos of
+                 Nothing -> Nothing
+                 Just v -> Just $ SetIPToS v
+          f8 = case modifyTpSrc of
+                  Nothing -> Nothing
+                  Just v  -> Just $ SetTransportSrcPort v
+          f9 = case modifyTpDst of
+                  Nothing -> Nothing
+                  Just v  -> Just $ SetTransportDstPort v
+
 instance FreneticImpl OpenFlow where
   data PacketImpl OpenFlow = OFPkt PacketInfo deriving (Show, Eq)
   data PatternImpl OpenFlow = OFPat Match deriving (Show, Eq)
@@ -268,14 +300,14 @@ instance FreneticImpl OpenFlow where
 
   -- The ToController action needs to come last. If you reorder, it will not
   -- work. Observed with the usermode switch.
-  actnTranslate act@(Action fwd queries) = OFAct (ofFwd ++ toCtrl) queries
+  actnTranslate act@(Action fwd queries) = OFAct (ofFwd ++ toCtrl) (MS.toList queries)
     where acts  = if hasUnimplementableMods $ map snd $ MS.toList fwd
                   then [SendOutPort (ToController maxBound)]
                   else ofFwd ++ toCtrl
           ofFwd = concatMap (\(pp, md) -> modTranslate md 
                                  ++ [SendOutPort (physicalPortOfPseudoPort pp)])
                       $ MS.toList fwd
-          toCtrl = case find isPktQuery queries of
+          toCtrl = case find isPktQuery (MS.toList queries) of
             -- sends as much of the packet as possible to the controller
             Just _  -> [SendOutPort (ToController maxBound)]
             Nothing -> []
@@ -283,46 +315,9 @@ instance FreneticImpl OpenFlow where
             | length as <= 1 = False
             | length as > 1  =
                 let minFields = foldl (\m p -> if Set.size p < Set.size m then p else m) 
-                                      (interestingFields $ head as) 
-                                      (map interestingFields $ tail as)
-                in not $ all (\pat -> Set.isSubsetOf (interestingFields pat) minFields) as
-          modTranslate m = 
-            let f1 = case ptrnDlSrc m of 
-                       Wildcard -> Nothing
-                       Exact v  -> Just $ SetEthSrcAddr $ word48ToEth v
-                f2 = case ptrnDlDst m of
-                       Wildcard -> Nothing
-                       Exact v  -> Just $ SetEthDstAddr $ word48ToEth v
-                f3 = case ptrnDlTyp m of
-                       Wildcard -> Nothing
-                       Exact v  -> error "OpenFlow 1.0 does not support modifying DlTyp."
-                f4 = case ptrnDlVlan m of
-                       Wildcard -> Nothing
-                       Exact v  -> Just $ SetVlanVID v
-                f5 = case ptrnDlVlanPcp m of
-                       Wildcard -> Nothing
-                       Exact v  -> Just $ SetVlanPriority v
-                f6 = case ptrnNwSrc m of
-                       Prefix _  0  -> Nothing
-                       Prefix ip 32 -> Just $ SetIPSrcAddr $ IPAddress ip
-                       _ -> error "IP Modification must specify the entire IP address."
-                f7 = case ptrnNwDst m of
-                       Prefix _  0  -> Nothing
-                       Prefix ip 32 -> Just $ SetIPDstAddr $ IPAddress ip
-                       _ -> error "IP Modification must specify the entire IP address."
-                f8 = case ptrnNwProto m of
-                       Wildcard -> Nothing
-                       Exact v  -> error "OpenFlow 1.0 does not support modifying NwProto."
-                f9 = case ptrnNwTos m of
-                       Wildcard -> Nothing
-                       Exact v  -> Just $ SetIPToS v
-                f10 = case ptrnTpSrc m of
-                        Wildcard -> Nothing
-                        Exact v  -> Just $ SetTransportSrcPort v
-                f11 = case ptrnTpDst m of
-                        Wildcard -> Nothing
-                        Exact v  -> Just $ SetTransportDstPort v
-              in catMaybes [f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11]
+                                      (modifiedFields $ head as) 
+                                      (map modifiedFields $ tail as)
+                in not $ all (\pat -> Set.isSubsetOf (modifiedFields pat) minFields) as
   
   actnControllerPart (OFAct _ queries) switchID ofPkt  = do
     let pktChans = map pktQueryChan . filter isPktQuery $ queries

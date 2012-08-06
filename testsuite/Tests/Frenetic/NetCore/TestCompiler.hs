@@ -47,13 +47,13 @@ import Test.QuickCheck.Property (Property, morallyDubiousIOProperty)
 import Test.QuickCheck.Text
 import Test.HUnit
 import Test.Framework.Providers.HUnit
-
+import Frenetic.NetCore.Types
 import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
 import Frenetic.Pattern
 import Tests.Frenetic.ArbitraryPattern
 import Frenetic.NetCore
-import Tests.Frenetic.NetCore.ArbitraryAPI
+import Tests.Frenetic.NetCore.ArbitraryTypes
 
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
@@ -71,10 +71,9 @@ freneticToOFAct :: ActionImpl () -> OFAction.ActionSequence
 freneticToOFAct = fromOFAct.actnTranslate.fromFreneticAct
 
 case_test_query_1 = do
-  (_, q) <- query 1000
-  let act = Action MS.empty [q]
+  (_, act) <- countPkts 1000
   let policy = PoBasic (PrTo 0) act
-  let (Classifier tbl) = compile 0 policy
+  let tbl = compile 0 policy
   case tbl of
     [(_, act)] -> assertEqual
       "query should create an empty action in the flow table"
@@ -83,15 +82,14 @@ case_test_query_1 = do
       "query should create one entry in the flow table"
 
 test_query_2 = do
-  (_, q) <- query 1000
-  let act = Action MS.empty [q]
+  (_, act) <- countPkts 1000
   let policy =
-        PoUnion (PoBasic (PrPattern top) flood)
+        PoUnion (PoBasic (PrPattern top) (allPorts unmodified))
                 (PoBasic (PrPattern $ top { ptrnDlDst = Exact 1 }) act)
-  let (Classifier tbl) = compile 0 policy
+  let tbl = compile 0 policy
   case tbl of
     [(_, act1), (_, act2)] -> do
-      assertEqual "flood should come first in the flow-table"
+      assertEqual "allPorts unmodified should come first in the flow-table"
         (fromOFAct act1) [OFAction.SendOutPort OFAction.Flood]
       assertEqual "empty action (for query) should come second in table"
         (fromOFAct act2) []
@@ -100,7 +98,7 @@ test_query_2 = do
 
 case_regress_1 = do
   let pred = PrNegate (PrNegate (PrTo 0))
-  let policy = PoBasic pred flood
+  let policy = PoBasic pred (allPorts unmodified)
   let pkt = FreneticPkt (Packet {pktDlSrc = 4410948387332,
               pktDlDst = 6609988486150, pktDlTyp = 1, pktDlVlan = 4,
               pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5, 
@@ -113,8 +111,8 @@ case_regress_1 = do
     (Just (FreneticAct polAct)) classAct
 
 negation_regress_maker pred = do
-  let act = forward 2
-  let act' = forward 90
+  let act = forward [2]
+  let act' = forward [90]
   let pol = PoUnion (PoBasic pred act) (PoBasic (PrNegate pred) act')
   let pkt = Packet {pktDlSrc = 200,
               pktDlDst = 500, pktDlTyp = 1, pktDlVlan = 4,
@@ -134,18 +132,13 @@ negation_regress_maker pred = do
     (Just (FreneticAct act')) classAct'
 
 case_regress_neg_1 = do
-  negation_regress_maker (PrIntersect (PrPattern (patDlDst 500)) (PrTo 0))
+  negation_regress_maker (dlDst 500 <&&> PrTo 0)
 
 case_regress_neg_1_ok = do
-  negation_regress_maker (PrPattern (patDlDst 500))
+  negation_regress_maker (dlDst 500)
 
 case_regress_neg_1_2 = do
-  negation_regress_maker 
-    (PrIntersect (PrPattern (patDlDst 500)) (PrPattern (patDlSrc 200)))
-
-case_regress_neg_1_2_ok = do
-  negation_regress_maker
-    (PrPattern (top { ptrnDlDst = Exact 500, ptrnDlSrc = Exact 200 }))
+  negation_regress_maker (dlDst 500 <&&> dlSrc 200)
 
 -- Invariant: given an arbitrary classifier c, minimze c yields an
 --            equivalent classifier.
@@ -191,8 +184,8 @@ prop_semanticEquivalence_compile_OFpattern sw po pk =
 
 
 case_quiescence_bug_1 = do
-  assertEqual "policy -> flood" polActs flood
-  assertEqual "classifier -> flood"
+  assertEqual "policy -> allPorts unmodified" polActs (allPorts unmodified)
+  assertEqual "classifier -> allPorts unmodified"
     (Just [OFAction.SendOutPort OFAction.Flood])
      (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
   where
@@ -201,7 +194,7 @@ case_quiescence_bug_1 = do
       Transmission { trPattern=topP, trSwitch=0, trPkt= packet }
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
-    policy = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) flood
+    policy = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) (allPorts unmodified)
     packet = FreneticPkt $ Packet {
         pktDlSrc = 0
       , pktDlDst = 0
@@ -218,8 +211,8 @@ case_quiescence_bug_1 = do
       }
 
 case_quiescence_bug_2 = do
-  assertEqual "policy -> flood" polActs flood
-  assertEqual "classifier -> flood"
+  assertEqual "policy -> allPorts unmodified" polActs (allPorts unmodified)
+  assertEqual "classifier -> allPorts unmodified"
     (Just [OFAction.SendOutPort OFAction.Flood])
     (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
   where
@@ -228,8 +221,8 @@ case_quiescence_bug_2 = do
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
     policy = PoUnion p1 p2
-    p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) flood
-    p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix  0x5000002 32}) flood
+    p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) (allPorts unmodified)
+    p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix  0x5000002 32}) (allPorts unmodified)
     packet = FreneticPkt $ Packet {
         pktDlSrc = 0
       , pktDlDst = 0
@@ -246,8 +239,8 @@ case_quiescence_bug_2 = do
       }
 
 case_quiescence_bug_3 = do
-  assertEqual "policy -> flood" polActs flood
-  assertEqual "classifier -> flood"
+  assertEqual "policy -> allPorts unmodified" polActs (allPorts unmodified)
+  assertEqual "classifier -> allPorts unmodified"
     (Just [OFAction.SendOutPort OFAction.Flood])
     (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
   where
@@ -256,8 +249,8 @@ case_quiescence_bug_3 = do
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
     policy = PoUnion p1 p2
-    p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) flood
-    p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000002 32}) flood
+    p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) (allPorts unmodified)
+    p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000002 32}) (allPorts unmodified)
     packet = FreneticPkt $ Packet {
         pktDlSrc = 0
       , pktDlDst = 0
@@ -274,8 +267,8 @@ case_quiescence_bug_3 = do
       }
 
 case_quiescence_bug_4 = do
-  assertEqual "policy -> flood" polActs flood
-  assertEqual "classifier -> flood"
+  assertEqual "policy -> allPorts unmodified" polActs (allPorts unmodified)
+  assertEqual "classifier -> allPorts unmodified"
     (Just [OFAction.SendOutPort OFAction.Flood])
     (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
   where
@@ -283,7 +276,7 @@ case_quiescence_bug_4 = do
     polActs = interpretPolicy policy $ Transmission {trPattern=topP, trSwitch=0, trPkt=packet}
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
-    policy = PoBasic (PrUnion (PrPattern pattern) (PrTo switch)) flood
+    policy = PoBasic (PrUnion (PrPattern pattern) (PrTo switch)) (allPorts unmodified)
     switch = 0
     pattern = Pattern {
         ptrnDlSrc = Exact 0
@@ -315,8 +308,8 @@ case_quiescence_bug_4 = do
       }
 
 case_quiescence_bug_5 = do
-  assertEqual "policy -> flood" polActs (forward 1)
-  assertEqual "classifier -> flood"
+  assertEqual "policy -> allPorts unmodified" polActs (forward [1])
+  assertEqual "classifier -> allPorts unmodified"
     (Just [OFAction.SendOutPort $ OFAction.PhysicalPort 1])
     (fmap (fromOFAct.actnTranslate.fromFreneticAct) classActs)
   where
@@ -324,7 +317,7 @@ case_quiescence_bug_5 = do
     polActs = interpretPolicy policy $ Transmission topP 0 packet
     classifier = compile switch policy
     classActs = classify switch packet classifier
-    policy = PoBasic (PrTo switch) $ (forward 1)
+    policy = PrTo switch ==> forward [1]
     switch = 0
     packet = FreneticPkt $ Packet {
         pktDlSrc = 1

@@ -37,7 +37,7 @@ module Tests.Frenetic.NetCore.TestNetCore where
 import Test.Framework
 import Test.Framework.Providers.QuickCheck2
 import Test.Framework.TH
-import Frenetic.NetCore.API
+import Frenetic.NetCore.Types
 
 netCoreTests = $(testGroupGenerator)
 

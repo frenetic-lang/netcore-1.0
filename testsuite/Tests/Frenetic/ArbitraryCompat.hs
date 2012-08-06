@@ -37,7 +37,9 @@
  #-}
 
 module Tests.Frenetic.ArbitraryCompat where
+
 import Frenetic.NetCore.Semantics
+import Frenetic.NetCore.Types
 import qualified Data.Set as Set
 import Data.Word
 import Data.Bits
@@ -46,8 +48,6 @@ import Frenetic.LargeWord
 import Frenetic.Pattern
 import Test.QuickCheck
 import Tests.Frenetic.ArbitraryPattern
-import Control.Newtype.TH
-import Control.Newtype
 import Frenetic.Switches.OpenFlow
 import Frenetic.NetCore
 
@@ -174,9 +174,9 @@ instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) wh
 instance Arbitrary Action where
   arbitrary = do
     -- TODO(arjun): queries
-    oneof [ return flood,
+    oneof [ return $ allPorts unmodified,
             do ports <- listOf arbitrary
-               return $ foldr unionAction dropPkt (map forward ports)
+               return $ foldr (<+>) dropPkt (map forward ports)
           ]
 
 instance Arbitrary (PatternImpl ()) where
