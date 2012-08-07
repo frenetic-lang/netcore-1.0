@@ -68,6 +68,49 @@ rawClassifier :: [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
 rawClassifier classifier =
   map (\(p, a) -> (fromOFPat p, fromOFAct a)) classifier
 
+showMatch Match {..} = "Match {" ++ list ++ "}" where
+  list = concat . intersperse ", " . catMaybes $ fields
+  fields = [ case inPort of
+               Nothing -> Nothing
+               Just v -> Just $ "inPort = \"" ++ show v ++ "\""
+           , case srcEthAddress of
+               Nothing -> Nothing
+               Just v -> Just $ "srcEthAddress = \"" ++ show v ++ "\""
+           , case dstEthAddress of
+               Nothing -> Nothing
+               Just v -> Just $ "dstEthAddress = \"" ++ show v ++ "\""
+           , case vLANID of
+               Nothing -> Nothing
+               Just v -> Just $ "vLANID = \"" ++ show v ++ "\""
+           , case vLANPriority of
+               Nothing -> Nothing
+               Just v -> Just $ "vLANPriority = \"" ++ show v ++ "\""
+           , case ethFrameType of
+               Nothing -> Nothing
+               Just v -> Just $ "ethFrameType = \"" ++ show v ++ "\""
+           , case ipTypeOfService of
+               Nothing -> Nothing
+               Just v -> Just $ "ipTypeOfService = \"" ++ show v ++ "\""
+           , case matchIPProtocol of
+               Nothing -> Nothing
+               Just v -> Just $ "matchIPProtocol = \"" ++ show v ++ "\""
+           , case srcIPAddress of
+               v@(_, len) -> if len == 0 then Nothing
+                             else Just $ "srcIPAddress = \"" ++ show v ++ "\""
+           , case dstIPAddress of
+               v@(_, len) -> if len == 0 then Nothing
+                             else Just $ "dstIPAddress = \"" ++ show v ++ "\""
+           , case srcTransportPort of
+               Nothing -> Nothing
+               Just v -> Just $ "srcTransportPort = \"" ++ show v ++ "\""
+           , case dstTransportPort of
+               Nothing -> Nothing
+               Just v -> Just $ "dstTransportPort = \"" ++ show v ++ "\""
+           ]
+
+prettyClassifier :: (Match, ActionSequence) -> String
+prettyClassifier (match, as) = "(" ++ showMatch match ++ ", " ++ show as ++ ")"
+
 -- |Installs the static portion of the policy, then react.
 handleSwitch :: Nettle 
              -> SwitchHandle
@@ -91,8 +134,9 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         let classifier = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
         infoM "nettle" $ "policy is \n" ++ toString policy ++ 
-                         " and flow table is " ++ 
-                         (concat $ intersperse "\n" (map show flowTbl))
+                         "\n and flow table is " ++ 
+                         (concat $ intersperse "\n"
+                                     (map prettyClassifier flowTbl))
         mapM_ killThread oldThreads
         newThreads <- runQueryOnSwitch nettle switch classifier
         -- Priority 65535 is for microflow rules from reactive-specialization
