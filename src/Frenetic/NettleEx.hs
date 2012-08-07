@@ -175,7 +175,7 @@ ethProto (ARPInEthernet (ARPReply _)) = Just 2
 ethProto (UninterpretedEthernetBody _) = Nothing
 
 ethTOS (IPInEthernet (HCons hdr _)) = Just (dscp hdr)
-ethTOS _ = Nothing
+ethTOS _ = Just 0
 
 srcPort (IPInEthernet (HCons _ (HCons pk _))) = case pk of
   TCPInIP (src, dst) -> Just src
