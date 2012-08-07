@@ -19,7 +19,6 @@ import Data.Maybe (catMaybes)
 import Data.HList
 import Control.Concurrent.Chan
 import           Data.Bits
-import           Frenetic.LargeWord
 import qualified Data.Set                        as Set
 import qualified Data.MultiSet                   as MS
 import           Data.Word

@@ -9,7 +9,6 @@ import Frenetic.Compat
 import Frenetic.Pattern
 import Tests.Frenetic.ArbitraryCompat
 import Tests.Frenetic.ArbitraryPattern
-import Frenetic.LargeWord
 import Frenetic.NetCore.Types
 
 compatTests = $(testGroupGenerator)

@@ -30,7 +30,6 @@ Library
     Frenetic.NetCore.Semantics,
     Frenetic.NetCore.Short
     Frenetic.Compat,
-    Frenetic.LargeWord,
     Frenetic.Pattern,
     Frenetic.NetCore.Types,
     Frenetic.Server,

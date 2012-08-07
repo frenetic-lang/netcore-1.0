@@ -5,7 +5,6 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (toChunks)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Frenetic.LargeWord
 import Control.Exception.Base
 import Control.Monad.State
 import System.IO

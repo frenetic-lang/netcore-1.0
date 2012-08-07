@@ -13,17 +13,13 @@ import qualified Data.Set as Set
 import Data.Word
 import Data.Bits
 import Frenetic.Compat
-import Frenetic.LargeWord
 import Frenetic.Pattern
 import Test.QuickCheck
 import Tests.Frenetic.ArbitraryPattern
 import Frenetic.Switches.OpenFlow
 import Frenetic.NetCore
 
-buildWord48 w1 w2 w3 w4 w5 w6 =
-  LargeKey
-    w1
-    (LargeKey w2 (LargeKey w3 (LargeKey w4 (LargeKey w5 w6))))
+buildWord48 = ethernetAddress
 
 instance Arbitrary EthernetAddress where
   arbitrary = do

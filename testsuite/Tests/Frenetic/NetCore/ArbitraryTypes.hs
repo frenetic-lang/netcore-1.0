@@ -9,7 +9,6 @@ import Frenetic.NetCore.Types
 import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
 
-import Frenetic.LargeWord
 import Test.QuickCheck
 
 instance Arbitrary Predicate where
