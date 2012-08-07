@@ -11,6 +11,8 @@ import MacLearning (learningSwitch)
 type IpMap = Map.Map Word32 EthernetAddress
 
 -- See RFC 826 for ARP specification
+-- Note that the OpenFlow spec uses the Nw* fields for both IP packets and ARP
+-- packets, which is how nwProto matches the ARP query/reply field.
 -- Ethertype for ARP packets
 isArp = dlTyp 0x0806
 -- Numbers from ARP protocol
