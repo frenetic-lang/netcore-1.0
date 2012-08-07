@@ -4,7 +4,7 @@ import Prelude hiding (init)
 import System.Console.GetOpt
 import System.Environment
 import Control.Monad
--- import qualified Arp
+import qualified Arp
 import qualified Internet
 import qualified MacLearning
 import qualified Query1
@@ -28,8 +28,8 @@ argSpec =
       "log to FILE"
   , Option ['v'] ["verbosity"] (ReqArg Verbosity "PRIORITY")
       "sets the verbosity of the log"
-  -- , Option ['a'] ["arp"] (NoArg (Example Arp.main))
-  --    "an interesting controller-based ARP cache"
+   , Option ['a'] ["arp"] (NoArg (Example Arp.main))
+      "an interesting controller-based ARP cache"
   , Option [] ["firewall"] (NoArg (Example Monitor.main))
       "monitor traffic from source IPs"
   , Option [] ["monitor"] (NoArg (Example SimpleMonitor.main))
@@ -86,4 +86,3 @@ main = do
     mapM_ putStrLn errors
     fail "invalid arguments"
   init args
-  

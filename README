@@ -1,3 +1,8 @@
+Frenetic
+==
+
+frenetic-lang.org
+
 Install GHC 7.2.
 
 If you want verification to work, you also need to install Microsoft's Z3
