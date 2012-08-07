@@ -9,6 +9,7 @@ module Frenetic.Common
   , module System.Log.Logger
   , module Data.Monoid
   , mergeChan
+  , bothChan
   ) where
 
 import System.Log.Logger hiding (Priority)
@@ -31,3 +32,21 @@ mergeChan chan1 chan2 = do
     v <- readChan chan2
     writeChan mergedChan (Right v)
   return mergedChan
+
+bothChan :: Chan a -> Chan b -> IO (Chan (a, b))
+bothChan chan1 chan2 = do
+  merged <- mergeChan chan1 chan2
+  result <- newChan
+  let loop a b = do
+        v <- readChan merged
+        case (v, a, b) of
+          (Left a, _, Nothing) -> loop (Just a) Nothing
+          (Left a, _, Just b) -> do
+            writeChan result (a, b)
+            loop (Just a) (Just b)
+          (Right b, Nothing, _) -> loop Nothing (Just b)
+          (Right b, Just a, _) -> do
+            writeChan result (a, b)
+            loop (Just a) (Just b)
+  forkIO (loop Nothing Nothing)
+  return result
