@@ -1,6 +1,5 @@
 module Frenetic.NetworkFrames
   ( arpReply
-  , putArpReply
   ) where
 
 import Data.Binary
@@ -19,6 +18,7 @@ putArpReply :: Word48
             -> Word32
             -> Put
 putArpReply srcEth srcIP dstEth dstIP = do
+  putEthPacket srcEth dstEth 0x0806
   putWord16be 1 -- ethernet header type
   putWord16be 0x0800
   putWord8 6 -- bytes in MAC address
@@ -28,3 +28,9 @@ putArpReply srcEth srcIP dstEth dstIP = do
   put srcIP
   put dstEth
   put dstIP
+
+putEthPacket :: Word48 -> Word48 -> Word16 -> Put
+putEthPacket srcMac dstMac ethType = do
+  put dstMac
+  put srcMac
+  put ethType

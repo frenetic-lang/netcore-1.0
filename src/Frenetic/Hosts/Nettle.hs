@@ -112,9 +112,9 @@ prettyClassifier :: (Match, ActionSequence) -> String
 prettyClassifier (match, as) = "(" ++ showMatch match ++ ", " ++ show as ++ ")"
 
 -- |Installs the static portion of the policy, then react.
-handleSwitch :: Nettle 
+handleSwitch :: Nettle
              -> SwitchHandle
-             -> Policy 
+             -> Policy
              -> Chan Policy
              -> Chan (TransactionID, SCMessage)
              -> IO ()
@@ -124,7 +124,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   --    a. Receive a message from the switch
   --    b. Receive a policy
   -- 3. Keep the last policy in an accumulator
-  -- 4. On new message, evaluate it with the last policy (not consistent 
+  -- 4. On new message, evaluate it with the last policy (not consistent
   --    update!)
   -- 5. On new policy, update the switch and accumulator
   let switchID = handle2SwitchID switch
@@ -133,8 +133,8 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
         let classifier = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
-        infoM "nettle" $ "policy is \n" ++ toString policy ++ 
-                         "\n and flow table is " ++ 
+        infoM "nettle" $ "policy is \n" ++ toString policy ++
+                         "\n and flow table is \n" ++
                          (concat $ intersperse "\n"
                                      (map prettyClassifier flowTbl))
         mapM_ killThread oldThreads
@@ -142,7 +142,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         -- Priority 65535 is for microflow rules from reactive-specialization
         let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
         mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
-        debugM "nettle" $ "finished reconfiguring switch " ++ 
+        debugM "nettle" $ "finished reconfiguring switch " ++
                           show (handle2SwitchID switch)
         nextMsg <- readChan policiesAndMessages
 
@@ -196,7 +196,7 @@ nettleServer policyChan pktChan = do
   forever $ do
     -- Nettle does the OpenFlow handshake
     (switch, switchFeatures, msgChan) <- acceptSwitch server
-    noticeM "controller" $ "switch " ++ show (handle2SwitchID switch) ++ 
+    noticeM "controller" $ "switch " ++ show (handle2SwitchID switch) ++
                            " connected"
     -- reading from a channel removes the messages. We need to dupChan for
     -- each switch.
