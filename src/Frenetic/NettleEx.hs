@@ -146,7 +146,7 @@ sendTransaction nettle@(Nettle _ _ _ txHandlers) sw reqs callback = do
             releaseTxId txId nettle
             callback resps
   atomicModifyIORef txHandlers (\hs -> (Map.insert txId handler hs, ()))
-  mapM_ (sendToSwitch sw) (zip [txId ..] reqs)
+  mapM_ (sendToSwitch sw) (zip (repeat txId) reqs)
   return ()
 
 ethVLANId :: EthernetHeader -> VLANID
