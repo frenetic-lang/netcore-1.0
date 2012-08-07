@@ -50,6 +50,7 @@ init [Help] = do
 init (Verbosity s : rest) = case s of
   "DEBUG" -> setLog DEBUG rest
   "INFO" -> setLog INFO rest
+  "ERROR" -> setLog ERROR rest
   otherwise -> do
     fail $ "invalid value " ++ s
 init [] = fail "too few arguments"
