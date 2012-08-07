@@ -86,13 +86,15 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   -- 5. On new policy, update the switch and accumulator
   let switchID = handle2SwitchID switch
   policiesAndMessages <- mergeChan policyChan msgChan
-  let loop oldPolicy (Left policy) = do
+  let loop oldPolicy oldThreads (Left policy) = do
         sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
         let classifier = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
         infoM "nettle" $ "policy is \n" ++ toString policy ++ 
-                          " and flow table is " ++ (concat $ intersperse "\n" (map show flowTbl))
-        runQueryOnSwitch nettle switch classifier
+                         " and flow table is " ++ 
+                         (concat $ intersperse "\n" (map show flowTbl))
+        mapM_ killThread oldThreads
+        newThreads <- runQueryOnSwitch nettle switch classifier
         -- Priority 65535 is for microflow rules from reactive-specialization
         let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
         mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
@@ -100,8 +102,8 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
                           show (handle2SwitchID switch)
         nextMsg <- readChan policiesAndMessages
 
-        loop policy nextMsg
-      loop policy (Right (xid, msg)) = case msg of
+        loop policy newThreads nextMsg
+      loop policy threads (Right (xid, msg)) = case msg of
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                                    reasonSent=ExplicitSend,
                                    enclosedFrame=Right frame})) -> do
@@ -111,7 +113,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
           let actions = interpretPolicy policy t
           actnControllerPart (actnTranslate actions) switchID (toOFPkt pkt)
           nextMsg <- readChan policiesAndMessages
-          loop policy nextMsg
+          loop policy threads nextMsg
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                                    reasonSent=NotMatched,
                                    enclosedFrame=Right frame})) -> do
@@ -129,11 +131,11 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
                           (filter unCtrl (fromOFAct $ actnTranslate actions))
               sendToSwitch switch (2, msg)
           nextMsg <- readChan policiesAndMessages
-          loop policy nextMsg
+          loop policy threads nextMsg
         otherwise -> do
           nextMsg <- readChan policiesAndMessages
-          loop policy nextMsg
-  loop PoBottom (Left initPolicy)
+          loop policy threads nextMsg
+  loop PoBottom [] (Left initPolicy)
 
 nettleServer :: Chan Policy -> Chan (Loc, ByteString) -> IO ()
 nettleServer policyChan pktChan = do
@@ -172,21 +174,23 @@ classifierQueries classifier = map sel queries where
 runQueryOnSwitch :: Nettle
                  -> SwitchHandle
                  -> [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
-                 -> IO ()
-runQueryOnSwitch nettle switch classifier =
-  mapM_ runQuery (classifierQueries classifier)
-    where mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
-          switchID = handle2SwitchID switch
-          runQuery (NumPktQuery _ outChan millisecondDelay, pats) = do
-            let statReqs = map mkReq pats
-            forkIO $ forever $ do
-              threadDelay (millisecondDelay * 1000)
-              sendTransaction nettle switch statReqs $ \replies -> do
-              writeChan outChan (switchID, sum (map getPktCount replies))
-            return ()
-          runQuery (PktQuery _ _, pats) = do
-            -- nothing to do on the controller until a PacketIn
-            return ()
+                 -> IO [ThreadId]
+runQueryOnSwitch nettle switch classifier = do
+  let mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
+      switchID = handle2SwitchID switch
+      runQuery (NumPktQuery _ outChan millisecondDelay, pats) = do
+        let statReqs = map mkReq pats
+        tId <- forkIO $ forever $ do
+          threadDelay (millisecondDelay * 1000)
+          sendTransaction nettle switch statReqs $ \replies -> do
+            writeChan outChan (switchID, sum (map getPktCount replies))
+        return (Just tId)
+      runQuery (PktQuery _ _, pats) = do
+        -- nothing to do on the controller until a PacketIn
+        return Nothing
+  threads <- mapM runQuery (classifierQueries classifier)
+  return (catMaybes threads)
+
 
 getPktCount :: SCMessage -> Integer
 getPktCount msg = case msg of

@@ -10,6 +10,7 @@ module Frenetic.Common
   , module Data.Monoid
   , mergeChan
   , bothChan
+  , catMaybes
   ) where
 
 import System.Log.Logger hiding (Priority)
@@ -21,6 +22,7 @@ import Data.Set (Set)
 import Data.Map (Map)
 import Data.MultiSet
 import Data.ByteString.Lazy (ByteString)
+import Data.Maybe (catMaybes)
 
 mergeChan :: Chan a -> Chan b -> IO (Chan (Either a b))
 mergeChan chan1 chan2 = do

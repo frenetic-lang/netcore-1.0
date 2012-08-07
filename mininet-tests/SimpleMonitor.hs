@@ -18,7 +18,7 @@ monitor = do
         forkIO $ forever $ do
               (sw, count) <- readChan chan
               t_ <- getCurrentTime
-              let t = show (fromEnum (utctDayTime t_))
+              let t = show t_
               putStrLn $ t ++ ": " ++ show count ++ " packets for " ++ flow
         return ()
   let loop :: Predicate -- ^observed flows
