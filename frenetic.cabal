@@ -86,7 +86,8 @@ Executable frenetic-example-suite
     parsec == 3.1.*,
     syb == 0.3.*,
     bimap == 0.2.*,
-    network == 2.3.*
+    network == 2.3.*,
+    time == 1.4.*
   Extensions:
     ScopedTypeVariables, TypeFamilies, FlexibleInstances, FlexibleContexts,
     RecordWildCards

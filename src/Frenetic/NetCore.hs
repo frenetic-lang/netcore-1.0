@@ -11,6 +11,7 @@ module Frenetic.NetCore
   , (<+>)
   -- * Predicates
   , Predicate
+  , exactMatch
   , inport
   , (<||>)
   , (<&&>)

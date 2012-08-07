@@ -10,6 +10,7 @@ import qualified MacLearning
 import qualified Query1
 import qualified Repeater
 import qualified Monitor
+import qualified SimpleMonitor
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
 import System.Log.Handler.Simple
@@ -29,7 +30,9 @@ argSpec =
       "sets the verbosity of the log"
   -- , Option ['a'] ["arp"] (NoArg (Example Arp.main))
   --    "an interesting controller-based ARP cache"
-  , Option ['m'] ["monitor"] (NoArg (Example Monitor.main))
+  , Option [] ["firewall"] (NoArg (Example Monitor.main))
+      "monitor traffic from source IPs"
+  , Option [] ["monitor"] (NoArg (Example SimpleMonitor.main))
       "monitor traffic from source IPs"
   , Option ['r'] ["repeater"] (NoArg (Example Repeater.main)) 
       "a simple repeater"

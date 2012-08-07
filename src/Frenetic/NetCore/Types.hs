@@ -21,6 +21,7 @@ module Frenetic.NetCore.Types
   , Pattern (..)
   -- * Predicates
   , Predicate (..)
+  , exactMatch
   -- * Packets
   , Packet (..)
   -- * Policies
@@ -133,6 +134,20 @@ data Modification = Modification {
   modifyTpSrc :: Maybe Word16,
   modifyTpDst :: Maybe Word16
 } deriving (Ord, Eq, Show)
+
+-- |A predicate that exactly matches a packet's headers.
+exactMatch :: Packet -> Predicate
+exactMatch (Packet{..}) = PrPattern pat
+  where pat = Pattern (Exact pktDlSrc) (Exact pktDlDst) (Exact pktDlTyp)
+                      (Exact pktDlVlan) (Exact pktDlVlanPcp)
+                      (prefix pktNwSrc) (prefix pktNwDst) 
+                      (Exact pktNwProto)
+                      (Exact pktNwTos) (exact pktTpSrc) (exact pktTpDst)
+                      (Exact pktInPort)
+        prefix Nothing = Prefix 0 0
+        prefix (Just v) = Prefix v 32
+        exact Nothing = Wildcard
+        exact (Just v) = Exact v
 
 unmodified :: Modification
 unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing 
