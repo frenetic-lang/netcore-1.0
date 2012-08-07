@@ -1,11 +1,12 @@
 module Arp (main) where
 
+import Control.Concurrent
 import qualified Data.Map as Map
 import Data.ByteString.Lazy (ByteString)
 import Data.Word
-import Frenetic.Common
+import Frenetic.Common (mergeChan)
 import Frenetic.NetCore
-import Frenetic.NetworkFrames
+import Frenetic.NetworkFrames (arpReply)
 import MacLearning (learningSwitch)
 
 type IpMap = Map.Map Word32 EthernetAddress
