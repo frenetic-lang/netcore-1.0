@@ -9,7 +9,6 @@ module Frenetic.NetCore
   , (==>)
   , (<%>)
   , (<+>)
-  , unions
   -- * Predicates
   , Predicate
   , exactMatch

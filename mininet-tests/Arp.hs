@@ -1,4 +1,4 @@
-module Arp (main) where
+module Arp (doArp, main) where
 
 import Control.Concurrent
 import qualified Data.Map as Map

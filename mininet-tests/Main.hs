@@ -12,6 +12,7 @@ import qualified Repeater
 import qualified Monitor
 import qualified NAT
 import qualified SimpleMonitor
+import qualified KitchenSink
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
 import System.Log.Handler.Simple
@@ -29,7 +30,7 @@ argSpec =
       "log to FILE"
   , Option ['v'] ["verbosity"] (ReqArg Verbosity "PRIORITY")
       "sets the verbosity of the log"
-   , Option ['a'] ["arp"] (NoArg (Example Arp.main))
+  , Option ['a'] ["arp"] (NoArg (Example Arp.main))
       "an interesting controller-based ARP cache"
   , Option [] ["firewall"] (NoArg (Example Monitor.main))
       "monitor traffic from source IPs"
@@ -41,6 +42,8 @@ argSpec =
       "a repeater that also counts packets"
   , Option [] ["maclearning"] (NoArg (Example MacLearning.main))
       "a learning switch"
+  , Option ['s'] ["sink"] (NoArg (Example KitchenSink.main))
+      "Lots of examples in slices."
   , Option [] ["internet"] (NoArg (Example Internet.main))
       "tests connecting Mininet to the Internet"
   , Option [] ["nat"] (NoArg (Example NAT.main))

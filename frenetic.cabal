@@ -76,6 +76,7 @@ Executable frenetic-example-suite
     base >= 4 && < 5,
     containers >= 0.4.2.1,
     multiset >= 0.2.1,
+    fgl,
     ansi-wl-pprint,
     mtl >= 2.0.1.0,
     HList,
