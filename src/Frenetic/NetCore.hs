@@ -45,6 +45,7 @@ module Frenetic.NetCore
   , forward
   , allPorts
   , modify
+  , countBytes
   , countPkts
   , getPkts
   -- ** Modifications

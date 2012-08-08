@@ -9,11 +9,13 @@ module Frenetic.NetCore.Types
   -- * Actions
   , Action (..)
   , Query (..)
+  , Counter (..)
   , Modification (..)
   , unmodified
   , isPktQuery
   -- ** Basic actions
   , countPkts
+  , countBytes
   , getPkts
   -- ** Inspecting actions
   , actionForwardsTo
@@ -238,11 +240,14 @@ nextQueryID = unsafePerformIO $ newIORef 0
 getNextQueryID :: IO QueryID
 getNextQueryID = atomicModifyIORef nextQueryID (\i -> (i + 1, i))
 
+data Counter = CountPackets | CountBytes deriving (Eq, Ord)
+
 data Query
   = NumPktQuery {
       idOfQuery :: QueryID,
       numPktQueryChan :: Chan (Switch, Integer),
       queryInterval :: Int,
+      countField :: Counter,
       totalVal :: IORef Integer,
       lastVal :: IORef Integer
     }
@@ -265,6 +270,16 @@ actionForwardsTo :: Action -> MS.MultiSet PseudoPort
 actionForwardsTo (Action m _) = 
   MS.map fst m
 
+mkCountQuery :: Counter -> Int -> IO (Chan (Switch, Integer), Action)
+mkCountQuery counter millisecondInterval = do
+  ch <- newChan
+  queryID <- getNextQueryID
+  total <- newIORef 0
+  last <- newIORef 0
+  let q = NumPktQuery queryID ch millisecondInterval counter total last
+  return (ch, Action MS.empty (MS.singleton q))
+            
+
 -- ^Periodically polls the network to counts the number of packets received.
 --
 -- Returns an 'Action' and a channel. When the 'Action' is used in the
@@ -273,13 +288,18 @@ actionForwardsTo (Action m _) =
 -- on each switch.
 countPkts :: Int -- ^polling interval, in milliseconds
           -> IO (Chan (Switch, Integer), Action)
-countPkts millisecondInterval = do
-  ch <- newChan
-  queryID <- getNextQueryID
-  total <- newIORef 0
-  last <- newIORef 0
-  let q = NumPktQuery queryID ch millisecondInterval total last
-  return (ch, Action MS.empty (MS.singleton q))
+countPkts = mkCountQuery CountPackets
+
+-- ^Periodically polls the network to counts the number of bytes received.
+--
+-- Returns an 'Action' and a channel. When the 'Action' is used in the
+-- active 'Policy', the controller periodically reads the packet counters
+-- on the network. The controller returns the number of matching packets
+-- on each switch.
+countBytes :: Int -- ^polling interval, in milliseconds
+           -> IO (Chan (Switch, Integer), Action)
+countBytes = mkCountQuery CountBytes
+
 
 -- ^Sends packets to the controller.
 --
