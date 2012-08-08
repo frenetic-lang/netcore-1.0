@@ -31,12 +31,12 @@ monitor eth ip actionChan = do
               Nothing -> (0, count)
               Just v -> v
         let traffic' = Map.insert sw 
-                         (oldScore / 2 + fromIntegral (count - oldCount) + 1, count)
+                         (oldScore * 0.9 + fromIntegral (count - oldCount), count)
                          traffic
         case Map.lookup sw traffic' of
           Nothing -> fail "sw should be in traffic'"
           Just (score, _) -> do
-            putStrLn $ show ip ++ " has score " ++ show score
+            putStrLn $ show ip ++ " has score " ++ show (score, oldScore) ++ " counters=" ++ show (count, oldCount)
             if score < 0 then
               writeChan actionChan (Unmonitor, ip)
                      -- this thread terminates
@@ -46,7 +46,7 @@ monitor eth ip actionChan = do
                            show score
                 writeChan actionChan (Block, ip)
               else if score < 10.0 && oldScore >= 10.0 then do
-                putStrLn $ "Unblocking due to score " ++ show ip
+                putStrLn $ "Unblocking due to score: " ++ show ip
                 writeChan actionChan (Unblock, ip)
               else
                 return ()
@@ -96,12 +96,10 @@ dosDetector = do
           Right (Block, srcIP) -> do
             let blocked' = Set.insert srcIP blocked
             let (pol, pred) = buildPolPred monitors blocked'
-            putStrLn $ "Restriction " ++ show pred
             writeChan resultChan (pol, pred)
             loop monitors blocked'
           Right (Unblock, srcIP) -> do
             let blocked' = Set.delete srcIP blocked
-            putStrLn $ "Unblocking and updating policy " ++ show srcIP
             writeChan resultChan (buildPolPred monitors blocked')
             loop monitors blocked'
           Right (Unmonitor, srcIP) -> do
