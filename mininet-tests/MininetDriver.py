@@ -9,7 +9,7 @@ import os, sys
 from time import gmtime, strftime, sleep
 import unittest
 
-CONTROLLER_PATH = "../dist/build/frenetic-example-suite/frenetic-example-suite"
+CONTROLLER_PATH = "./dist/build/frenetic-example-suite/frenetic-example-suite"
 
 TreeTopo = mininet.topolib.TreeTopo
 LinearTopo = mininet.topo.LinearTopo
