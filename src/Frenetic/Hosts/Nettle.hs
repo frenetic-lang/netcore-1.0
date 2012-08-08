@@ -196,15 +196,15 @@ runQueryOnSwitch nettle switch classifier = do
       runQuery (PktQuery _ _, pats) = do
         -- nothing to do on the controller until a PacketIn
         return ()
-      runQuery (NumPktQuery qid outChan millisecondDelay totalRef lastRef, 
+      runQuery (NumPktQuery qid outChan msDelay counter totalRef lastRef,
                 pats) = do
         let statReqs = map mkReq pats
         forkIO $ forever $ do
           tid <- myThreadId
-          threadDelay (millisecondDelay * 1000)
+          threadDelay (msDelay * 1000)
           sendTransaction nettle switch statReqs $ \replies -> do
             count <- readIORef lastRef
-            let count' = sum (map getPktCount replies)
+            let count' = sum (map (getCount counter) replies)
             total <- readIORef totalRef
             let total' = total + (count' - count)
             kill <- readIORef killFlag
@@ -222,7 +222,10 @@ runQueryOnSwitch nettle switch classifier = do
     writeIORef killFlag True
 
 
-getPktCount :: SCMessage -> Integer
-getPktCount msg = case msg of
-  StatsReply (FlowStatsReply _ stats) -> sum (map flowStatsPacketCount stats)
+getCount :: Counter -> SCMessage -> Integer
+getCount counter msg = case msg of
+  StatsReply (FlowStatsReply _ stats) -> case counter of
+    CountPackets -> sum (map flowStatsPacketCount stats)
+    CountBytes -> sum (map flowStatsByteCount stats)
   otherwise -> 0
+

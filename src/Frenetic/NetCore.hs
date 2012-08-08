@@ -9,7 +9,6 @@ module Frenetic.NetCore
   , (==>)
   , (<%>)
   , (<+>)
-  , unions
   -- * Predicates
   , Predicate
   , exactMatch
@@ -45,6 +44,7 @@ module Frenetic.NetCore
   , forward
   , allPorts
   , modify
+  , countBytes
   , countPkts
   , getPkts
   -- ** Modifications
