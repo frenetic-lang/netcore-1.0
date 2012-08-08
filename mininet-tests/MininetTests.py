@@ -2,6 +2,7 @@
 from subprocess import Popen, PIPE
 from MininetDriver import *
 from time import sleep
+import  re
 
 class RepeaterTest(unittest.TestCase):
   
@@ -46,8 +47,12 @@ class Query1(unittest.TestCase):
     self.ctrl.terminate()
     output = list(self.ctrl.stdout)
     # 2 for initial ARP and 10 from the pings
-    print output[-1]
-    self.assertTrue("Counter is: 12" in output[-1], "expected 10 packets")
+    m = re.match("Counter is: (\\d+)\n", output[-1])
+    numPkts = int(m.group(1))
+    if is_ipv6_enabled():
+      self.assertIn(numPkts, range(18, 23))
+    else:
+      self.assertEqual(numPkts, 12)
 
 
 class MacLearning(unittest.TestCase):
