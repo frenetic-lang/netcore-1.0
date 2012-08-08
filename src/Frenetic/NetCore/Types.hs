@@ -110,9 +110,9 @@ data Pattern = Pattern {
 data Predicate 
   = PrPattern Pattern -- ^Match with a simple pattern.
   | PrTo Switch -- ^Match only at this switch.
-  | PrUnion Predicate Predicate -- ^Match both predicates.
-  | PrIntersect Predicate Predicate -- ^Match either predicate.
-  | PrNegate Predicate -- ^Match packets to do not match the predicate.
+  | PrUnion Predicate Predicate -- ^Match either predicates.
+  | PrIntersect Predicate Predicate -- ^Match both predicates.
+  | PrNegate Predicate -- ^PrNegate P matches packets that do not match P.
   deriving (Eq, Ord)
 
 -- |Names of common header fields.
@@ -310,10 +310,11 @@ prUnUnion po = List.unfoldr f [po] where
     p : rest -> Just (p, rest)
 
 {-| Policies denote functions from (switch, packet) to packets. -}
-data Policy = PoBottom
-            | PoBasic Predicate Action
-            | PoUnion Policy Policy
-            deriving (Eq, Ord)
+data Policy 
+  = PoBottom -- ^Performs no actions.
+  | PoBasic Predicate Action -- ^Performs the given action on packets matching the given predicate.
+  | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
+  deriving (Eq, Ord)
 
 instance Show Predicate where
   show (PrPattern pat) = show pat
