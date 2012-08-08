@@ -14,6 +14,13 @@ CONTROLLER_PATH = "../dist/build/frenetic-example-suite/frenetic-example-suite"
 TreeTopo = mininet.topolib.TreeTopo
 LinearTopo = mininet.topo.LinearTopo
 
+def is_ipv6_enabled():
+  lines = 0
+  with open("/proc/net/if_inet6") as f:
+     for i, l in enumerate(f):
+       lines = lines + 1
+  return lines > 0
+
 class PaneException(Exception):
   pass
 
