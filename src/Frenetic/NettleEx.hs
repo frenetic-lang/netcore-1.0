@@ -59,7 +59,9 @@ acceptSwitch nettle = do
         infoM "nettle" $ "could not accept switch " ++ show e
         accept 
       accept = do
-        Server.acceptSwitch (server nettle) `catch` exnHandler
+        (Server.acceptSwitch (server nettle)) `catches` 
+          [ Handler (\(e :: AsyncException) -> throw e),
+            Handler exnHandler ]
   (switch, switchFeatures) <- accept
   modifyIORef (switches nettle) (Map.insert (handle2SwitchID switch) switch)
   switchMessages <- newChan
