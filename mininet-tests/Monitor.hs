@@ -8,6 +8,7 @@ import Frenetic.NetCore
 import Frenetic.Common (mergeChan, bothChan)
 import Frenetic.NetCore.Types (poDom)
 import MacLearning (learningSwitch)
+import System.Log.Logger
 
 data Msg
   = Block 

@@ -27,7 +27,6 @@ module Frenetic.NetCore.Types
   -- * Policies
   , Policy (..)
   -- * Tools
-  , idOfQuery
   , interesting
   , modifiedFields
   , prUnIntersect
@@ -240,8 +239,16 @@ getNextQueryID :: IO QueryID
 getNextQueryID = atomicModifyIORef nextQueryID (\i -> (i + 1, i))
 
 data Query
-  = NumPktQuery QueryID (Chan (Switch, Integer)) Int
-  | PktQuery { pktQueryChan :: (Chan (Switch, Packet)), pktQueryID :: QueryID }
+  = NumPktQuery {
+      idOfQuery :: QueryID,
+      numPktQueryChan :: Chan (Switch, Integer),
+      queryInterval :: Int
+      
+    }
+  | PktQuery {
+      pktQueryChan :: (Chan (Switch, Packet)),
+      idOfQuery :: QueryID
+    }
   deriving (Eq)
 
 -- |Actions to perform on packets.
@@ -282,11 +289,6 @@ getPkts = do
   queryID <- getNextQueryID
   let q = PktQuery ch queryID
   return (ch, Action MS.empty (MS.singleton q))
-
-idOfQuery :: Query -> QueryID
-idOfQuery (NumPktQuery queryID _ _) = queryID
-idOfQuery (PktQuery {pktQueryID=queryID}) = queryID
-
 
 -- |Get back all predicates in the intersection.  Does not return any naked intersections.
 prUnIntersect :: Predicate -> [Predicate]
