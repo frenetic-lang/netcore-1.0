@@ -293,7 +293,8 @@ getPkts = do
   let q = PktQuery ch queryID
   return (ch, Action MS.empty (MS.singleton q))
 
--- |Get back all predicates in the intersection.  Does not return any naked intersections.
+-- |Get back all predicates in the intersection.  Does not return any naked 
+-- intersections.
 prUnIntersect :: Predicate -> [Predicate]
 prUnIntersect po = List.unfoldr f [po] where
   f predicates = case predicates of 
