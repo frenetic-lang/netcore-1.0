@@ -78,7 +78,7 @@ prOr :: [Predicate] -> Predicate
 prOr [] = neg top
 prOr ps = List.foldr1 (\ p1 p2 -> PrUnion p1 p2) ps
 
--- |Construct the intersect of a list of predicates
+-- |Construct nary intersection of a list of predicates
 prAnd :: [Predicate] -> Predicate
 prAnd [] = top
 prAnd ps = List.foldr1 (\ p1 p2 -> PrIntersect p1 p2) ps
@@ -106,6 +106,7 @@ modify :: [(Port, Modification)] -> Action
 modify mods = Action (MS.fromList lst) MS.empty
   where lst = [ (Physical p, mod) | (p, mod) <- mods ]
 
+-- |Match switch identifier.
 onSwitch = PrTo
 
 instance Monoid Action where
@@ -113,19 +114,23 @@ instance Monoid Action where
     Action (fwd1 `MS.union` fwd2) (q1 `MS.union` q2)
   mempty = dropPkt
 
--- |Shorthand for combining policies and actions.
+-- |Join: overloaded to find the union of policies and the join of actions.
 (<+>) :: Monoid a => a -> a -> a
 (<+>) = mappend 
 
+-- |Abbreviation for predicate union.
 (<||>) = PrUnion
 
+-- |Abbreviation for predicate intersection.
 (<&&>) = PrIntersect
 
+-- |Abbreviation for predicate negation.
 neg = PrNegate
 
+-- |Abbreviation for constructing a basic policy from a predicate and an action.
 (==>) = PoBasic
 
--- |Construct the policy restricted by the predicate
+-- |Restrict a policy to act over packets matching the predicate.
 policy <%> pred = case policy of
   PoBottom -> PoBottom
   PoBasic predicate act -> PoBasic (PrIntersect predicate pred) act
