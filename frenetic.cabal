@@ -1,9 +1,10 @@
 Name:             frenetic
 Version:          0.2.0
-License:          OtherLicense
+Copyright:        2011, 2012, Cornell University, Princeton University
+License:          BSD3
+License-File:     LICENSE
 Cabal-Version:    >= 1.9.2
 Build-Type:       Simple
-
 
 Library
   build-depends:
@@ -29,7 +30,6 @@ Library
     Frenetic.NetCore.Semantics,
     Frenetic.NetCore.Short
     Frenetic.Compat,
-    Frenetic.LargeWord,
     Frenetic.Pattern,
     Frenetic.NetCore.Types,
     Frenetic.Server,
@@ -86,7 +86,8 @@ Executable frenetic-example-suite
     parsec == 3.1.*,
     syb == 0.3.*,
     bimap == 0.2.*,
-    network == 2.3.*
+    network == 2.3.*,
+    time == 1.4.*
   Extensions:
     ScopedTypeVariables, TypeFamilies, FlexibleInstances, FlexibleContexts,
     RecordWildCards

@@ -146,7 +146,7 @@ sendTransaction nettle@(Nettle _ _ _ txHandlers) sw reqs callback = do
             releaseTxId txId nettle
             callback resps
   atomicModifyIORef txHandlers (\hs -> (Map.insert txId handler hs, ()))
-  mapM_ (sendToSwitch sw) (zip [txId ..] reqs)
+  mapM_ (sendToSwitch sw) (zip (repeat txId) reqs)
   return ()
 
 ethVLANId :: EthernetHeader -> VLANID
@@ -175,7 +175,7 @@ ethProto (ARPInEthernet (ARPReply _)) = Just 2
 ethProto (UninterpretedEthernetBody _) = Nothing
 
 ethTOS (IPInEthernet (HCons hdr _)) = Just (dscp hdr)
-ethTOS _ = Nothing
+ethTOS _ = Just 0
 
 srcPort (IPInEthernet (HCons _ (HCons pk _))) = case pk of
   TCPInIP (src, dst) -> Just src

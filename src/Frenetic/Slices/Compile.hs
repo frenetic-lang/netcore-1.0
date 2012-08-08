@@ -2,6 +2,7 @@ module Frenetic.Slices.Compile
   ( -- * Compilation
     transform
   , transformEdge
+  , dynamicTransform
   , compileSlice
   , edgeCompileSlice
   -- * Internal tools
@@ -10,6 +11,7 @@ module Frenetic.Slices.Compile
   , matchesSwitch
   ) where
 
+import Control.Monad
 import Frenetic.Common
 import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
@@ -26,6 +28,33 @@ import Frenetic.NetCore.Types
 -- |Match a specific vlan tag
 vlanMatch :: Vlan -> Predicate
 vlanMatch vlan = dlVlan vlan
+
+-- TODO(astory): also take in the packet channel and handle that
+-- |Compile a list of slices and dynamic policies as they change.
+dynamicTransform :: [(Slice, Chan Policy)] -> IO (Chan Policy)
+dynamicTransform combined = do
+  updateChan <- newChan :: IO (Chan (Vlan, (Slice, Policy)))
+  outputChan <- newChan :: IO (Chan Policy)
+  let tagged = zip [1..] combined
+  -- Fork off threads to poll the input policy channels and write them into the
+  -- unified output channel.
+  let poll (vl, (s, pc)) = do
+      let loop = do
+          update <- readChan pc
+          writeChan updateChan (vl, (s, update))
+      forkIO $ forever $ loop
+  sequence $ map poll tagged
+  -- Poll from the unified channel, and update a map containing the most recent
+  -- compiled version of each slice.  After each update, take the union and send
+  -- the result down the pipe.
+  let loop map = do
+      (vlan, (slice, policy)) <- readChan updateChan
+      let compiled = compileSlice slice vlan policy
+      let map' = Map.insert vlan compiled map
+      writeChan outputChan $ unions (Map.elems map')
+      loop map'
+  forkIO $ loop Map.empty
+  return outputChan
 
 -- |Produce the combined policy by compiling a list of slices and policies with
 -- the vanilla compiler

@@ -21,6 +21,7 @@ module Frenetic.NetCore.Types
   , Pattern (..)
   -- * Predicates
   , Predicate (..)
+  , exactMatch
   -- * Packets
   , Packet (..)
   -- * Policies
@@ -44,7 +45,6 @@ import qualified Data.List as List
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Data.Word
-import Frenetic.LargeWord
 import Frenetic.Pattern
 import System.IO.Unsafe
 import Data.Maybe (catMaybes)
@@ -134,6 +134,20 @@ data Modification = Modification {
   modifyTpDst :: Maybe Word16
 } deriving (Ord, Eq, Show)
 
+-- |A predicate that exactly matches a packet's headers.
+exactMatch :: Packet -> Predicate
+exactMatch (Packet{..}) = PrPattern pat
+  where pat = Pattern (Exact pktDlSrc) (Exact pktDlDst) (Exact pktDlTyp)
+                      (Exact pktDlVlan) (Exact pktDlVlanPcp)
+                      (prefix pktNwSrc) (prefix pktNwDst) 
+                      (Exact pktNwProto)
+                      (Exact pktNwTos) (exact pktTpSrc) (exact pktTpDst)
+                      (Exact pktInPort)
+        prefix Nothing = Prefix 0 0
+        prefix (Just v) = Prefix v 32
+        exact Nothing = Wildcard
+        exact (Just v) = Exact v
+
 unmodified :: Modification
 unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing 
                           Nothing Nothing Nothing
@@ -222,6 +236,9 @@ type QueryID = Int
 nextQueryID :: IORef QueryID
 nextQueryID = unsafePerformIO $ newIORef 0
 
+getNextQueryID :: IO QueryID
+getNextQueryID = atomicModifyIORef nextQueryID (\i -> (i + 1, i))
+
 data Query
   = NumPktQuery QueryID (Chan (Switch, Integer)) Int
   | PktQuery { pktQueryChan :: (Chan (Switch, Packet)), pktQueryID :: QueryID }
@@ -250,8 +267,7 @@ countPkts :: Int -- ^polling interval, in milliseconds
           -> IO (Chan (Switch, Integer), Action)
 countPkts millisecondInterval = do
   ch <- newChan
-  queryID <- readIORef nextQueryID
-  modifyIORef nextQueryID (+ 1)
+  queryID <- getNextQueryID
   let q = NumPktQuery queryID ch millisecondInterval
   return (ch, Action MS.empty (MS.singleton q))
 
@@ -263,8 +279,7 @@ countPkts millisecondInterval = do
 getPkts :: IO (Chan (Switch, Packet), Action)
 getPkts = do
   ch <- newChan
-  queryID <- readIORef nextQueryID
-  modifyIORef nextQueryID (+1)
+  queryID <- getNextQueryID
   let q = PktQuery ch queryID
   return (ch, Action MS.empty (MS.singleton q))
 

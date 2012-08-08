@@ -19,6 +19,7 @@ module Frenetic.NetCore.Short
   , (==>)
   , (<%>)
   , (<+>)
+  , unions
   -- * Exact match predicate constructors
   , onSwitch
   , dlSrc
@@ -55,6 +56,11 @@ import qualified Data.MultiSet as MS
 import Frenetic.Pattern
 import Frenetic.NetCore.Types
 import Data.Monoid
+
+-- |Construct the nary union of a list of policies
+unions :: [Policy] -> Policy
+unions [] = PoBottom
+unions ps = foldr1 (\p1 p2 -> p1 <+> p2) ps
 
 -- |Matches all packets.
 matchAll :: Predicate

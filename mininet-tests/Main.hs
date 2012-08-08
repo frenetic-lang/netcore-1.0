@@ -4,13 +4,14 @@ import Prelude hiding (init)
 import System.Console.GetOpt
 import System.Environment
 import Control.Monad
--- import qualified Arp
+import qualified Arp
 import qualified Internet
 import qualified MacLearning
 import qualified Query1
 import qualified Repeater
 import qualified Monitor
 import qualified NAT
+import qualified SimpleMonitor
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
 import System.Log.Handler.Simple
@@ -28,9 +29,11 @@ argSpec =
       "log to FILE"
   , Option ['v'] ["verbosity"] (ReqArg Verbosity "PRIORITY")
       "sets the verbosity of the log"
-  -- , Option ['a'] ["arp"] (NoArg (Example Arp.main))
-  --    "an interesting controller-based ARP cache"
-  , Option ['m'] ["monitor"] (NoArg (Example Monitor.main))
+   , Option ['a'] ["arp"] (NoArg (Example Arp.main))
+      "an interesting controller-based ARP cache"
+  , Option [] ["firewall"] (NoArg (Example Monitor.main))
+      "monitor traffic from source IPs"
+  , Option [] ["monitor"] (NoArg (Example SimpleMonitor.main))
       "monitor traffic from source IPs"
   , Option ['r'] ["repeater"] (NoArg (Example Repeater.main)) 
       "a simple repeater"
@@ -50,6 +53,7 @@ init [Help] = do
 init (Verbosity s : rest) = case s of
   "DEBUG" -> setLog DEBUG rest
   "INFO" -> setLog INFO rest
+  "ERROR" -> setLog ERROR rest
   otherwise -> do
     fail $ "invalid value " ++ s
 init [] = fail "too few arguments"
@@ -85,4 +89,3 @@ main = do
     mapM_ putStrLn errors
     fail "invalid arguments"
   init args
-  
