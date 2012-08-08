@@ -8,6 +8,7 @@ import Frenetic.Common (mergeChan)
 import Frenetic.NetCore
 import Frenetic.NetworkFrames (arpReply)
 import MacLearning (learningSwitch)
+import System.Log.Logger
 
 type IpMap = Map.Map Word32 EthernetAddress
 
@@ -26,13 +27,13 @@ known ips = prOr . map (\ipAddr -> nwDst ipAddr) $ Map.keys ips
 handleQuery :: (Switch, Packet) -> IpMap -> Maybe (Loc, ByteString)
 handleQuery (switch, Packet {..}) ips =
   case pktNwDst of
-    Nothing -> Nothing -- TODO(astory): log
+    Nothing -> Nothing
     Just toIp ->
       case Map.lookup toIp ips of
         Nothing -> Nothing
         Just toMac ->
           case pktNwSrc of
-            Nothing -> Nothing -- TODO(astory): log
+            Nothing -> Nothing
             Just fromIp -> Just (Loc switch pktInPort,
                                  arpReply toMac toIp pktDlSrc fromIp)
 
@@ -41,7 +42,7 @@ handleReply :: (Switch, Packet) -> IpMap -> Maybe IpMap
 handleReply (switch, packet) ips =
   let fromMac = pktDlSrc packet in
   case pktNwSrc packet of
-    Nothing -> Nothing -- TODO(astory): log
+    Nothing -> Nothing
     Just fromIp ->
       -- If we already know about the MAC address of the reply, do nothing.
       if Map.member fromIp ips then Nothing
@@ -67,6 +68,7 @@ doArp routeChan = do
       update <- readChan allChan
       case update of
         Left route -> do
+          infoM "ARP" "Got new routing policy for ARP"
           -- Don't route packets that we know how to reply to
           writeChan policyOutChan (buildPolicy route ips)
           loop (Just route) ips
@@ -80,12 +82,14 @@ doArp routeChan = do
                   case handleQuery query ips of
                     Nothing -> loop mRoute ips
                     Just packet -> do
+                      infoM "ARP" $ "Sending ARP reply: " ++ show packet
                       writeChan packetOutChan packet
                       loop mRoute ips
                 Right reply ->
                   case handleReply reply ips of
                     Nothing -> loop mRoute ips
                     Just ips' -> do
+                      infoM "ARP" $ "Learned ARP route from " ++ show reply
                       writeChan policyOutChan (buildPolicy route ips')
                       loop mRoute ips'
   forkIO (loop Nothing Map.empty)

@@ -15,6 +15,12 @@ import Frenetic.Topo (buildGraph)
 topo = buildGraph [ ((2, 0), (1, 1))
                   , ((3, 0), (1, 2)) ]
 
+spy = do
+  spyChan <- newChan
+  (query, action) <- getPkts
+  writeChan spyChan (matchAll ==> action)
+  return spyChan
+
 -- |Run a number of examples wrapped in slices.
 -- * Arp in a slice that only accepts ARP packets
 -- * Learning Switch in a slice that only accepts ipv4 packets
@@ -24,11 +30,14 @@ sink :: IO (Chan Policy) -> IO (Chan Policy, Chan (Loc, ByteString))
 sink routing = do
   route <- routing
   arpRoute <- routing
-  let routeSlice = simpleSlice topo (dlTyp 0x0800)
-  let arpSlice = simpleSlice topo (dlTyp 0x0804)
+  spyPolicy <- spy
+  let routeSlice = simpleSlice topo (neg $ dlTyp 0x0806)
+  let arpSlice = simpleSlice topo (dlTyp 0x0806)
+  let spySlice = simpleSlice topo matchAll
   (arpPolicy, arpPacket) <- doArp arpRoute
   policies <- dynamicTransform [ (routeSlice, route)
                                , (arpSlice, arpPolicy)
+                               , (spySlice, spyPolicy)
                                ]
   return (policies, arpPacket)
 

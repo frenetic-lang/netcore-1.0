@@ -103,10 +103,10 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
         let classifier = compile (handle2SwitchID switch) policy
         let flowTbl = rawClassifier classifier
-        infoM "nettle" $ "policy is \n" ++ toString policy ++
-                         "\n and flow table is \n" ++
-                         (concat $ intersperse "\n"
-                                     (map prettyClassifier flowTbl))
+        debugM "nettle" $ "policy is \n" ++ toString policy ++
+                          "\n and flow table is \n" ++
+                          (concat $ intersperse "\n"
+                                      (map prettyClassifier flowTbl))
         oldThreads
         newThreads <- runQueryOnSwitch nettle switch classifier
         -- Priority 65535 is for microflow rules from reactive-specialization
@@ -214,7 +214,6 @@ runQueryOnSwitch nettle switch classifier = do
             else do
               writeIORef lastRef count'
               writeIORef totalRef total'
-              putStrLn $ "qid=" ++ show qid ++ " has total=" ++ show total'
               writeChan outChan (switchID, total')
         return ()
   mapM_ runQuery (classifierQueries classifier)
