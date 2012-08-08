@@ -63,14 +63,17 @@ acceptSwitch nettle = do
   (switch, switchFeatures) <- accept
   modifyIORef (switches nettle) (Map.insert (handle2SwitchID switch) switch)
   switchMessages <- newChan
-  let handleSwitch (xid, msg) = do
-        handlers <- readIORef (txHandlers nettle)
-        debugM "nettle" $ "received message xid=" ++ show xid ++ "; msg=" ++ 
-                          show msg
-        case Map.lookup xid handlers of
-          Just handler -> handler msg
-          Nothing      -> writeChan switchMessages (xid, msg)
-  threadId <- forkIO $ untilNothing (receiveFromSwitch switch) handleSwitch
+  let loop = do
+        m <- receiveFromSwitch switch
+        case m of
+          Nothing -> return ()
+          Just (xid, msg) -> do
+            handlers <- readIORef (txHandlers nettle)
+            debugM "nettle" $ "received message xid=" ++ show xid
+            case Map.lookup xid handlers of
+              Just handler -> handler msg
+              Nothing      -> writeChan switchMessages (xid, msg)
+  threadId <- forkIO $ forever loop
   return (switch, switchFeatures, switchMessages)
 
 closeServer :: Nettle -> IO ()

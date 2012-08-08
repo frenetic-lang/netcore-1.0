@@ -242,8 +242,9 @@ data Query
   = NumPktQuery {
       idOfQuery :: QueryID,
       numPktQueryChan :: Chan (Switch, Integer),
-      queryInterval :: Int
-      
+      queryInterval :: Int,
+      totalVal :: IORef Integer,
+      lastVal :: IORef Integer
     }
   | PktQuery {
       pktQueryChan :: (Chan (Switch, Packet)),
@@ -275,7 +276,9 @@ countPkts :: Int -- ^polling interval, in milliseconds
 countPkts millisecondInterval = do
   ch <- newChan
   queryID <- getNextQueryID
-  let q = NumPktQuery queryID ch millisecondInterval
+  total <- newIORef 0
+  last <- newIORef 0
+  let q = NumPktQuery queryID ch millisecondInterval total last
   return (ch, Action MS.empty (MS.singleton q))
 
 -- ^Sends packets to the controller.
@@ -332,8 +335,10 @@ instance Show Action where
   show (Action fwd q) = "<fwd=" ++ show (MS.toAscList fwd) ++ " q=" ++ show q ++ ">"
 
 instance Show Query where
-  show (NumPktQuery qid _ _) = "NumPkt " ++ show qid
-  show (PktQuery _ qid) = "Pkt " ++ show qid
+  show (NumPktQuery{..}) = 
+    "countPkts(interval=" ++ show queryInterval ++ "ms, id=" ++ 
+    show idOfQuery ++ ")"
+  show (PktQuery{..}) = "getPkts(id=" ++ show idOfQuery ++  ")"
 
 instance Show Policy where
   show PoBottom = "(PoBottom)"
