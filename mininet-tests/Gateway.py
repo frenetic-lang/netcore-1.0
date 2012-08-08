@@ -15,6 +15,7 @@ topo = mininet.topolib.TreeTopo(depth=1, fanout=2)
 net = Mininet(topo=topo,controller=RemoteController,switch=UserSwitch)
 
 print "Configuring NAT (iptables) ..."
+os.system('sysctl -w net.ipv4.ip_forward=1')
 os.system('iptables -F')
 os.system('iptables -Z')
 os.system('iptables -A FORWARD -o eth0 -i gate-host -s 10.0.0.0/24 '
@@ -41,6 +42,8 @@ print "WAN port is %s" % wanPort
 print "Hosts are:"
 for h in net.hosts:
   print h
+  h.cmd('route add -net 10.0.0.0 netmask 255.255.255.0 %s-eth0' % h.name)
+  h.cmd('route add default gw 10.0.0.100 %s-eth0' % h.name)
 
 net.interact()
 
