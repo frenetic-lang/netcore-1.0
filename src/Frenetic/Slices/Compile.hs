@@ -19,7 +19,7 @@ import qualified Data.Set as Set
 import Frenetic.NetCore
 import Frenetic.Pattern
 import Frenetic.NetCore.Reduce
-import Frenetic.NetCore.Short
+import Frenetic.NetCore.Pretty
 import Frenetic.Slices.Slice
 import Frenetic.Slices.VlanAssignment
 import Frenetic.Topo
@@ -41,8 +41,14 @@ dynamicTransform combined = do
   let poll (vlan, (slice, policyChan)) = do
       let loop = do
           update <- readChan policyChan
+          putStrLn "Got new input policy:"
+          putNetCoreLn update
           let compiled = compileSlice slice vlan update
-          writeChan updateChan (vlan, update)
+          putStrLn "Compiled on:"
+          print slice
+          putStrLn "to:"
+          putNetCoreLn compiled
+          writeChan updateChan (vlan, compiled)
       forkIO $ forever $ loop
   sequence $ map poll tagged
   -- Poll from the unified channel, and update a map containing the most recent
