@@ -46,6 +46,7 @@ class Query1(unittest.TestCase):
     self.ctrl.terminate()
     output = list(self.ctrl.stdout)
     # 2 for initial ARP and 10 from the pings
+    print output[-1]
     self.assertTrue("Counter is: 12" in output[-1], "expected 10 packets")
 
 
