@@ -101,8 +101,9 @@ Executable frenetic-example-suite
   Main-Is:
     Main.hs
 
-Executable frenetic-benchmark
-  cpp-options: "-DOPENFLOW_VERSION=1"
+benchmark frenetic-benchmark
+  cpp-options:   "-DOPENFLOW_VERSION=1"
+  type:          exitcode-stdio-1.0
   build-depends: base >= 4 && < 5,
                  containers >= 0.4.2.1,
                  ansi-wl-pprint,
