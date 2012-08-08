@@ -107,7 +107,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
                          "\n and flow table is \n" ++
                          (concat $ intersperse "\n"
                                      (map prettyClassifier flowTbl))
-        mapM_ killThread oldThreads
+        oldThreads
         newThreads <- runQueryOnSwitch nettle switch classifier
         -- Priority 65535 is for microflow rules from reactive-specialization
         let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
@@ -149,7 +149,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         otherwise -> do
           nextMsg <- readChan policiesAndMessages
           loop policy threads nextMsg
-  loop PoBottom [] (Left initPolicy)
+  loop PoBottom (return ()) (Left initPolicy)
 
 nettleServer :: Chan Policy -> Chan (Loc, ByteString) -> IO ()
 nettleServer policyChan pktChan = do
@@ -188,22 +188,38 @@ classifierQueries classifier = map sel queries where
 runQueryOnSwitch :: Nettle
                  -> SwitchHandle
                  -> [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
-                 -> IO [ThreadId]
+                 -> IO (IO ())
 runQueryOnSwitch nettle switch classifier = do
+  killFlag <- newIORef False
   let mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
       switchID = handle2SwitchID switch
-      runQuery (NumPktQuery _ outChan millisecondDelay, pats) = do
-        let statReqs = map mkReq pats
-        tId <- forkIO $ forever $ do
-          threadDelay (millisecondDelay * 1000)
-          sendTransaction nettle switch statReqs $ \replies -> do
-            writeChan outChan (switchID, sum (map getPktCount replies))
-        return (Just tId)
       runQuery (PktQuery _ _, pats) = do
         -- nothing to do on the controller until a PacketIn
-        return Nothing
-  threads <- mapM runQuery (classifierQueries classifier)
-  return (catMaybes threads)
+        return ()
+      runQuery (NumPktQuery qid outChan millisecondDelay totalRef lastRef, 
+                pats) = do
+        let statReqs = map mkReq pats
+        forkIO $ forever $ do
+          tid <- myThreadId
+          threadDelay (millisecondDelay * 1000)
+          sendTransaction nettle switch statReqs $ \replies -> do
+            count <- readIORef lastRef
+            let count' = sum (map getPktCount replies)
+            total <- readIORef totalRef
+            let total' = total + (count' - count)
+            kill <- readIORef killFlag
+            if kill then do
+              writeIORef lastRef 0 -- assumes all rules evicted
+              killThread tid
+            else do
+              writeIORef lastRef count'
+              writeIORef totalRef total'
+              putStrLn $ "qid=" ++ show qid ++ " has total=" ++ show total'
+              writeChan outChan (switchID, total')
+        return ()
+  mapM_ runQuery (classifierQueries classifier)
+  return $ do
+    writeIORef killFlag True
 
 
 getPktCount :: SCMessage -> Integer

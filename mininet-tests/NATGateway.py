@@ -11,24 +11,33 @@ import os, sys
 from time import gmtime, strftime, sleep
 import unittest
 
+# NOTE: IP forwarding must be enabled on the VM for this to work:
+# 
+#           sysctl -w net.ipv4.ip_forward=1
+
 topo = mininet.topolib.TreeTopo(depth=1, fanout=2)
 net = Mininet(topo=topo,controller=RemoteController,switch=UserSwitch)
 
+
 print "Configuring NAT (iptables) ..."
+gateHostIP = '10.0.0.100'
+gateIP = '10.0.0.100'
+fakeMAC = '00:00:00:00:00:01'
+
 os.system('sysctl -w net.ipv4.ip_forward=1')
 os.system('iptables -F')
 os.system('iptables -Z')
-os.system('iptables -A FORWARD -o eth0 -i gate-host -s 10.0.0.0/24 '
-          '-m conntrack --ctstate NEW -j ACCEPT')
+os.system('iptables -A FORWARD -o eth0 -i gate-host -s %s/24 ' % (gateHostIP)
+          + '-m conntrack --ctstate NEW -j ACCEPT')
 os.system('iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED '
           '-j ACCEPT')
 os.system('iptables -A POSTROUTING -t nat -j MASQUERADE')
 
 
-os.system('ip link add name gate-host type veth peer name gate-mn')
+os.system('ip link add name gate-host address 00:00:00:00:00:11 type veth peer name gate-mn')
 os.system('ip link set gate-host up')
 os.system('ip link set gate-mn up')
-os.system('ip addr add 10.0.0.100/24 dev gate-host')
+os.system('ip addr add %s/24 dev gate-host' % (gateIP))
 
 net.start()
 
@@ -43,7 +52,8 @@ print "Hosts are:"
 for h in net.hosts:
   print h
   h.cmd('route add -net 10.0.0.0 netmask 255.255.255.0 %s-eth0' % h.name)
-  h.cmd('route add default gw 10.0.0.100 %s-eth0' % h.name)
+  h.cmd('route add default gw %s %s-eth0' % (gateIP, h.name))
+  h.cmd('arp -s %s %s' % (gateIP, fakeMAC))
 
 net.interact()
 

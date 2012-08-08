@@ -90,7 +90,7 @@ Executable frenetic-example-suite
     time == 1.4.*
   Extensions:
     ScopedTypeVariables, TypeFamilies, FlexibleInstances, FlexibleContexts,
-    RecordWildCards
+    RecordWildCards, DoAndIfThenElse
   ghc-options:
     -fwarn-incomplete-patterns
   hs-source-dirs:

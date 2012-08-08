@@ -10,6 +10,7 @@ import qualified MacLearning
 import qualified Query1
 import qualified Repeater
 import qualified Monitor
+import qualified NAT
 import qualified SimpleMonitor
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
@@ -42,6 +43,8 @@ argSpec =
       "a learning switch"
   , Option [] ["internet"] (NoArg (Example Internet.main))
       "tests connecting Mininet to the Internet"
+  , Option [] ["nat"] (NoArg (Example NAT.main))
+      "tests connecting Mininet to the Internet through a NAT"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
   ]
 
