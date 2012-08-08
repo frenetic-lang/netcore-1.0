@@ -2,15 +2,16 @@
 from subprocess import Popen, PIPE
 from MininetDriver import *
 from time import sleep
+import  re
 
 class RepeaterTest(unittest.TestCase):
-  
+
   def setUp(self):
     kill_controllers()
     self.mn = MininetTest(TreeTopo(depth=2,fanout=2),
-                          Popen([CONTROLLER_PATH, 
+                          Popen([CONTROLLER_PATH,
                                  "--verbosity=DEBUG",
-                                 "--log=repeater.log", 
+                                 "--log=repeater.log",
                                  "--repeater"]))
 
   def tearDown(self):
@@ -29,7 +30,7 @@ class Query1(unittest.TestCase):
 
   def setUp(self):
     kill_controllers()
-    self.ctrl = Popen([CONTROLLER_PATH, 
+    self.ctrl = Popen([CONTROLLER_PATH,
                        "--verbosity=DEBUG",
                        "--log=query1.log",
                        "--query1"],stdout=PIPE)
@@ -46,17 +47,21 @@ class Query1(unittest.TestCase):
     self.ctrl.terminate()
     output = list(self.ctrl.stdout)
     # 2 for initial ARP and 10 from the pings
-    print output[-1]
-    self.assertTrue("Counter is: 12" in output[-1], "expected 10 packets")
+    m = re.match("Counter is: (\\d+)\n", output[-1])
+    numPkts = int(m.group(1))
+    if is_ipv6_enabled():
+      self.assertIn(numPkts, range(18, 25))
+    else:
+      self.assertEqual(numPkts, 12)
 
 
 class MacLearning(unittest.TestCase):
 
   def setUp(self):
     kill_controllers()
-    self.ctrl = Popen([CONTROLLER_PATH, 
+    self.ctrl = Popen([CONTROLLER_PATH,
                        "--verbosity=DEBUG",
-                       "--log=learning1.log", 
+                       "--log=learning1.log",
                        "--maclearning"])
     self.mn = MininetTest(TreeTopo(depth=2,fanout=2), self.ctrl)
 
