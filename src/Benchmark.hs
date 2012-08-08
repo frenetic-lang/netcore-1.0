@@ -37,11 +37,11 @@ defaultOptions :: Options
 defaultOptions = Options {
   optEdge = False
 , optAST = False
-, optTime = False
+, optTime = True
 , optIso = False
 , optComp = False
-, optGraph = Fattree
-, optPolicy = Multicast
+, optGraph = Smallworld
+, optPolicy = ShortestPath
 , optNodes = 20
 , optHosts = 1
 }
@@ -181,4 +181,3 @@ main = do
     mapM_ putStrLn errors
     fail "invalid arguments"
   start opts
-  
