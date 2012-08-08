@@ -25,6 +25,7 @@ module Frenetic.NetCore.Short
   , dlDst
   , dlTyp
   , dlVlan
+  , dlNoVlan
   , dlVlanPcp
   , nwSrc
   , nwDst
@@ -150,15 +151,19 @@ dlDst     value = PrPattern (top {ptrnDlDst = Exact value})
 
 -- |Match ethernet type code (e.g., 0x0800 for IP packets).
 dlTyp     :: Word16     -> Predicate
-dlTyp     value = PrPattern (top {ptrnDlTyp = exact value})
+dlTyp     value = PrPattern (top {ptrnDlTyp = Exact value})
 
 -- |Match VLAN tag.
 dlVlan    :: Word16     -> Predicate
-dlVlan    value = PrPattern (top {ptrnDlVlan = exact value})
+dlVlan    value = PrPattern (top {ptrnDlVlan = Exact (Just value)})
+
+-- |Match Vlan untagged
+dlNoVlan  :: Predicate
+dlNoVlan        = PrPattern (top {ptrnDlVlan = Exact Nothing})
 
 -- |Match VLAN priority
 dlVlanPcp :: Word8      -> Predicate
-dlVlanPcp value = PrPattern (top {ptrnDlVlanPcp = exact value})
+dlVlanPcp value = PrPattern (top {ptrnDlVlanPcp = Exact value})
 
 -- |Match source IP address.
 --
@@ -180,23 +185,23 @@ nwDstPrefix value prefix = PrPattern (top {ptrnNwDst = Prefix value prefix})
 
 -- |Match IP protocol code (e.g., 0x6 indicates TCP segments).
 nwProto   :: Word8      -> Predicate
-nwProto   value = PrPattern (top {ptrnNwProto = exact value})
+nwProto   value = PrPattern (top {ptrnNwProto = Exact value})
 
 -- |Match IP TOS field.
 nwTos     :: Word8      -> Predicate
-nwTos     value = PrPattern (top {ptrnNwTos = exact value})
+nwTos     value = PrPattern (top {ptrnNwTos = Exact value})
 
 -- |Match IP source port.
 tpSrc     :: Word16     -> Predicate
-tpSrc     value = PrPattern (top {ptrnTpSrc = exact value})
+tpSrc     value = PrPattern (top {ptrnTpSrc = Exact value})
 
 -- |Match IP destination port.
 tpDst     :: Word16     -> Predicate
-tpDst     value = PrPattern (top {ptrnTpDst = exact value})
+tpDst     value = PrPattern (top {ptrnTpDst = Exact value})
 
 -- |Match the ingress port on which packets arrive.
 inPort    :: Port       -> Predicate
-inPort    value = PrPattern (top {ptrnInPort = exact value})
+inPort    value = PrPattern (top {ptrnInPort = Exact value})
 
 modDlSrc     value = unmodified {modifyDlSrc = Just value}
 modDlDst     value = unmodified {modifyDlDst = Just value}

@@ -5,8 +5,6 @@ module Frenetic.Pattern
   ( Matchable (..)
   , Wildcard (..)
   , Prefix (..)
-  , exact
-  , wild
   , wMatch
   ) where
 
@@ -38,13 +36,6 @@ class (Eq a) => Matchable a where
     match x y = intersect x y == Just x
     overlap x y = isJust $ intersect x y
     disjoint x y = isNothing $ intersect x y
-
--- |Wildcard that only matches this value
-exact :: (Bits a) => a -> Wildcard a
-exact value = Exact value
-
-wild :: (Bits a) => Wildcard a
-wild = Wildcard
 
 data Wildcard a
   = Exact a

@@ -69,7 +69,8 @@ case_regress_1 = do
   let pred = PrNegate (PrNegate (PrTo 0))
   let policy = PoBasic pred (allPorts unmodified)
   let pkt = FreneticPkt (Packet {pktDlSrc = ethernetAddress64 4410948387332,
-              pktDlDst = ethernetAddress64 6609988486150, pktDlTyp = 1, pktDlVlan = 4,
+              pktDlDst = ethernetAddress64 6609988486150, pktDlTyp = 1,
+              pktDlVlan = Just 4,
               pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5, 
               pktNwProto = 5,
               pktNwTos = 7, pktTpSrc = Just 5, pktTpDst = Just 0,
@@ -84,7 +85,7 @@ negation_regress_maker pred = do
   let act' = forward [90]
   let pol = PoUnion (PoBasic pred act) (PoBasic (PrNegate pred) act')
   let pkt = Packet {pktDlSrc = ethernetAddress64 200,
-              pktDlDst = ethernetAddress64 500, pktDlTyp = 1, pktDlVlan = 4,
+              pktDlDst = ethernetAddress64 500, pktDlTyp = 1, pktDlVlan = Just 4,
               pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5, 
               pktNwProto = 5,
               pktNwTos = 7, pktTpSrc = Just 5, pktTpDst = Just 0, pktInPort = 6}
@@ -169,7 +170,7 @@ case_quiescence_bug_1 = do
         pktDlSrc = ethernetAddress64 0
       , pktDlDst = ethernetAddress64 0
       , pktDlTyp = 0
-      , pktDlVlan = 0
+      , pktDlVlan = Nothing
       , pktDlVlanPcp = 0
       , pktNwSrc = Just 0x5000001
       , pktNwDst = Just 0
@@ -197,7 +198,7 @@ case_quiescence_bug_2 = do
         pktDlSrc = ethernetAddress64 0
       , pktDlDst = ethernetAddress64 0
       , pktDlTyp = 0
-      , pktDlVlan = 0
+      , pktDlVlan = Nothing
       , pktDlVlanPcp = 0
       , pktNwSrc = Just 0x5000001
       , pktNwDst = Just 0
@@ -225,7 +226,7 @@ case_quiescence_bug_3 = do
         pktDlSrc = ethernetAddress64 0
       , pktDlDst = ethernetAddress64 0
       , pktDlTyp = 0
-      , pktDlVlan = 0
+      , pktDlVlan = Nothing
       , pktDlVlanPcp = 0
       , pktNwSrc = Just 0x5000001
       , pktNwDst = Just 0
@@ -252,7 +253,7 @@ case_quiescence_bug_4 = do
         ptrnDlSrc = Exact (ethernetAddress64 0)
       , ptrnDlDst = Exact (ethernetAddress64 0)
       , ptrnDlTyp = Exact 0
-      , ptrnDlVlan = Exact 0
+      , ptrnDlVlan = Exact Nothing
       , ptrnDlVlanPcp = Exact 0
       , ptrnNwSrc = Prefix 0 32
       , ptrnNwDst = Prefix 0 32
@@ -266,7 +267,7 @@ case_quiescence_bug_4 = do
         pktDlSrc = ethernetAddress64 0
       , pktDlDst = ethernetAddress64 0
       , pktDlTyp = 0
-      , pktDlVlan = 0
+      , pktDlVlan = Nothing
       , pktDlVlanPcp = 0
       , pktNwSrc = Just 0
       , pktNwDst = Just 0
@@ -293,7 +294,7 @@ case_quiescence_bug_5 = do
         pktDlSrc = ethernetAddress64 1
       , pktDlDst = ethernetAddress64 1
       , pktDlTyp = 1
-      , pktDlVlan = 1
+      , pktDlVlan = Just 1
       , pktDlVlanPcp = 1
       , pktNwSrc = Just 1
       , pktNwDst = Just 0

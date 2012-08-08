@@ -58,13 +58,13 @@ type Switch = Word64
 type Port = Word16
 
 -- |'Loc' uniquely identifies a port at a switch.
-data Loc = Loc Switch Port 
+data Loc = Loc Switch Port
   deriving (Eq, Ord, Show)
 
 -- |Logical ports.
-data PseudoPort 
-  = Physical Port 
-  | AllPorts 
+data PseudoPort
+  = Physical Port
+  | AllPorts
   deriving (Eq, Ord, Show)
 
 -- |VLAN tags. Only the lower 12-bits are used.
@@ -79,7 +79,7 @@ data Packet = Packet {
   pktDlSrc :: Word48, -- ^source ethernet address
   pktDlDst :: Word48, -- ^destination ethernet address
   pktDlTyp :: Word16, -- ^ethernet type code (e.g., 0x800 for IP packets)
-  pktDlVlan :: Vlan,  -- ^VLAN tag
+  pktDlVlan :: Maybe Vlan,  -- ^VLAN tag
   pktDlVlanPcp :: Word8, -- ^VLAN priority code
   pktNwSrc :: Maybe Word32, -- ^source IP address for IP packets
   pktNwDst :: Maybe Word32, -- ^destination IP address for IP packets
@@ -97,7 +97,7 @@ data Pattern = Pattern {
     ptrnDlSrc :: Wildcard Word48
   , ptrnDlDst :: Wildcard Word48
   , ptrnDlTyp :: Wildcard Word16
-  , ptrnDlVlan :: Wildcard Vlan
+  , ptrnDlVlan :: Wildcard (Maybe Vlan)
   , ptrnDlVlanPcp :: Wildcard Word8
   , ptrnNwSrc :: Prefix Word32
   , ptrnNwDst :: Prefix Word32
@@ -109,7 +109,7 @@ data Pattern = Pattern {
  } deriving (Ord, Eq)
 
 -- |Predicates to match packets.
-data Predicate 
+data Predicate
   = PrPattern Pattern -- ^Match with a simple pattern.
   | PrTo Switch -- ^Match only at this switch.
   | PrUnion Predicate Predicate -- ^Match either predicates.
@@ -118,7 +118,7 @@ data Predicate
   deriving (Eq, Ord)
 
 -- |Names of common header fields.
-data Field 
+data Field
   = DlSrc | DlDst | DlVlan | DlVlanPcp | NwSrc | NwDst | NwTos | TpSrc | TpDst
   deriving (Eq, Ord, Show)
 
@@ -126,7 +126,7 @@ data Field
 data Modification = Modification {
   modifyDlSrc :: Maybe Word48,
   modifyDlDst :: Maybe Word48,
-  modifyDlVlan :: Maybe Vlan,
+  modifyDlVlan :: Maybe (Maybe Vlan),
   modifyDlVlanPcp :: Maybe Word8,
   modifyNwSrc :: Maybe Word32,
   modifyNwDst :: Maybe Word32,
@@ -140,7 +140,7 @@ exactMatch :: Packet -> Predicate
 exactMatch (Packet{..}) = PrPattern pat
   where pat = Pattern (Exact pktDlSrc) (Exact pktDlDst) (Exact pktDlTyp)
                       (Exact pktDlVlan) (Exact pktDlVlanPcp)
-                      (prefix pktNwSrc) (prefix pktNwDst) 
+                      (prefix pktNwSrc) (prefix pktNwDst)
                       (Exact pktNwProto)
                       (Exact pktNwTos) (exact pktTpSrc) (exact pktTpDst)
                       (Exact pktInPort)
@@ -150,7 +150,7 @@ exactMatch (Packet{..}) = PrPattern pat
         exact (Just v) = Exact v
 
 unmodified :: Modification
-unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing 
+unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing
                           Nothing Nothing Nothing
 
 modifiedFields :: Modification -> Set Field
@@ -158,8 +158,8 @@ modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
   fields = [ case modifyDlSrc of { Just _ -> Just DlSrc; Nothing -> Nothing }
            , case modifyDlDst of { Just _ -> Just DlDst; Nothing -> Nothing }
            , case modifyDlVlan of { Just _ -> Just DlVlan; Nothing -> Nothing }
-           , case modifyDlVlanPcp of { Just _ -> Just DlVlanPcp; 
-                                    Nothing -> Nothing }
+           , case modifyDlVlanPcp of { Just _ -> Just DlVlanPcp;
+                                       Nothing -> Nothing }
            , case modifyNwSrc of { Just _ -> Just NwSrc; Nothing -> Nothing }
            , case modifyNwDst of { Just _ -> Just NwDst; Nothing -> Nothing }
            , case modifyNwTos of { Just _ -> Just NwTos; Nothing -> Nothing }
@@ -267,7 +267,7 @@ isPktQuery (PktQuery _ _) = True
 isPktQuery _               = False
 
 actionForwardsTo :: Action -> MS.MultiSet PseudoPort
-actionForwardsTo (Action m _) = 
+actionForwardsTo (Action m _) =
   MS.map fst m
 
 mkCountQuery :: Counter -> Int -> IO (Chan (Switch, Integer), Action)
@@ -278,7 +278,7 @@ mkCountQuery counter millisecondInterval = do
   last <- newIORef 0
   let q = NumPktQuery queryID ch millisecondInterval counter total last
   return (ch, Action MS.empty (MS.singleton q))
-            
+
 
 -- ^Periodically polls the network to counts the number of packets received.
 --
@@ -313,11 +313,11 @@ getPkts = do
   let q = PktQuery ch queryID
   return (ch, Action MS.empty (MS.singleton q))
 
--- |Get back all predicates in the intersection.  Does not return any naked 
+-- |Get back all predicates in the intersection.  Does not return any naked
 -- intersections.
 prUnIntersect :: Predicate -> [Predicate]
 prUnIntersect po = List.unfoldr f [po] where
-  f predicates = case predicates of 
+  f predicates = case predicates of
     [] -> Nothing
     (PrIntersect p1 p2) : rest -> f (p1 : (p2 : rest))
     p : rest -> Just (p, rest)
@@ -325,13 +325,13 @@ prUnIntersect po = List.unfoldr f [po] where
 -- |Get back all predicates in the union.  Does not return any naked unions.
 prUnUnion :: Predicate -> [Predicate]
 prUnUnion po = List.unfoldr f [po] where
-  f predicates = case predicates of 
+  f predicates = case predicates of
     [] -> Nothing
     (PrUnion p1 p2) : rest -> f (p1 : (p2 : rest))
     p : rest -> Just (p, rest)
 
 {-| Policies denote functions from (switch, packet) to packets. -}
-data Policy 
+data Policy
   = PoBottom -- ^Performs no actions.
   | PoBasic Predicate Action -- ^Performs the given action on packets matching the given predicate.
   | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
@@ -357,8 +357,8 @@ instance Show Action where
   show (Action fwd q) = "<fwd=" ++ show (MS.toAscList fwd) ++ " q=" ++ show q ++ ">"
 
 instance Show Query where
-  show (NumPktQuery{..}) = 
-    "countPkts(interval=" ++ show queryInterval ++ "ms, id=" ++ 
+  show (NumPktQuery{..}) =
+    "countPkts(interval=" ++ show queryInterval ++ "ms, id=" ++
     show idOfQuery ++ ")"
   show (PktQuery{..}) = "getPkts(id=" ++ show idOfQuery ++  ")"
 
@@ -370,7 +370,7 @@ instance Show Policy where
 -- |Get back all basic policies in the union.  Does not return any unions.
 poUnUnion :: Policy -> [Policy]
 poUnUnion po = List.unfoldr f [po] where
-  f policies = case policies of 
+  f policies = case policies of
     [] -> Nothing
     (PoUnion p1 p2) : rest -> f (p1 : (p2 : rest))
     p : rest -> Just (p, rest)

@@ -27,6 +27,7 @@ module Frenetic.NetCore
   , dlDst
   , dlTyp
   , dlVlan
+  , dlNoVlan
   , dlVlanPcp
   , nwSrc
   , nwDst

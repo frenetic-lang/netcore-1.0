@@ -12,7 +12,7 @@ import Frenetic.Slices.Slice
 import Frenetic.Topo
 
 maxVlan :: Vlan
-maxVlan = maxBound
+maxVlan = 2^12
 
 sequential :: [(Slice, Policy)] -> [(Vlan, (Slice, Policy))]
 sequential combined =

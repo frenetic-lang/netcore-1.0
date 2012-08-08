@@ -106,7 +106,7 @@ case_testBreaksForwards = do
   assertBool "identical locations" (not result)
 
   let o = (PrTo 2) <&&> (inPort 2) ==> forward [1]
-  let r = (PrTo 2) <&&> (inPort 2) ==> modify [(1, modDlVlan 2)]
+  let r = (PrTo 2) <&&> (inPort 2) ==> modify [(1, modDlVlan (Just 2))]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "match vlans" (not result)
   result <- checkBool $ breaksForwards topo Nothing r o
@@ -119,7 +119,7 @@ case_testBreaksForwards = do
   let r = onSwitch 2 <&&> inPort 1
                      <&&> dlSrc (ethernetAddress64 32432)
                      <&&> dlDst (ethernetAddress64 324322)
-          ==> modify [(1, modDlVlan 2)]
+          ==> modify [(1, modDlVlan (Just 2))]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "set vlans" (not result)
   result <- checkBool $ breaksForwards topo Nothing r o
@@ -143,8 +143,8 @@ case_testBreaksForwards2 = do
   assertBool "identical switch" (not result)
 
   let o = ((PrTo 1) ==> forward [1]) <+> ((PrTo 2) ==> forward [2])
-  let r = ((PrTo 1) ==> modify [(1, modDlVlan 2)]) <+>
-          ((PrTo 2) ==> modify [(2, modDlVlan 3)])
+  let r = ((PrTo 1) ==> modify [(1, modDlVlan (Just 2))]) <+>
+          ((PrTo 2) ==> modify [(2, modDlVlan (Just 3))])
   result <- checkBool $ breaksForwards2 topo Nothing o r
   assertBool "match vlans" (not result)
   result <- checkBool $ breaksForwards2 topo Nothing r o
@@ -163,7 +163,7 @@ case_testOneVlanPerEdge = do
   let pol = (dlVlan 1) ==> forward [1, 1]
   result <- checkBool $ multipleVlanEdge topo pol
   assertBool "multipleVlanEdge allows functioning programs" (not result)
-  let pol = top ==> modify [(1, modDlVlan 1), (1, modDlVlan 2)]
+  let pol = top ==> modify [(1, modDlVlan (Just 1)), (1, modDlVlan (Just 2))]
   result <- checkBool $ multipleVlanEdge topo pol
   assertBool "multipleVlanEdge spots problems" result
 
@@ -199,7 +199,7 @@ case_testCompiledCorrectly = do
   assertBool "match vlans in compilation" result
 
   let o = (inport 2 2)                ==> forward [1]
-  let r = (inport 2 2)  ==> modify [(1, modDlVlan 2)]
+  let r = (inport 2 2)  ==> modify [(1, modDlVlan (Just 2))]
   result <- compiledCorrectly smallTopo smallSlice o r
   assertBool "set vlans in compilation" result
 
@@ -235,12 +235,12 @@ case_testInOutRestriction = do
                     (Map.fromList [(Loc 2 1, nwDst 80)])
                     (Map.fromList [(Loc 3 2, nwDst 80)])
   let o = inport 2 1 ==> forward [2]
-  let r = (inport 2 1) <&&> nwDst 80 <&&> dlVlan 0 ==> forward [2]
+  let r = (inport 2 1) <&&> nwDst 80 <&&> dlNoVlan ==> forward [2]
   result <- compiledCorrectly topo slice o r
   assertBool "lifts into vlan" result
 
   let o = inport 3 1 ==> forward [2]
-  let r = inport 3 1 <&&> nwDst 80 ==> modify [(2, modDlVlan 0)]
+  let r = inport 3 1 <&&> nwDst 80 ==> modify [(2, modDlVlan Nothing)]
   result <- compiledCorrectly topo slice o r
   assertBool "leaves vlan" result
 
@@ -258,19 +258,19 @@ case_basicIso = do
   assertBool "disjoint edges isolated" (not result)
 
 case_testSharedInput = do
-  let p1 = inport 0 1 <&&> dlVlan 0 ==> forward [2]
-  let p2 = inport 0 2 <&&> dlVlan 0 ==> forward [2]
+  let p1 = inport 0 1 <&&> dlNoVlan ==> forward [2]
+  let p2 = inport 0 2 <&&> dlNoVlan ==> forward [2]
   result <- checkBool $ sharedInput p1 p2
   assertBool "Disjoint policies have disjoint inputs" (not result)
-  let p1 = inport 0 1 <&&> dlVlan 0 ==> forward [2]
+  let p1 = inport 0 1 <&&> dlNoVlan ==> forward [2]
   result <- checkBool $ sharedInput p1 p1
   assertBool "Identical policies have joint inputs" result
 
 case_testSharedOutput = do
-  let p1 = inport 0 1 <&&> dlVlan 0 ==> forward [1]
-  let p2 = inport 0 1 <&&> dlVlan 0 ==> forward [2]
+  let p1 = inport 0 1 <&&> dlNoVlan ==> forward [1]
+  let p2 = inport 0 1 <&&> dlNoVlan ==> forward [2]
   result <- checkBool $ sharedOutput p1 p2
   assertBool "Disjoint policies have disjoint outputs" (not result)
-  let p1 = inport 0 1 <&&> dlVlan 0 ==> forward [2]
+  let p1 = inport 0 1 <&&> dlNoVlan ==> forward [2]
   result <- checkBool $ sharedOutput p1 p1
   assertBool "Identical policies have joint outputs" result

@@ -55,9 +55,9 @@ forwardsOfPolicy (PoUnion p1 p2) = MS.union (forwardsOfPolicy p1)
 forwardsOfAction (Action ms _) = ms
 
 case_testModifyVlan = do
-  let expected = MS.map (\ (port, m) -> (port, m {modifyDlVlan = Just 1234}))
+  let expected = MS.map (\ (port, m) -> (port, m {modifyDlVlan = Just (Just 1234)}))
                         baseForwards
-  let observedPolicy = modifyVlan 1234 bigPolicy
+  let observedPolicy = modifyVlan (Just 1234) bigPolicy
   let observedForwards = forwardsOfPolicy observedPolicy
   assertEqual "modifyVlan puts vlan tags on all forwards"
     expected observedForwards
@@ -76,15 +76,15 @@ case_testMatchesSwitch = do
 case_testSetVlanSimple = do
   let pol = pr1 ==> a3
   let expected = MS.singleton (Physical 2, unmodified { modifyNwDst = Just 30
-                                                      , modifyDlVlan = Just 1234})
-  let observed = forwardsOfPolicy $ setVlan 1234 (Loc 1 2) pol
+                                                      , modifyDlVlan = Just (Just 1234)})
+  let observed = forwardsOfPolicy $ setVlan (Just 1234) (Loc 1 2) pol
   assertEqual "setVlan set vlan on Loc 1 2" expected observed
 
 case_testSetVlanComplex = do
   let pol = (pr3 ==> a1) <+> (pr3 ==> a5)
   let expected = MS.map (\ (p, m) -> if p == Physical 3
-                                   then (p, m {modifyDlVlan = Just 1234})
+                                   then (p, m {modifyDlVlan = Just (Just 1234)})
                                    else (p, m))
                     (forwardsOfPolicy pol)
-  let observed = forwardsOfPolicy $ setVlan 1234 (Loc 3 3) pol
+  let observed = forwardsOfPolicy $ setVlan (Just 1234) (Loc 3 3) pol
   assertEqual "setVlan set vlan on Loc 1 3 across union" expected observed

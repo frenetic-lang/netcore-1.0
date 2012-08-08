@@ -14,12 +14,16 @@ module Frenetic.Slices.Sat
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Nettle.OpenFlow.Match (ofpVlanNone)
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import Frenetic.Sat
 import Frenetic.Slices.Slice
 import Frenetic.Topo
 import Frenetic.Z3
+
+noVlan :: Z3Packet -> BoolExp
+noVlan p = Equals (vlan p) (Primitive ofpVlanNone)
 
 doCheck consts assertions = check $ Input setUp consts assertions
 getConsts packets ints = (map (\pkt -> DeclConst (ConstPacket pkt)) packets) ++
@@ -76,11 +80,11 @@ printResult i = do
              Nothing -> putStrLn "Nothing"
 
 -- | produce the slice that also expresses the constraint on ingress and egress
--- that vlan = 0
+-- that vlan is unset
 realSlice :: Slice -> Slice
 realSlice (Slice int ing egr) = Slice int ing' egr' where
-  ing' = Map.map (\pred -> pred <&&> (dlVlan 0)) ing
-  egr' = Map.map (\pred -> pred <&&> (dlVlan 0)) egr
+  ing' = Map.map (\pred -> pred <&&> (dlNoVlan)) ing
+  egr' = Map.map (\pred -> pred <&&> (dlNoVlan)) egr
 
 -- | Try to find some packets outside the interior or ingress of the slice that
 -- the policy forwards or observes.
@@ -263,9 +267,9 @@ sharedTransit topo p1 p2 = doCheck consts assertions where
                ]
 
 -- | Is the packet coming into the compiled slice?
-pIngress policy p p' = And (input policy p p') (Equals (vlan p) (Primitive 0))
+pIngress policy p p' = And (input policy p p') (noVlan p)
 -- | Is the packet leaving the compiled slice?
-pEgress policy p p' = And (output policy p p') (Equals (vlan p') (Primitive 0))
+pEgress policy p p' = And (output policy p p') (noVlan p')
 
 -- | Does policy use p to produce any packets or observations?
 input :: Policy -> Z3Packet -> Z3Packet -> BoolExp

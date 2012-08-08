@@ -152,9 +152,9 @@ sendTransaction nettle@(Nettle _ _ _ txHandlers) sw reqs callback = do
   mapM_ (sendToSwitch sw) (zip (repeat txId) reqs)
   return ()
 
-ethVLANId :: EthernetHeader -> VLANID
-ethVLANId (Ethernet8021Q _ _ _ _ _ vlanId) = vlanId
-ethVLANId (EthernetHeader {}) = 0xffffff
+ethVLANId :: EthernetHeader -> Maybe VLANID
+ethVLANId (Ethernet8021Q _ _ _ _ _ vlanId) = Just vlanId
+ethVLANId (EthernetHeader {}) = Nothing
 
 ethVLANPcp :: EthernetHeader -> VLANPriority
 ethVLANPcp (EthernetHeader _ _ _) = 0

@@ -54,7 +54,7 @@ case_testSwitchesOfPredicate = do
 case_testPoUsesVlans = do
   assertBool "1" $ not (poUsesVlans (po1 <+> po2 <+> po3 <+> po4))
   assertBool "2" $ poUsesVlans (dlVlan 3 ==> dropPkt)
-  assertBool "3" $ poUsesVlans (top ==> modify [(1, modDlVlan 3)])
+  assertBool "3" $ poUsesVlans (top ==> modify [(1, modDlVlan (Just 3))])
   assertBool "4" $ not (poUsesVlans ((PrTo 0 ==> forward [2]) <+> (PrTo 2 ==> forward [1])))
 
 slice = Slice (Set.fromList [ Loc 1 1

@@ -33,7 +33,7 @@ import Frenetic.NettleEx hiding (AllPorts, ethernetAddress64)
 import qualified Frenetic.NettleEx as NettleEx
 
 {-| Convert an EthernetAddress to a Word48. -}
-ethToWord48 :: NettleEx.EthernetAddress 
+ethToWord48 :: NettleEx.EthernetAddress
             -> Frenetic.NetCore.Types.EthernetAddress
 ethToWord48 = ethernetAddress64.unpack64
 
@@ -166,7 +166,7 @@ ifNothing Nothing b = b
 modTranslate :: Modification -> ActionSequence
 modTranslate (Modification{..}) =
   catMaybes [f1, f2, f3, f4, f5, f6, f7, f8, f9]
-    where f1 = case modifyDlSrc of 
+    where f1 = case modifyDlSrc of
                  Nothing -> Nothing
                  Just v -> Just $ SetEthSrcAddr $ word48ToEth v
           f2 = case modifyDlDst of
@@ -174,7 +174,8 @@ modTranslate (Modification{..}) =
                  Just v -> Just $ SetEthDstAddr $ word48ToEth v
           f3 = case modifyDlVlan of
                  Nothing -> Nothing
-                 Just v -> Just $ SetVlanVID v
+                 Just (Just v) -> Just $ SetVlanVID v
+                 Just Nothing -> Just $ StripVlanHeader
           f4 = case modifyDlVlanPcp of
                  Nothing -> Nothing
                  Just v -> Just $ SetVlanPriority v
@@ -214,20 +215,23 @@ instance FreneticImpl OpenFlow where
                     (ethToWord48 (destMACAddress hdrs))
                     (typeCode hdrs)
                     (ethVLANId hdrs)
-                    (ethVLANPcp hdrs) 
+                    (ethVLANPcp hdrs)
                     (ethSrcIP body)
                     (ethDstIP body)
                     proto
                     tos
                     (srcPort body)
                     (dstPort body)
-                    (receivedOnPort pkt) 
+                    (receivedOnPort pkt)
 
   fromPattern ptrn = OFPat $ Match {
     srcEthAddress = wildcardToMaybe $ fmap word48ToEth (ptrnDlSrc ptrn),
     dstEthAddress = wildcardToMaybe $ fmap word48ToEth (ptrnDlDst ptrn),
     ethFrameType = wildcardToMaybe $ ptrnDlTyp ptrn,
-    vLANID = wildcardToMaybe $ ptrnDlVlan ptrn,
+    vLANID = case ptrnDlVlan ptrn of
+               Exact (Just vl) -> Just vl
+               Exact Nothing -> Just $ fromInteger ofpVlanNone
+               Wildcard -> Nothing,
     vLANPriority = wildcardToMaybe $ ptrnDlVlanPcp ptrn,
     srcIPAddress = prefixToIPAddressPrefix (ptrnNwSrc ptrn),
     dstIPAddress = prefixToIPAddressPrefix (ptrnNwDst ptrn),
@@ -242,7 +246,10 @@ instance FreneticImpl OpenFlow where
     ptrnDlSrc     = maybeToWildcard $ fmap ethToWord48 $ srcEthAddress ptrn,
     ptrnDlDst     = maybeToWildcard $ fmap ethToWord48 $ dstEthAddress ptrn,
     ptrnDlTyp     = maybeToWildcard $ ethFrameType ptrn,
-    ptrnDlVlan    = maybeToWildcard $ vLANID ptrn,
+    ptrnDlVlan    = case vLANID ptrn of
+                      Just vl | vl == fromIntegral ofpVlanNone -> Exact Nothing
+                              | otherwise  -> Exact (Just vl)
+                      Nothing -> Wildcard,
     ptrnDlVlanPcp = maybeToWildcard $ vLANPriority ptrn,
     ptrnNwSrc     = ipAddressPrefixToPrefix $ srcIPAddress ptrn,
     ptrnNwDst     = ipAddressPrefixToPrefix $ dstIPAddress ptrn,
@@ -257,7 +264,7 @@ instance FreneticImpl OpenFlow where
   actnDefault = OFAct toController []
 
   -- Not all multisets of actions can be translated to lists of OpenFlow
-  -- actions.  For example, consider the set 
+  -- actions.  For example, consider the set
   --
   --    {(SrcIP = 0, Fwd 1), (DstIP = 1, Fwd 2)}.
   --
@@ -275,7 +282,7 @@ instance FreneticImpl OpenFlow where
     where acts  = if hasUnimplementableMods $ map snd $ MS.toList fwd
                   then [SendOutPort (ToController maxBound)]
                   else ofFwd ++ toCtrl
-          ofFwd = concatMap (\(pp, md) -> modTranslate md 
+          ofFwd = concatMap (\(pp, md) -> modTranslate md
                                  ++ [SendOutPort (physicalPortOfPseudoPort pp)])
                       $ MS.toList fwd
           toCtrl = case find isPktQuery (MS.toList queries) of
@@ -284,16 +291,16 @@ instance FreneticImpl OpenFlow where
             Nothing -> []
           hasUnimplementableMods as
             | length as <= 1 = False
-            | length as > 1  =
-                let minFields = foldl (\m p -> if Set.size p < Set.size m then p else m) 
-                                      (modifiedFields $ head as) 
+            | otherwise =
+                let minFields = foldl (\m p -> if Set.size p < Set.size m then p else m)
+                                      (modifiedFields $ head as)
                                       (map modifiedFields $ tail as)
                 in not $ all (\pat -> Set.isSubsetOf (modifiedFields pat) minFields) as
-  
+
   actnControllerPart (OFAct _ queries) switchID ofPkt  = do
     let pktChans = map pktQueryChan . filter isPktQuery $ queries
     let sendParsablePkt chan = case toPacket ofPkt of
           Nothing -> return ()
           Just pk -> writeChan chan (switchID, pk)
     mapM_ sendParsablePkt pktChans
-    
+

@@ -23,6 +23,7 @@ import Frenetic.Z3
 import Frenetic.NetCore.Types
 import Frenetic.Pattern hiding (match)
 import Frenetic.Topo
+import Nettle.OpenFlow.Match (ofpVlanNone)
 import Data.Bits
 import qualified Data.Graph.Inductive.Graph as Graph
 import qualified Data.Map as Map
@@ -156,10 +157,14 @@ matchWith (PrNegate pred) p = Not (matchWith pred p)
 -- |Build the constraint for a packet matching a pattern
 matchPatternWith :: Pattern -> (Z3Packet, Maybe Z3Int) -> BoolExp
 matchPatternWith pat p = nAnd (catMaybes matches) where
-  matches = [ matchField p "DlSrc"   ((fmap (fint.unpackEth64)) (ptrnDlSrc pat))
-            , matchField p "DlDst"   ((fmap (fint.unpackEth64)) (ptrnDlDst pat))
+  matches = [ matchField p "DlSrc"     ((fmap (fint.unpackEth64)) (ptrnDlSrc pat))
+            , matchField p "DlDst"     ((fmap (fint.unpackEth64)) (ptrnDlDst pat))
             , matchField p "DlTyp"     ((fmap fint) (ptrnDlTyp pat))
-            , matchField p "DlVlan"    ((fmap fint) (ptrnDlVlan pat))
+            , matchField p "DlVlan"    (case ptrnDlVlan pat of
+                                          Exact (Just vl) -> Exact $ fint vl
+                                          Exact (Nothing) ->
+                                            Exact $ fint ofpVlanNone
+                                          Wildcard -> Wildcard)
             , matchField p "DlVlanPcp" ((fmap fint) (ptrnDlVlanPcp pat))
             , matchField p "NwSrc"     (fromPrefix  (ptrnNwSrc pat))
             , matchField p "NwDst"     (fromPrefix  (ptrnNwDst pat))
@@ -202,7 +207,10 @@ produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
         [ updateField p q "DlSrc"    ((fmap (fint.unpackEth64)) (modifyDlSrc m))
         , updateField p q "DlDst"    ((fmap (fint.unpackEth64)) (modifyDlDst m))
         , updateField p q "DlTyp"     Nothing
-        , updateField p q "DlVlan"    ((fmap fint) (modifyDlVlan m))
+        , updateField p q "DlVlan"    (case modifyDlVlan m of
+                                         Just (Just vl) -> Just (fint vl)
+                                         Just Nothing -> Just ofpVlanNone
+                                         Nothing -> Nothing)
         , updateField p q "DlVlanPcp" ((fmap fint) (modifyDlVlanPcp m))
         , updateField p q "NwSrc"     ((fmap fint) (modifyNwSrc m))
         , updateField p q "NwDst"     ((fmap fint) (modifyNwDst m))

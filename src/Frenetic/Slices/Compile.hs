@@ -110,7 +110,7 @@ edgeCompileSlice slice assignment policy = mconcat (queryPols : forwardPols)
 queryOnly :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
 queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
   onSlice = prOr . map onPort . Set.toList $ (internal slice)
-  inBound = ingressPredicate slice <&&> dlVlan 0
+  inBound = ingressPredicate slice <&&> dlNoVlan
   justQueries = removeForwards policy
   onPort l@(Loc s p) = inport s p <&&> dlVlan vlan <&&>
                        Map.findWithDefault top l (ingress slice) where
@@ -164,20 +164,20 @@ forwardEdges slice assignment policy = concat . map buildPort $ locs where
     destinations = case Map.lookup s portLookup of
                      Just dests -> dests
                      Nothing -> error "Port lookup malformed."
-    ourVlan = if Set.member l ing then 0
+    ourVlan = if Set.member l ing then dlNoVlan
               else case Map.lookup l assignment of
-                     Just v -> v
+                     Just v -> dlVlan v
                      Nothing -> error "Vlan assignment malformed."
     restriction = inport s p <&&>
-                  dlVlan ourVlan <&&>
+                  ourVlan <&&>
                   Map.findWithDefault top l (ingress slice)
     policy' = policy <%> restriction
     hop :: Port -> Policy -- Get the policies for one switch forwarding
     hop port = policy''' where
       loc = Loc s port
-      targetVlan = if Set.member loc egr then 0
+      targetVlan = if Set.member loc egr then Nothing
                    else case Map.lookup loc assignment of
-                          Just v -> v
+                          Just v -> Just v
                           Nothing -> error "Vlan assignment malformed."
       policy'' = justTo port policy'
       -- It's safe to use modifyVlan because we only have actions on this one
@@ -207,11 +207,11 @@ locToPred (Loc switch port) = inport switch port
 inportPo :: Slice -> Vlan -> Policy -> Policy
 inportPo slice vlan policy =
   let incoming = ingressPredicate slice in
-  let policyIntoVlan = modifyVlan vlan policy in
-  policyIntoVlan <%> (incoming <&&> dlVlan 0)
+  let policyIntoVlan = modifyVlan (Just vlan) policy in
+  policyIntoVlan <%> (incoming <&&> dlNoVlan)
 
 -- |Produce a new policy the same as the old, but wherever a packet leaves an
--- outgoing edge, set its VLAN to 0.  Precondition:  every PoBasic must match at
+-- outgoing edge, unset its VLAN.  Precondition:  every PoBasic must match at
 -- most one switch.
 outport :: Slice -> Policy -> Policy
 outport slice policy = foldr stripVlan policy locs
@@ -229,7 +229,7 @@ ingressSpecToPred (loc, pred) = PrIntersect pred (locToPred loc)
 
 -- |Walk through the policy and globally set VLAN to vlan at each forwarding
 -- action
-modifyVlan :: Vlan -> Policy -> Policy
+modifyVlan :: Maybe Vlan -> Policy -> Policy
 modifyVlan _ PoBottom = PoBottom
 modifyVlan vlan (PoBasic pred (Action m obs)) = PoBasic pred (Action m' obs)
   where
@@ -238,16 +238,16 @@ modifyVlan vlan (PoBasic pred (Action m obs)) = PoBasic pred (Action m' obs)
 modifyVlan vlan (PoUnion p1 p2) = PoUnion (modifyVlan vlan p1)
                                           (modifyVlan vlan p2)
 
--- |Set vlan to 0 for packets forwarded to location (without link transfer) and
+-- |Unset vlan for packets forwarded to location (without link transfer) and
 -- leave rest of policy unchanged.  Note that this assumes that each PoBasic
 -- matches at most one switch.
 stripVlan :: Loc -> Policy -> Policy
-stripVlan = setVlan 0
+stripVlan = setVlan Nothing
 
 -- |Set vlan tag for packets forwarded to location (without link transfer) and
 -- leave rest of policy unchanged.  Note that this assumes that each PoBasic
 -- matches at most one switch.
-setVlan :: Vlan -> Loc -> Policy -> Policy
+setVlan :: Maybe Vlan -> Loc -> Policy -> Policy
 setVlan _ _ PoBottom = PoBottom
 setVlan vlan loc (PoUnion p1 p2) = PoUnion (setVlan vlan loc p1)
                                            (setVlan vlan loc p2)

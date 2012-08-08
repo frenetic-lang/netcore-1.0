@@ -122,7 +122,7 @@ poUsesVlans (PoBasic pred action) = prUsesVlans pred || actUsesVlans action
 
 -- |Determine if a predicate matches on VLAN tags
 prUsesVlans :: Predicate -> Bool
-prUsesVlans (PrPattern pat) = pat {ptrnDlVlan = wild} /= pat
+prUsesVlans (PrPattern (Pattern {ptrnDlVlan = vl})) = vl /= Wildcard
 prUsesVlans (PrTo _) = False
 prUsesVlans (PrUnion p1 p2) = prUsesVlans p1 || prUsesVlans p2
 prUsesVlans (PrIntersect p1 p2) = prUsesVlans p1 || prUsesVlans p2
