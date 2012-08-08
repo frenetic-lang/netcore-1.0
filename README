@@ -1,12 +1,23 @@
 Frenetic
-==
+========
+
+Frenetic is a compiler and runtime system for the NetCore language targeting the
+OpenFlow protocol.
+
+We've tested it using the mininet software switch.
 
 frenetic-lang.org
 
-Install GHC 7.2.
+Set Up
+------
+<pre>
+cabal configure
+cabal build
+cabal install
+</pre>
 
 If you want verification to work, you also need to install Microsoft's Z3
-Theorem Prover.  They have an MSI install file for Windows and tarballs for
+theorem prover.  They have an MSI install file for Windows and tarballs for
 Linux and Mac at
 
 http://research.microsoft.com/en-us/um/redmond/projects/z3/download.html
