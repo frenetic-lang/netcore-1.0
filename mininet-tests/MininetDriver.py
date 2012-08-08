@@ -16,10 +16,8 @@ LinearTopo = mininet.topo.LinearTopo
 
 def is_ipv6_enabled():
   lines = 0
-  with open("/proc/net/if_inet6") as f:
-     for i, l in enumerate(f):
-       lines = lines + 1
-  return lines > 0
+  fh = open("/proc/net/if_inet6")
+  return length([l for l in fh]) > 0
 
 class PaneException(Exception):
   pass
