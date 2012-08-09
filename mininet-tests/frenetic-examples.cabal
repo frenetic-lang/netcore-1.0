@@ -1,6 +1,6 @@
 Name:             frenetic-examples
 Version:          0.2.0
-Copyright:        2011, 2012, Cornell University, Princeton University
+Copyright:        (c) 2011--2012, Cornell University and Princeton University
 License:          BSD3
 License-File:     ../LICENSE
 Cabal-Version:    >= 1.9.2
@@ -13,7 +13,7 @@ Executable frenetic-example-suite
     hslogger == 1.2.*,
     bytestring == 0.9.*,
     time == 1.4.*,
-    frenetic == 0.2.0
+    netcore == 1.0.*
   Extensions:
     ScopedTypeVariables,
     TypeFamilies,

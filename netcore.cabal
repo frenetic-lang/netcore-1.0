@@ -1,6 +1,6 @@
-Name:             frenetic
-Version:          0.2.0
-Copyright:        2011, 2012, Cornell University, Princeton University
+Name:             netcore
+Version:          1.0.0
+Copyright:        (c) 2011--2012, Cornell University and Princeton University
 License:          BSD3
 License-File:     LICENSE
 Cabal-Version:    >= 1.9.2
