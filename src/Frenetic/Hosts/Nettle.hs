@@ -98,7 +98,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   --    update!)
   -- 5. On new policy, update the switch and accumulator
   let switchID = handle2SwitchID switch
-  policiesAndMessages <- mergeChan policyChan msgChan
+  policiesAndMessages <- select policyChan msgChan
   let loop oldPolicy oldThreads (Left policy) = do
         sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
         let classifier = compile (handle2SwitchID switch) policy

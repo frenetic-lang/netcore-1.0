@@ -127,7 +127,8 @@ start options = do
   let slice = (simpleSlice g matchNone) {egress = Map.empty}
   let (compiled1, compiled2) =
         if optEdge options then
-          -- Force them to be distinct
+          -- Force them to be distinct by adding PoBottom to them.  Edge
+          -- compilation relies on distinct (slice, policy) pairs.
           let combined = [(slice, policy), (slice, policy <+> PoBottom)] in
           let tagged = edge g combined in
           let [c1, c2] = map (\(assignment, (slice, policy)) ->

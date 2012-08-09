@@ -9,7 +9,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Frenetic.NetCore
 import Control.Monad (forever)
-import Frenetic.Common (mergeChan, bothChan)
+import Frenetic.Common (select, both)
 import Frenetic.NetCore.Types (poDom)
 import MacLearning (learningSwitch)
 import System.Log.Logger
@@ -66,7 +66,7 @@ monitoringProcess = do
   (pktChan, inspectPkt) <- getPkts
   cmdChan <- newChan
   resultChan <- newChan
-  chan <- mergeChan pktChan cmdChan
+  chan <- select pktChan cmdChan
 
   let buildPolPred :: Map.Map Word32 Policy -- ^monitors
                    -- TODO(arjun): block on IP and Eth
@@ -124,7 +124,7 @@ monitor :: Chan Policy -- ^policy that establishes connnectivity
 monitor routeChan = do
   resultChan <- newChan
   monitorChan <- monitoringProcess
-  chan <- bothChan routeChan monitorChan
+  chan <- both routeChan monitorChan
   forkIO $ forever $ do
     (routes, (monitors, restriction)) <- readChan chan
     writeChan resultChan ((routes <%> restriction) <+> monitors)

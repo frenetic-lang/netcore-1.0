@@ -6,7 +6,7 @@ module MacLearning where
 import Control.Concurrent
 import Frenetic.NetCore
 import qualified Data.Map as Map
-import Frenetic.Common (mergeChan)
+import Frenetic.Common (select)
 import Frenetic.NetCore.Types (poDom)
 
 isFlood = dlDst broadcastAddress
@@ -68,7 +68,7 @@ learnRoutes pktChan = do
 learningSwitch = do
   (uniqPktsChan, queryPolChan) <- pktsByLocation
   fwdPolChan <- learnRoutes uniqPktsChan
-  bothPolsChan <- mergeChan queryPolChan fwdPolChan
+  bothPolsChan <- select queryPolChan fwdPolChan
   polChan <- newChan
   let loop fwdPol queryPol = do
         pol <- readChan bothPolsChan

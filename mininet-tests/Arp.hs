@@ -4,7 +4,7 @@ import Control.Concurrent
 import qualified Data.Map as Map
 import Data.ByteString.Lazy (ByteString)
 import Data.Word
-import Frenetic.Common (mergeChan)
+import Frenetic.Common (select)
 import Frenetic.NetCore
 import Frenetic.NetworkFrames (arpReply)
 import MacLearning (learningSwitch)
@@ -65,8 +65,8 @@ doArp :: Chan Policy -> IO (Chan Policy, Chan (Loc, ByteString))
 doArp routeChan = do
   (queryChan, queryAction) <- getPkts
   (replyChan, replyAction) <- getPkts
-  dataChan <- mergeChan queryChan replyChan
-  allChan <- mergeChan routeChan dataChan
+  dataChan <- select queryChan replyChan
+  allChan <- select routeChan dataChan
   packetOutChan <- newChan
   policyOutChan <- newChan
   -- The overall architecture of the loop:

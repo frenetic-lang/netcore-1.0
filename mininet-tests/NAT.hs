@@ -7,7 +7,7 @@ import Control.Concurrent
 import Frenetic.NetCore
 import Frenetic.EthernetAddress
 import qualified Data.Map as Map
-import Frenetic.Common (mergeChan)
+import Frenetic.Common (select)
 import Frenetic.NetCore.Types (poDom, modifyNwSrc)
 import Data.Word
 import Data.Bits
