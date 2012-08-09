@@ -9,7 +9,7 @@ System Requirements
 
 - Haskell Platform 2012.2.0.0 (uses GHC 7.4.1)
 
-    http://hackage.haskell.org/platform//
+    http://hackage.haskell.org/platform/
 
 - A real OpenFlow network, or the Mininet network simulator:
 
@@ -20,8 +20,8 @@ Installation
 
 Install Frenetic from Hackage:
 
-  cabal update
-  cabal install frenetic
+    cabal update
+    cabal install frenetic
 
 This installs a Haskell library that you can use to write Frenetic applications.
 
@@ -31,11 +31,11 @@ Demo Applications
 We have several demos that use Frenetic and scripts that run them on Mininet
 networks:
 
-  git clone https://github.com/frenetic-lang/netcore.git
-  cd netcore/examples
-  cabal configure
-  cabal build
-  sudo ./frenetic-demo -h # Mininet requires sudo
+    git clone https://github.com/frenetic-lang/netcore.git
+    cd netcore/examples
+    cabal configure
+    cabal build
+    sudo ./frenetic-demo -h # Mininet requires sudo
 
 Slice Verification
 ------------------
