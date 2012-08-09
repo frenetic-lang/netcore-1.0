@@ -33,21 +33,22 @@ monitorHost :: EthernetAddress -- ^ethernet address to monitor
 monitorHost eth ip actionChan = do
   (countChan, countAction) <- countBytes 1000
   infoM "monitor" $ "monitoring " ++ show ip
-    let loop :: Map.Map Switch (Float, Integer) -- per-switch traffic
+  let loop :: Map.Map Switch (Float, Integer) -- per-switch traffic
            -> IO ()
       loop traffic = do
         (sw, count) <- readChan countChan
         let (oldScore, oldCount) = case Map.lookup sw traffic of
-              Nothing -> (0, count)
+              Nothing -> (0, 0)
               Just v -> v
         let traffic' = Map.insert sw (score oldScore oldCount count) traffic
         let score = case Map.lookup sw traffic' of
               Nothing -> error "sw should be in traffic'"
               Just (s, _) -> s
         debugM "monitor" $  show ip ++ " has score " ++ (printf "%7.2f" score) 
-        let action = if score < 0 then Just Unmonitor
-                     else if score > 1000 && oldScore <= 1000 then Just Block
-                     else if score < 10 && oldScore >= 10 then Just Unblock
+                            ++ show (oldScore, oldCount, count)
+        let action = if score < 1 then Just Unmonitor
+                     else if score > 5000 && oldScore <= 5000 then Just Block
+                     else if score < 100 && oldScore >= 100 then Just Unblock
                      else Nothing
         case action of
           Nothing -> loop traffic'
