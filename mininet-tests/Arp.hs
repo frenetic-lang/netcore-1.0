@@ -145,6 +145,8 @@ doArp routeChan = do
   forkIO (loop Nothing Map.empty)
   return (policyOutChan, packetOutChan)
 
+-- |Runs ARP on top of a learning switch to gradually learn both routes and the
+-- ARP table.  Provides both regular connectivity and synthetic ARP replies.
 main = do
   lsChan <- learningSwitch
   (policyChan, packetChan) <- doArp lsChan
