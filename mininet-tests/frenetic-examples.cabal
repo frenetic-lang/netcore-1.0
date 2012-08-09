@@ -10,24 +10,15 @@ Executable frenetic-example-suite
   build-depends:
     base >= 4 && < 5,
     containers >= 0.4.2.1,
-    multiset >= 0.2.1,
-    fgl,
-    ansi-wl-pprint,
-    mtl >= 2.0.1.0,
-    HList,
     hslogger == 1.2.*,
-    binary == 0.5.1.*,
     bytestring == 0.9.*,
-    binary-strict == 0.4.*,
-    parsec == 3.1.*,
-    syb == 0.3.*,
-    bimap == 0.2.*,
-    network == 2.3.*,
     time == 1.4.*,
     frenetic == 0.2.0
   Extensions:
-    ScopedTypeVariables, TypeFamilies, FlexibleInstances, FlexibleContexts,
-    RecordWildCards, DoAndIfThenElse
+    ScopedTypeVariables,
+    TypeFamilies,
+    RecordWildCards,
+    DoAndIfThenElse
   ghc-options:
     -fwarn-incomplete-patterns
   hs-source-dirs:

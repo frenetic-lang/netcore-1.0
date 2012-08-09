@@ -1,6 +1,5 @@
 module Query1 where
 
-import Data.MultiSet as MS
 import Control.Concurrent
 import Control.Monad
 import Frenetic.NetCore
