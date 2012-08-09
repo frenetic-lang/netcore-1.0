@@ -2,7 +2,7 @@ module Frenetic.Slices.Compile
   ( -- * Compilation
     transform
   , transformEdge
-  , dynamicTransform
+  , dynTransform
   , compileSlice
   , edgeCompileSlice
   -- * Internal tools
@@ -16,7 +16,8 @@ import Frenetic.Common
 import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
-import Frenetic.NetCore
+import Frenetic.NetCore.Types
+import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.NetCore.Reduce
 import Frenetic.NetCore.Pretty
@@ -31,8 +32,8 @@ vlanMatch vlan = dlVlan vlan
 
 -- TODO(astory): also take in the packet channel and handle that
 -- |Compile a list of slices and dynamic policies as they change.
-dynamicTransform :: [(Slice, Chan Policy)] -> IO (Chan Policy)
-dynamicTransform combined = do
+dynTransform :: [(Slice, Chan Policy)] -> IO (Chan Policy)
+dynTransform combined = do
   updateChan <- newChan :: IO (Chan (Vlan, Policy))
   outputChan <- newChan :: IO (Chan Policy)
   let tagged = zip [1..] combined
