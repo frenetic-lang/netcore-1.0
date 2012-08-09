@@ -9,7 +9,6 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Frenetic.NetCore
 import Control.Monad (forever)
-import Frenetic.Common (select, both)
 import Frenetic.NetCore.Types (poDom)
 import MacLearning (learningSwitch)
 import System.Log.Logger

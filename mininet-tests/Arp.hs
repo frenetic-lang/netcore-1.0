@@ -4,7 +4,6 @@ import Control.Concurrent
 import qualified Data.Map as Map
 import Data.ByteString.Lazy (ByteString)
 import Data.Word
-import Frenetic.Common (select)
 import Frenetic.NetCore
 import Frenetic.NetworkFrames (arpReply)
 import MacLearning (learningSwitch)

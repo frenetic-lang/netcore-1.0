@@ -6,7 +6,6 @@ module MacLearning where
 import Control.Concurrent
 import Frenetic.NetCore
 import qualified Data.Map as Map
-import Frenetic.Common (select)
 import Frenetic.NetCore.Types (poDom)
 
 isFlood = dlDst broadcastAddress
