@@ -8,7 +8,6 @@ import Frenetic.NetCore
 import Frenetic.NetCore.Types
 import Frenetic.EthernetAddress
 import qualified Data.Map as Map
-import Frenetic.Common (mergeChan)
 import Frenetic.NetCore.Types (poDom, modifyNwSrc)
 import Data.Word
 import Data.Bits

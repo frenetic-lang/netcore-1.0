@@ -1,0 +1,27 @@
+Name:             frenetic-examples
+Version:          0.2.0
+Copyright:        2011, 2012, Cornell University, Princeton University
+License:          BSD3
+License-File:     ../LICENSE
+Cabal-Version:    >= 1.9.2
+Build-Type:       Simple
+
+Executable frenetic-example-suite
+  build-depends:
+    base >= 4 && < 5,
+    containers >= 0.4.2.1,
+    hslogger == 1.2.*,
+    bytestring == 0.9.*,
+    time == 1.4.*,
+    frenetic == 0.2.0
+  Extensions:
+    ScopedTypeVariables,
+    TypeFamilies,
+    RecordWildCards,
+    DoAndIfThenElse
+  ghc-options:
+    -fwarn-incomplete-patterns
+  hs-source-dirs:
+    .
+  Main-Is:
+    Main.hs

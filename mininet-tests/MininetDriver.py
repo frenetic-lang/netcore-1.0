@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import socket
 from subprocess import Popen, call
 from mininet.node import RemoteController, UserSwitch
@@ -5,11 +6,10 @@ from mininet.net import Mininet
 import mininet.topolib
 import mininet.topo
 import re
-import os, sys
-from time import gmtime, strftime, sleep
-import unittest
+import os
+from time import gmtime, strftime
 
-CONTROLLER_PATH = "../dist/build/frenetic-example-suite/frenetic-example-suite"
+CONTROLLER_PATH = "./dist/build/frenetic-example-suite/frenetic-example-suite"
 
 TreeTopo = mininet.topolib.TreeTopo
 LinearTopo = mininet.topo.LinearTopo
@@ -17,7 +17,7 @@ LinearTopo = mininet.topo.LinearTopo
 def is_ipv6_enabled():
   lines = 0
   fh = open("/proc/net/if_inet6")
-  return length([l for l in fh]) > 0
+  return len([l for l in fh]) > 0
 
 class PaneException(Exception):
   pass
@@ -32,7 +32,7 @@ def kill_controllers():
     xargs kill')
 
 
-class MininetTest(object):
+class MininetRunner(object):
 
   def __init__(self, topo, controller):
     # Mininet can cleanup after itself
@@ -60,6 +60,6 @@ class MininetTest(object):
     if m == None:
       raise PaneException("%s output was %s" % (cmd, out))
     return int(m.group(1))
-  
+
 def time():
   return strftime("%Y-%m-%d %H:%M:%S", gmtime())

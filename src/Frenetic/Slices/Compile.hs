@@ -41,13 +41,7 @@ dynamicTransform combined = do
   let poll (vlan, (slice, policyChan)) = do
       let loop = do
           update <- readChan policyChan
-          putStrLn "Got new input policy:"
-          putNetCoreLn update
           let compiled = compileSlice slice vlan update
-          putStrLn "Compiled on:"
-          print slice
-          putStrLn "to:"
-          putNetCoreLn compiled
           writeChan updateChan (vlan, compiled)
       forkIO $ forever $ loop
   sequence $ map poll tagged

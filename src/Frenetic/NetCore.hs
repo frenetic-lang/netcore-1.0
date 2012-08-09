@@ -71,9 +71,13 @@ module Frenetic.NetCore
   , modNwTos
   , modTpSrc
   , modTpDst
+  -- * Channels
+  , select
+  , both
   ) where
 
-import Frenetic.Server
+import Frenetic.Common
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import Frenetic.Pattern
+import Frenetic.Server

@@ -9,14 +9,14 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Frenetic.NetCore
 import Control.Monad (forever)
-import Frenetic.Common (mergeChan, bothChan)
 import Frenetic.NetCore.Types (poDom)
 import MacLearning (learningSwitch)
 import System.Log.Logger
+import Text.Printf
 
 data Msg
-  = Block 
-  | Unblock 
+  = Block
+  | Unblock
   | Unmonitor
   deriving (Show)
 
@@ -34,14 +34,14 @@ monitorHost eth ip actionChan = do
         let (oldScore, oldCount) = case Map.lookup sw traffic of
               Nothing -> (0, count)
               Just v -> v
-        let traffic' = Map.insert sw 
+        let traffic' = Map.insert sw
                          (oldScore * 0.7 + fromIntegral (count - oldCount),
                           count)
                          traffic
         case Map.lookup sw traffic' of
           Nothing -> fail "sw should be in traffic'"
           Just (score, _) -> do
-            debugM "monitor" $  show ip ++ " has score " ++ show score
+            debugM "monitor" $  show ip ++ " has score " ++ (printf "%7.2f" score)
             if score < 0 then do
               infoM "monitor" $ "unmonitoring " ++ show ip
               writeChan actionChan (Unmonitor, ip)
@@ -65,15 +65,15 @@ monitoringProcess = do
   (pktChan, inspectPkt) <- getPkts
   cmdChan <- newChan
   resultChan <- newChan
-  chan <- mergeChan pktChan cmdChan
+  chan <- select pktChan cmdChan
 
   let buildPolPred :: Map.Map Word32 Policy -- ^monitors
                    -- TODO(arjun): block on IP and Eth
                    -> Set.Set Word32 -- ^blocked addresses
                    -> (Policy, Predicate)
-      buildPolPred monitors blocked = (pol, pred) 
+      buildPolPred monitors blocked = (pol, pred)
               -- TODO(arjun): use unions
-        where monPol = foldr (<+>) PoBottom (Map.elems monitors) 
+        where monPol = foldr (<+>) PoBottom (Map.elems monitors)
               pol = monPol <+> (neg (poDom monPol) ==> inspectPkt)
               f srcIP = nwSrc srcIP <&&> dlTyp 0x0800
               pred = neg (foldr (<||>) matchNone (map f (Set.elems blocked)))
@@ -83,9 +83,9 @@ monitoringProcess = do
       loop monitors blocked = do
         msg <- readChan chan
         case msg of
-          Left (sw, Packet{pktDlSrc=srcMac,pktNwSrc=Just srcIP}) -> 
-            case Map.member srcIP monitors of 
-              True -> 
+          Left (sw, Packet{pktDlSrc=srcMac,pktNwSrc=Just srcIP}) ->
+            case Map.member srcIP monitors of
+              True ->
                 loop monitors blocked -- already monitoring
               False -> do
                 pol <- monitorHost srcMac srcIP cmdChan
@@ -123,7 +123,7 @@ monitor :: Chan Policy -- ^policy that establishes connnectivity
 monitor routeChan = do
   resultChan <- newChan
   monitorChan <- monitoringProcess
-  chan <- bothChan routeChan monitorChan
+  chan <- both routeChan monitorChan
   forkIO $ forever $ do
     (routes, (monitors, restriction)) <- readChan chan
     writeChan resultChan ((routes <%> restriction) <+> monitors)

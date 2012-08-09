@@ -34,13 +34,19 @@ Library
     Frenetic.NetCore.Types,
     Frenetic.Server,
     Frenetic.EthernetAddress,
-    Frenetic.NetworkFrames
-  other-modules:
+    Frenetic.NetworkFrames,
+    Frenetic.Topo,
+    Frenetic.Slices.Slice
+    Frenetic.Slices.Compile
     Frenetic.Common
+  other-modules:
+    Frenetic.NetCore.Pretty
     Frenetic.Switches.OpenFlow
     Frenetic.NetCore.Compiler
     Frenetic.Hosts.Nettle
-    Frenetic.Topo
+    Frenetic.NettleEx
+    Frenetic.NetCore.Reduce
+    Frenetic.Slices.VlanAssignment
     Nettle.Ethernet.EthernetAddress
     Nettle.Ethernet.EthernetFrame
     Nettle.Ethernet.AddressResolutionProtocol
@@ -70,39 +76,9 @@ Library
     nettle-openflow/src
   cpp-options: "-DOPENFLOW_VERSION=1"
 
-Executable frenetic-example-suite
+benchmark frenetic-benchmark
   cpp-options: "-DOPENFLOW_VERSION=1"
-  build-depends:
-    base >= 4 && < 5,
-    containers >= 0.4.2.1,
-    multiset >= 0.2.1,
-    fgl,
-    ansi-wl-pprint,
-    mtl >= 2.0.1.0,
-    HList,
-    hslogger == 1.2.*,
-    binary == 0.5.1.*,
-    bytestring == 0.9.*,
-    binary-strict == 0.4.*,
-    parsec == 3.1.*,
-    syb == 0.3.*,
-    bimap == 0.2.*,
-    network == 2.3.*,
-    time == 1.4.*
-  Extensions:
-    ScopedTypeVariables, TypeFamilies, FlexibleInstances, FlexibleContexts,
-    RecordWildCards, DoAndIfThenElse
-  ghc-options:
-    -fwarn-incomplete-patterns
-  hs-source-dirs:
-    src,
-    mininet-tests,
-    nettle-openflow/src
-  Main-Is:
-    Main.hs
-
-Executable frenetic-benchmark
-  cpp-options: "-DOPENFLOW_VERSION=1"
+  type:          exitcode-stdio-1.0
   build-depends: base >= 4 && < 5,
                  containers >= 0.4.2.1,
                  ansi-wl-pprint,
