@@ -9,9 +9,6 @@ import Data.ByteString.Lazy (ByteString)
 import qualified Data.Set as Set
 
 import Frenetic.NetCore
-import Frenetic.Slices.Compile (dynamicTransform)
-import Frenetic.Slices.Slice (simpleSlice)
-import Frenetic.Topo (buildGraph)
 
 -- This is the default topology when you start mininet without parameters
 topo = buildGraph [ ((2, 0), (1, 1))
@@ -44,7 +41,7 @@ sink routing = do
   let spySlice = simpleSlice topo matchAll
   (arpPolicy, arpPacket) <- doArp arpRoute
   monitorPolicy <- monitor monitorRoute
-  policies <- dynamicTransform [ (routeSlice, route)
+  policies <- dynTransform [ (routeSlice, route)
                                , (arpSlice, arpPolicy)
                                , (monitorSlice, monitorPolicy)
                                , (spySlice, spyPolicy)

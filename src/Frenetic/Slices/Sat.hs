@@ -15,8 +15,8 @@ module Frenetic.Slices.Sat
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Nettle.OpenFlow.Match (ofpVlanNone)
-import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
+import Frenetic.NetCore.Types
 import Frenetic.Sat
 import Frenetic.Slices.Slice
 import Frenetic.Topo

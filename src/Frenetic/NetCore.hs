@@ -74,6 +74,18 @@ module Frenetic.NetCore
   -- * Channels
   , select
   , both
+  -- * Slices
+  , Slice(..)
+  -- ** Topology constructors
+  , Topo
+  , buildGraph
+  -- ** Slice constructors
+  , internalSlice
+  , simpleSlice
+  -- ** Compilation
+  , transform
+  , transformEdge
+  , dynTransform
   ) where
 
 import Frenetic.Common
@@ -81,3 +93,6 @@ import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.Server
+import Frenetic.Slices.Compile
+import Frenetic.Slices.Slice
+import Frenetic.Topo
