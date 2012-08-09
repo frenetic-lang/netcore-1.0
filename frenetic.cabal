@@ -5,6 +5,15 @@ License:          BSD3
 License-File:     LICENSE
 Cabal-Version:    >= 1.9.2
 Build-Type:       Simple
+Synopsis: The NetCore compiler and runtime system for OpenFlow networks.
+Description:
+  NetCore is a high-level network programming language. This package provides
+  a NetCore compiler and runtime system for OpenFlow networks.
+
+  See the 'Frenetic.NetCore' module for commonly used functions.
+  
+  We have several example programs available online at
+  <https://github.com/frenetic-lang/netcore/tree/master/examples>
 
 Library
   build-depends:
