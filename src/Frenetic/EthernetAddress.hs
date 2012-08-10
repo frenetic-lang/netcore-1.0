@@ -41,12 +41,12 @@ instance Binary EthernetAddress where
 ethernetAddress :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8
                 -> EthernetAddress
 ethernetAddress w1 w2 w3 w4 w5 w6  = EthernetAddress w64
-  where w64 = (shiftL (fromIntegral w1) 40) .|.
-              (shiftL (fromIntegral w2) 32) .|.
-              (shiftL (fromIntegral w3) 24) .|.
-              (shiftL (fromIntegral w4) 16) .|.
-              (shiftL (fromIntegral w5) 8) .|.
-              (fromIntegral w6)
+  where w64 = shiftL (fromIntegral w1) 40 .|.
+              shiftL (fromIntegral w2) 32 .|.
+              shiftL (fromIntegral w3) 24 .|.
+              shiftL (fromIntegral w4) 16 .|.
+              shiftL (fromIntegral w5)  8 .|.
+              fromIntegral w6
 
 broadcastAddress :: EthernetAddress
 broadcastAddress = EthernetAddress 0xffffffffffff

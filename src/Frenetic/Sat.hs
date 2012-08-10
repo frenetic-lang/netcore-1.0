@@ -76,10 +76,10 @@ transfer topo p q = nAnd constraints where
   edgeToOption (s1, s2, port1) =
     -- safe because Topo is undirected and we start from an edge
     let Just port2 = getEdgeLabel topo s2 s1 in
-    nAnd [ (Equals (switch p) (Primitive (fint s1)))
-         , (Equals (switch q) (Primitive (fint s2)))
-         , (Equals (port p) (Primitive (fint port1)))
-         , (Equals (port q) (Primitive (fint port2)))
+    nAnd [ Equals (switch p) (Primitive (fint s1))
+         , Equals (switch q) (Primitive (fint s2))
+         , Equals (port p) (Primitive (fint port1))
+         , Equals (port q) (Primitive (fint port2))
          ]
 
 -- |Build the constraint for a policy forwarding an input packet to an output
@@ -157,22 +157,22 @@ matchWith (PrNegate pred) p = Not (matchWith pred p)
 -- |Build the constraint for a packet matching a pattern
 matchPatternWith :: Pattern -> (Z3Packet, Maybe Z3Int) -> BoolExp
 matchPatternWith pat p = nAnd (catMaybes matches) where
-  matches = [ matchField p "DlSrc"     ((fmap (fint.unpackEth64)) (ptrnDlSrc pat))
-            , matchField p "DlDst"     ((fmap (fint.unpackEth64)) (ptrnDlDst pat))
-            , matchField p "DlTyp"     ((fmap fint) (ptrnDlTyp pat))
+  matches = [ matchField p "DlSrc"     (fmap (fint.unpackEth64) (ptrnDlSrc pat))
+            , matchField p "DlDst"     (fmap (fint.unpackEth64) (ptrnDlDst pat))
+            , matchField p "DlTyp"     (fmap fint (ptrnDlTyp pat))
             , matchField p "DlVlan"    (case ptrnDlVlan pat of
                                           Exact (Just vl) -> Exact $ fint vl
-                                          Exact (Nothing) ->
+                                          Exact Nothing ->
                                             Exact $ fint ofpVlanNone
                                           Wildcard -> Wildcard)
-            , matchField p "DlVlanPcp" ((fmap fint) (ptrnDlVlanPcp pat))
+            , matchField p "DlVlanPcp" (fmap fint (ptrnDlVlanPcp pat))
             , matchField p "NwSrc"     (fromPrefix  (ptrnNwSrc pat))
             , matchField p "NwDst"     (fromPrefix  (ptrnNwDst pat))
-            , matchField p "NwProto"   ((fmap fint) (ptrnNwProto pat))
-            , matchField p "NwTos"     ((fmap fint) (ptrnNwTos pat))
-            , matchField p "TpSrc"     ((fmap fint) (ptrnTpSrc pat))
-            , matchField p "TpDst"     ((fmap fint) (ptrnTpDst pat))
-            , matchField p "InPort"    ((fmap fint) (ptrnInPort pat))
+            , matchField p "NwProto"   (fmap fint (ptrnNwProto pat))
+            , matchField p "NwTos"     (fmap fint (ptrnNwTos pat))
+            , matchField p "TpSrc"     (fmap fint (ptrnTpSrc pat))
+            , matchField p "TpDst"     (fmap fint (ptrnTpDst pat))
+            , matchField p "InPort"    (fmap fint (ptrnInPort pat))
             ]
 
 fromPrefix :: (Integral a, Bits a) => Prefix a -> Wildcard Integer
@@ -204,20 +204,20 @@ produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
                        -- Flood means to forward out all ports but the one we
                        -- came in
                        AllPorts  -> [Not (Equals (port p') (port q'))]) ++
-        [ updateField p q "DlSrc"    ((fmap (fint.unpackEth64)) (modifyDlSrc m))
-        , updateField p q "DlDst"    ((fmap (fint.unpackEth64)) (modifyDlDst m))
+        [ updateField p q "DlSrc"    (fmap (fint.unpackEth64) (modifyDlSrc m))
+        , updateField p q "DlDst"    (fmap (fint.unpackEth64) (modifyDlDst m))
         , updateField p q "DlTyp"     Nothing
         , updateField p q "DlVlan"    (case modifyDlVlan m of
                                          Just (Just vl) -> Just (fint vl)
                                          Just Nothing -> Just ofpVlanNone
                                          Nothing -> Nothing)
-        , updateField p q "DlVlanPcp" ((fmap fint) (modifyDlVlanPcp m))
-        , updateField p q "NwSrc"     ((fmap fint) (modifyNwSrc m))
-        , updateField p q "NwDst"     ((fmap fint) (modifyNwDst m))
+        , updateField p q "DlVlanPcp" (fmap fint (modifyDlVlanPcp m))
+        , updateField p q "NwSrc"     (fmap fint (modifyNwSrc m))
+        , updateField p q "NwDst"     (fmap fint (modifyNwDst m))
         , updateField p q "NwProto"   Nothing
-        , updateField p q "NwTos"     ((fmap fint) (modifyNwTos m))
-        , updateField p q "TpSrc"     ((fmap fint) (modifyTpSrc m))
-        , updateField p q "TpDst"     ((fmap fint) (modifyTpDst m))
+        , updateField p q "NwTos"     (fmap fint (modifyNwTos m))
+        , updateField p q "TpSrc"     (fmap fint (modifyTpSrc m))
+        , updateField p q "TpDst"     (fmap fint (modifyTpDst m))
         ]
 
 -- |Determine if an action emits an observation

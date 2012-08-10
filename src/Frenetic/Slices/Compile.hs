@@ -24,7 +24,6 @@ import Frenetic.NetCore.Pretty
 import Frenetic.Slices.Slice
 import Frenetic.Slices.VlanAssignment
 import Frenetic.Topo
-import Frenetic.NetCore.Types
 
 -- |Match a specific vlan tag
 vlanMatch :: Vlan -> Predicate
@@ -45,7 +44,7 @@ dynTransform combined = do
           let compiled = compileSlice slice vlan update
           writeChan updateChan (vlan, compiled)
       forkIO $ forever $ loop
-  sequence $ map poll tagged
+  mapM_ poll tagged
   -- Poll from the unified channel, and update a map containing the most recent
   -- compiled version of each slice.  After each update, take the union and send
   -- the result down the pipe.
@@ -104,7 +103,7 @@ edgeCompileSlice slice assignment policy = mconcat (queryPols : forwardPols)
 -- the policy running on the slice
 queryOnly :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
 queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
-  onSlice = prOr . map onPort . Set.toList $ (internal slice)
+  onSlice = prOr . map onPort . Set.toList $ internal slice
   inBound = ingressPredicate slice <&&> dlNoVlan
   justQueries = removeForwards policy
   onPort l@(Loc s p) = inport s p <&&> dlVlan vlan <&&>
@@ -112,9 +111,9 @@ queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
     vlan = case Map.lookup l assignment of
            Just v -> v
            Nothing -> error $
-                      "assignment map incomplete at " ++ (show l) ++
-                      "\nmap:   " ++ (show assignment) ++
-                      "\nslice: " ++ (show $ internal slice)
+                      "assignment map incomplete at " ++ show l ++
+                      "\nmap:   " ++ show assignment ++
+                      "\nslice: " ++ show (internal slice)
 
 -- |Remove forwarding actions from policy leaving only queries
 removeForwards :: Policy -> Policy
@@ -148,7 +147,7 @@ justTo p (PoUnion p1 p2) = PoUnion p1' p2' where
 -- internal policy.  This only considers internal -> internal and internal ->
 -- external forwarding.
 forwardEdges :: Slice -> Map.Map Loc Vlan -> Policy -> [Policy]
-forwardEdges slice assignment policy = concat . map buildPort $ locs where
+forwardEdges slice assignment policy = concatMap buildPort locs where
   int = internal slice
   ing = Map.keysSet (ingress slice)
   egr = Map.keysSet (egress slice)

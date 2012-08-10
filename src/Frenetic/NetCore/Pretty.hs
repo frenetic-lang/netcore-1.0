@@ -7,10 +7,9 @@ module Frenetic.NetCore.Pretty
 
 import Data.List
 import qualified Data.MultiSet as MS
-import Frenetic.NetCore.Types
-import System.IO
 import Frenetic.NetCore.Short
 import Frenetic.NetCore.Types
+import System.IO
 import Text.PrettyPrint.ANSI.Leijen
 
 ribbonFrac = 0.8
@@ -36,7 +35,7 @@ hPutNetCoreLn h p = do
   hPutChar h '\n'
 
 prettyPr (PrPattern p) = prettyPattern " = " p
-prettyPr (PrTo s) = text "switch = " <> (integer $ fromIntegral s)
+prettyPr (PrTo s) = text "switch = " <> integer (fromIntegral s)
 prettyPr p@(PrUnion _ _) = text "Or " <>
                            (align . tupled . map prettyPr $ prUnUnion p)
 prettyPr p@(PrIntersect _ _) = text "And " <>
@@ -46,8 +45,7 @@ prettyPr (PrNegate p) = text "Not " <> align (tupled [prettyPr p])
 prettyAc (Action fwds qs) =
   (semiBraces . map prettyForward . MS.toAscList $ fwds) </>
   text "emit " <>
-  (semiBraces . map integer . map fromIntegral . map idOfQuery . MS.toAscList $
-   qs)
+  (semiBraces . map (integer . fromIntegral . idOfQuery) . MS.toAscList $ qs)
 
 prettyPo PoBottom = text "Bottom"
 prettyPo (PoBasic pr ac) = prettyPr pr </> text " ==> " <> align (prettyAc ac)
@@ -59,7 +57,7 @@ prettyPattern sep p = semiBraces . map text . interesting sep $ p
 -- |Render a forwarding option as "port with {field := value; field := value}"
 prettyForward (port, mods) = prettyPseudoPort port <> mods' where
   mods' = if mods == unmodified then empty
-          else text " with " <> (text $ show mods)
+          else text " with " <> text (show mods)
 
 -- |Render a pseudoport as "Port p" or "Flood"
 prettyPseudoPort (Physical p) = text "Port " <> integer (fromIntegral p)

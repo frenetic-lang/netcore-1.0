@@ -20,7 +20,7 @@ isArp = dlTyp 0x0806
 isQuery = isArp <&&> nwProto 1
 isReply = isArp <&&> nwProto 2
 
-known ips = prOr . map (\ipAddr -> nwDst ipAddr) $ Map.keys ips
+known ips = prOr . map nwDst $ Map.keys ips
 
 -- |Maybe produce a reply packet from an ARP request.
 -- Try to look up the IP address in the lookup table.  If there's an associated
@@ -111,7 +111,7 @@ doArp routeChan = do
           infoM "ARP" "Got new routing policy for ARP"
           writeChan policyOutChan (buildPolicy route ips)
           loop (Just route) ips
-        Right arpData -> do
+        Right arpData ->
           case mRoute of
             -- If we don't have a routing policy yet, we're not even providing
             -- connectivity, so it's probably a spurious packet and we can just

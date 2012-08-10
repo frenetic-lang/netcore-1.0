@@ -55,7 +55,7 @@ monitorHost eth ip actionChan = do
         let score' = case Map.lookup sw traffic' of
               Nothing -> error "sw should be in traffic'"
               Just (s, _) -> s
-        debugM "monitor" $  show ip ++ " has score " ++ (printf "%7.2f" score')
+        debugM "monitor" $  show ip ++ " has score " ++ printf "%7.2f" score'
         let action = nextState score score'
         case action of
           Nothing -> loop traffic'

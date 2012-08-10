@@ -64,7 +64,7 @@ simuFloodQuery topo q = mconcat policies where
   policies = [PrTo (fromIntegral s) <&&> validPort s ==>
               (modify (ports' s) <+> q) | s <- ss]
   ports' s = zip (ports topo s) (repeat unmodified)
-  validPort s = prOr . map (\p -> inPort p) $ ports topo s
+  validPort s = prOr . map inPort $ ports topo s
 
 -- |Construct an all-pairs-shortest-path routing policy between hosts, using the
 -- ID of the host as the MAC address.
@@ -84,7 +84,7 @@ shortestPath topo = mconcat policies where
   buildPath _ _ [_] = PoBottom
   buildPath source dest path = mconcat policies where
     hops = toHops path
-    policies = catMaybes . map (buildHop source dest) $ hops
+    policies = mapMaybe (buildHop source dest) $ hops
   buildHop source dest (s1, s2) =
     if Set.member s1 hostsSet then Nothing
     else Just (PrTo (fromIntegral s1) <&&>
@@ -102,10 +102,8 @@ multicast topo = mconcat policies <%> dlDst broadcastAddress where
   hostsSet = Set.fromList (hosts topo)
   tree = msTree routingTopo
   hops = Set.fromList .
-         concat .
-         map (\pair -> [pair, swap pair]) .
-         concat .
-         map toHops .
+         concatMap (\pair -> [pair, swap pair]) .
+         concatMap toHops .
          map (map fst) .
          map (\(LP x) -> x) $ tree
   policies = [ buildSwitch s | s <- switches topo ]

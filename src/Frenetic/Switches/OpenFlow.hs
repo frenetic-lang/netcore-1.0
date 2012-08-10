@@ -40,7 +40,7 @@ ethToWord48 = ethernetAddress64.unpack64
 {-| Convert a Word48 to an EthernetAddress. -}
 word48ToEth :: Frenetic.NetCore.Types.EthernetAddress
             -> NettleEx.EthernetAddress
-word48ToEth = (NettleEx.ethernetAddress64).unpackEth64
+word48ToEth = NettleEx.ethernetAddress64 . unpackEth64
 
 
 {-| Convert a pattern Prefix to an IPAddressPrefix. -}
@@ -63,9 +63,7 @@ toController = sendToController maxBound
 
 instance Eq a => Matchable (Maybe a) where
   top = Nothing
-  intersect (Just a) (Just b) = case a == b of
-    True  -> Just (Just a)
-    False -> Nothing
+  intersect (Just a) (Just b) = if a == b then Just (Just a) else Nothing
   intersect (Just a) Nothing = Just (Just a)
   intersect Nothing (Just b) = Just (Just b)
   intersect Nothing Nothing  = Just Nothing
@@ -175,7 +173,7 @@ modTranslate (Modification{..}) =
           f3 = case modifyDlVlan of
                  Nothing -> Nothing
                  Just (Just v) -> Just $ SetVlanVID v
-                 Just Nothing -> Just $ StripVlanHeader
+                 Just Nothing -> Just StripVlanHeader
           f4 = case modifyDlVlanPcp of
                  Nothing -> Nothing
                  Just v -> Just $ SetVlanPriority v
@@ -224,7 +222,7 @@ instance FreneticImpl OpenFlow where
                     (dstPort body)
                     (receivedOnPort pkt)
 
-  fromPattern ptrn = OFPat $ Match {
+  fromPattern ptrn = OFPat Match {
     srcEthAddress = wildcardToMaybe $ fmap word48ToEth (ptrnDlSrc ptrn),
     dstEthAddress = wildcardToMaybe $ fmap word48ToEth (ptrnDlDst ptrn),
     ethFrameType = wildcardToMaybe $ ptrnDlTyp ptrn,

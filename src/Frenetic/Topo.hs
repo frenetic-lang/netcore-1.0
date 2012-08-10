@@ -60,7 +60,7 @@ normal (l1, l2) = if l1 < l2 then (l1, l2) else (l2, l1)
 
 -- | Get the normalized pair of locations that one location is on
 getEdge :: Topo -> Loc -> (Loc, Loc)
-getEdge topo loc = normal (loc, (reverseLoc topo loc))
+getEdge topo loc = normal (loc, reverseLoc topo loc)
 
 -- | Maybe get the reverse of a location
 reverseLoc :: Topo -> Loc -> Loc

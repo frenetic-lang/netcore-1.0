@@ -35,7 +35,7 @@ reducePr p@(PrUnion _ _) = prOr leaves where
 
 reducePr p@(PrIntersect _ _) = result where
   leaves = Set.toList . Set.fromList . map reducePr . prUnIntersect $ p
-  nSwitches = Set.size .Set.fromList . catMaybes . map switchOfPred $ leaves
+  nSwitches = Set.size .Set.fromList . mapMaybe switchOfPred $ leaves
   result = if nSwitches > 1 then matchNone
            else prAnd leaves
 

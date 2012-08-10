@@ -14,6 +14,7 @@ import Frenetic.Common
 import Data.Graph.Inductive.Graph
 import Data.List
 import qualified Data.Map as Map
+import Data.Maybe
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Data.Word
@@ -21,7 +22,6 @@ import Frenetic.NetCore.Short
 import Frenetic.NetCore.Types
 import Frenetic.Pattern
 import Frenetic.Topo
-import Frenetic.NetCore.Types
 
 -- |A slice represents a subgraph of the network for the purposes of isolating
 -- programs from each other.
@@ -115,7 +115,7 @@ localizeMods pred (Action m obs) ports = mconcat (forwardPol : floodPols)
     otherPorts = Set.toList $ Set.delete port ports
 
 split (Physical p, rewrite) = Left (Physical p, rewrite)
-split (AllPorts, rewrite) = Right (rewrite)
+split (AllPorts, rewrite) = Right rewrite
 
 -- |Starting with a set of switches, get the switches the predicate might match.
 switchesOfPredicate :: Set.Set Switch -> Predicate -> Set.Set Switch
@@ -144,4 +144,4 @@ prUsesVlans (PrNegate p) = prUsesVlans p
 
 actUsesVlans :: Action -> Bool
 actUsesVlans (Action ms _) =
-  any (\(_, m) -> modifyDlVlan m /= Nothing) $ MS.toList ms
+  any (\(_, m) -> isJust $ modifyDlVlan m) $ MS.toList ms

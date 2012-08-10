@@ -104,7 +104,7 @@ readHosts arg opt = return opt { optHosts = read arg }
 
 showHelp _ = do
   putStrLn (usageInfo "Usage Info" options)
-  exitWith ExitSuccess
+  exitSuccess
 
 doWaxman Options {optNodes = nodes, optHosts = hosts} =
   waxman nodes hosts 0.8 0.18
@@ -139,20 +139,18 @@ start options = do
           let c1 = compileSlice slice 1 policy in
           let c2 = compileSlice slice 2 policy in
           (c1, c2)
-  if optTime options then do
+  when (optTime options) $ do
     start <- getCPUTime
     let s = size compiled1
     s `seq` return ()
     finish <- getCPUTime
     let diff = (fromIntegral (finish - start)) / (10^12)
     printf "Compilation time: %0.3f sec\n" (diff :: Double)
-  else return ()
   let pSize = size policy
   let cSize = size compiled1
-  if optAST options then
+  when (optAST options) $
     putStrLn $ "AST Size: " ++ show pSize ++ " -> " ++ show cSize
-  else return ()
-  if optIso options then do
+  when (optIso options) $ do
     start <- getCPUTime
     sep <- separate g compiled1 compiled2
     if not sep then
@@ -161,8 +159,7 @@ start options = do
     finish <- getCPUTime
     let diff = (fromIntegral (finish - start)) / (10^12)
     printf "Isolation time:   %0.3f sec\n" (diff :: Double)
-  else return ()
-  if optComp options then do
+  when (optComp options) $ do
     start <- getCPUTime
     sep <- compiledCorrectly g slice policy compiled1
     if not sep then
@@ -171,7 +168,6 @@ start options = do
     finish <- getCPUTime
     let diff = (fromIntegral (finish - start)) / (10^12)
     printf "Correctness time: %0.3f sec\n" (diff :: Double)
-  else return ()
 
 
 main = do

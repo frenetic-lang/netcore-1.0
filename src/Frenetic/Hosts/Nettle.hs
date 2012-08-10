@@ -105,8 +105,8 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         let flowTbl = rawClassifier classifier
         debugM "nettle" $ "policy is \n" ++ toString policy ++
                           "\n and flow table is \n" ++
-                          (concat $ intersperse "\n"
-                                      (map prettyClassifier flowTbl))
+                          concat (intersperse "\n"
+                                    (map prettyClassifier flowTbl))
         oldThreads
         newThreads <- runQueryOnSwitch nettle switch classifier
         -- Priority 65535 is for microflow rules from reactive-specialization
@@ -141,8 +141,9 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
             Just buf -> do
               let unCtrl (SendOutPort (ToController _)) = False
                   unCtrl _ = True
-              let msg = PacketOut $ PacketOutRecord (Left buf) (Just inPort) $
-                          (filter unCtrl (fromOFAct $ actnTranslate actions))
+              let msg = PacketOut $
+                          PacketOutRecord (Left buf) (Just inPort)
+                            (filter unCtrl (fromOFAct $ actnTranslate actions))
               sendToSwitch switch (2, msg)
           nextMsg <- readChan policiesAndMessages
           loop policy threads nextMsg

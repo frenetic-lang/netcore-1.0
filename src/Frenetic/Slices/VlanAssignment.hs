@@ -18,7 +18,7 @@ maxVlan = 2^12
 sequential :: [(Slice, Policy)] -> [(Vlan, (Slice, Policy))]
 sequential combined =
   if length combined > fromIntegral maxVlan
-    then error ((show $ length combined) ++
+    then error (show (length combined) ++
                 " is too many VLANs to compile sequentially.")
     else zip [1..maxVlan] combined
 
@@ -38,8 +38,7 @@ edge topo combined = paired  where
 
   vlans :: Map.Map Loc (Map.Map (Slice, Policy) Vlan)
   vlans = Map.fromList .
-          concat .
-          map (\ ((l1, l2), v) -> [(l1, v), (l2, v)]) .
+          concatMap (\ ((l1, l2), v) -> [(l1, v), (l2, v)]) .
           Map.toList $
           vlanEdges
 
@@ -58,7 +57,7 @@ addEdges (slice, policy) m = Map.unionWith Set.union (Map.fromList locations) m 
 assign :: Set.Set (Slice, Policy) -> Map.Map (Slice, Policy) Vlan
 assign slices =
   if Set.size slices > fromIntegral maxVlan
-    then error ((show $ Set.size slices) ++
+    then error (show (Set.size slices) ++
                 " is too many VLANs to compile sequentially.")
     else Map.fromList $ zip (Set.toList slices) [1..maxVlan]
 

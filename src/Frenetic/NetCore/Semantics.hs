@@ -16,7 +16,7 @@ interpretPredicate :: FreneticImpl a
                    -> Bool
 interpretPredicate (PrPattern ptrn) tr = case toPacket (trPkt tr) of
   Nothing -> False
-  Just pk -> FreneticPkt pk `ptrnMatchPkt` (FreneticPat ptrn)
+  Just pk -> FreneticPkt pk `ptrnMatchPkt` FreneticPat ptrn
 interpretPredicate (PrTo sw) tr =
   sw == trSwitch tr
 interpretPredicate (PrUnion pr1 pr2) tr =
@@ -32,9 +32,8 @@ interpretPolicy :: FreneticImpl a
                 -> Transmission (PatternImpl a) (PacketImpl a)
                 -> Action
 interpretPolicy PoBottom tr = dropPkt
-interpretPolicy (PoBasic pred acts) tr = case interpretPredicate pred tr of
-  True -> acts
-  False -> dropPkt
+interpretPolicy (PoBasic pred acts) tr =
+  if interpretPredicate pred tr then acts else dropPkt
 interpretPolicy (PoUnion p1 p2) tr =
   interpretPolicy p1 tr <+> interpretPolicy p2 tr
 

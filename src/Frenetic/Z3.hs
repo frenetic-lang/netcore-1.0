@@ -86,23 +86,23 @@ setUp = [PacketSort
 
 instance Show Z3Input where
   show (Input decls consts exprs) = join "\n" lines where
-    lines = (map show decls) ++
-            (map show consts) ++
+    lines = map show decls ++
+            map show consts ++
             (map (\ b -> "(assert " ++ b ++ ")") . map show $ exprs) ++
             ["(check-sat)", "(get-model)"]
 
 instance Show BoolExp where
   show ZTrue = "true"
   show ZFalse = "false"
-  show (Not b) = "(not " ++ (show b) ++ ")"
-  show (And b1 b2) = "(and " ++ (show b1) ++ " " ++  (show b2) ++ ")"
-  show (Or b1 b2) = "(or " ++ (show b1) ++ " " ++  (show b2) ++ ")"
-  show (Implies b1 b2) = "(implies " ++ (show b1) ++ " " ++  (show b2) ++ ")"
-  show (Equals i1 i2) = "(equals " ++ (show i1) ++ " " ++  (show i2) ++ ")"
-  show (ForAll consts b) = "(forall (" ++ (join " " (map show consts)) ++ ") " ++
-                                    (show b) ++ ")"
-  show (Exists consts b) = "(exists (" ++ (join " " (map show consts)) ++ ") " ++
-                                  (show b) ++ ")"
+  show (Not b) = "(not " ++ show b ++ ")"
+  show (And b1 b2) = "(and " ++ show b1 ++ " " ++ show b2 ++ ")"
+  show (Or b1 b2) = "(or " ++ show b1 ++ " " ++ show b2 ++ ")"
+  show (Implies b1 b2) = "(implies " ++ show b1 ++ " " ++ show b2 ++ ")"
+  show (Equals i1 i2) = "(equals " ++ show i1 ++ " " ++ show i2 ++ ")"
+  show (ForAll consts b) = "(forall (" ++ join " " (map show consts) ++ ") " ++
+                             show b ++ ")"
+  show (Exists consts b) = "(exists (" ++ join " " (map show consts) ++ ") " ++
+                             show b ++ ")"
 
 instance Show IntExp where
   show (Primitive i) = show i
@@ -142,7 +142,7 @@ check z3input = do
   output <- hGetContents outh
   let result : model = lines output
   if result == "unsat" then return Nothing
-  else if result == "sat" then return (Just (join "\n" $ model))
+  else if result == "sat" then return (Just (join "\n" model))
   else if result == "unknown" then error "No decision reached"
   else error ("Unknown status from z3: " ++ result ++ "\n" ++
               "This was the input to z3: \n" ++ assertions)

@@ -17,7 +17,7 @@ import System.Random
 import Frenetic.NetCore.Types
 import Frenetic.Topo
 
-distance (x1, y1) (x2, y2) = ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
+distance (x1, y1) (x2, y2) = sqrt ((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
 rand01IO :: IO Double
 rand01IO = randomRIO (0.0, 1.0)
@@ -34,7 +34,7 @@ pairToLink (n1, n2) = ((n1, fromIntegral n2), (n2, fromIntegral n1))
 -- each node links to the host with a port numbered the same as the name of the
 -- host.
 buildHosts :: (Integral n) => n -> [Node] -> [((Node, Port), (Node, Port))]
-buildHosts n nodes = concat . map addHosts $ nodes where
+buildHosts n nodes = concatMap addHosts $ nodes where
   n' = fromIntegral n :: Int
   addHosts node = [ ((node, fromIntegral host), (host, 0))
                   | host <- [100 * node + 1 .. 100 * node + n']]
@@ -61,10 +61,10 @@ linear n = graph where
 -- switches.  Port 3 connects to host XX0, port 4 connects to host XX1.
 linearHosts :: (Integral n) => n -> Topo
 linearHosts n = graph where
-  nodes = [0 .. (fromIntegral n - 1)]
+  nodes = [0 .. fromIntegral n - 1]
   hostLinks = concatMap buildHosts nodes
   pairs = zip nodes (tail nodes)
-  graph = buildGraph $ (map (\(n1, n2) -> ((n1, 2), (n2, 1))) pairs) ++ hostLinks
+  graph = buildGraph $ map (\(n1, n2) -> ((n1, 2), (n2, 1))) pairs ++ hostLinks
   buildHosts node = [((node, 3), (100 + 10 * node, 0)),
                      ((node, 4), (101 + 10 * node, 0))]
 
@@ -74,8 +74,8 @@ kComplete :: (Integral n) => n -> Topo
 kComplete n = buildGraph pairs where
   nodes :: [Node]
   nodes = [1 .. (fromIntegral n)]
-  pairs = [((fromIntegral x, (fromIntegral y)),
-            (fromIntegral y, (fromIntegral x)))
+  pairs = [((fromIntegral x, fromIntegral y),
+            (fromIntegral y, fromIntegral x))
           | (x:xs) <- List.tails nodes, y <- xs]
 
 -- |Produce a topology on the n-complete graph, starting with node 1.  Each node
@@ -85,9 +85,9 @@ kCompleteHosts :: (Integral n) => n -> Topo
 kCompleteHosts n = buildGraph $ hostLinks ++ pairs where
   nodes :: [Node]
   nodes = [1 .. (fromIntegral n)]
-  hostLinks = concat . map buildHostLinks $ nodes
-  pairs = [((fromIntegral x, (fromIntegral y)),
-            (fromIntegral y, (fromIntegral x)))
+  hostLinks = concatMap buildHostLinks $ nodes
+  pairs = [((fromIntegral x, fromIntegral y),
+            (fromIntegral y, fromIntegral x))
           | (x:xs) <- List.tails nodes, y <- xs]
   buildHostLinks i = [ ((i, fromIntegral h1), (h1, 0))
                      , ((i, fromIntegral h2), (h2, 0)) ] where
@@ -126,7 +126,7 @@ waxman n h a b = do
 smallworld :: (Integral n, Integral h, Integral k) =>
               n -> h -> k -> Double -> IO Topo
 smallworld n h k b = do
-  edges' <- sequence $ map rewire edges
+  edges' <- mapM rewire edges
   let edges'' = Set.toList . Set.fromList $ edges'
   return $ buildGraph (addHosts h edges'')
   where

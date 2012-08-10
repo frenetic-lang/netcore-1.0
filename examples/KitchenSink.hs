@@ -36,8 +36,8 @@ sink routing = do
   -- Just ICMP (ping)
   let monitorSlice = simpleSlice topo (dlTyp 0x0800 <&&> nwProto 0x01)
   -- Everything else
-  let routeSlice = simpleSlice topo (neg $ (dlTyp 0x0806 <||>
-                                           (dlTyp 0x0800 <&&> nwProto 0x01)))
+  let routeSlice = simpleSlice topo (neg (prOr [ dlTyp 0x0806
+                                               , dlTyp 0x0800 <&&> nwProto 0x01]))
   let spySlice = simpleSlice topo matchAll
   (arpPolicy, arpPacket) <- doArp arpRoute
   monitorPolicy <- monitor monitorRoute

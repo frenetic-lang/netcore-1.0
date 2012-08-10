@@ -1,4 +1,3 @@
--------------------------------
 -- | Tools for verifying properties of slices without using SMT
 module Frenetic.Slices.Verification
   ( separated
@@ -27,6 +26,6 @@ edgeDisjoint slice1 slice2 = Set.intersection s1 s2 == Set.empty where
 switchesOfSlice :: Slice -> Set.Set Switch
 switchesOfSlice (Slice internal ingress egress) =
   Set.map (\ (Loc s _) -> s)
-    (Set.union (internal)
+    (Set.union internal
     (Set.union (Map.keysSet ingress)
                (Map.keysSet egress)))

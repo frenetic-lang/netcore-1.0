@@ -48,17 +48,14 @@ argSpec =
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
   ]
 
-init [Help] = do
-  putStrLn (usageInfo "Usage Info" argSpec)
+init [Help] = putStrLn (usageInfo "Usage Info" argSpec)
 init (Verbosity s : rest) = case s of
   "DEBUG" -> setLog DEBUG rest
   "INFO" -> setLog INFO rest
   "ERROR" -> setLog ERROR rest
-  otherwise -> do
-    fail $ "invalid value " ++ s
+  otherwise -> fail $ "invalid value " ++ s
 init [] = fail "too few arguments"
-init rest = do
-  setLog INFO rest
+init rest = setLog INFO rest
 
 myLogFormatter = simpleLogFormatter "[$prio : $time : $loggername] $msg"
 
@@ -77,8 +74,7 @@ setLog logPriority rest = do
   setLogger logPriority handler
   start rest
 
-start [Example proc] = do
-  proc
+start [Example proc] = proc
 start [] = fail "too few arguments"
 start _ =  fail "too many arguments"
 

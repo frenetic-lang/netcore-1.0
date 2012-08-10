@@ -218,7 +218,7 @@ instance Show Pattern where
 
 -- |Build a list of the non-wildcarded patterns with sep between field and value
 interesting :: String -> Pattern -> [String]
-interesting sep (Pattern {..}) = filter (\l -> l /= "") $ lines where
+interesting sep (Pattern {..}) = filter (/= "") lines where
   lines = [ case ptrnDlSrc     of {Exact v -> "DlSrc"     ++ sep ++ show v; Wildcard -> ""}
           , case ptrnDlDst     of {Exact v -> "DlDst"     ++ sep ++ show v; Wildcard -> ""}
           , case ptrnDlTyp     of {Exact v -> "DlTyp"     ++ sep ++ show v; Wildcard -> ""}
@@ -253,7 +253,7 @@ data Query
       lastVal :: IORef Integer
     }
   | PktQuery {
-      pktQueryChan :: (Chan (Switch, Packet)),
+      pktQueryChan :: Chan (Switch, Packet),
       idOfQuery :: QueryID
     }
   deriving (Eq)
