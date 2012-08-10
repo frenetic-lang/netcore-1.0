@@ -35,7 +35,7 @@ networks:
     cd netcore/examples
     cabal configure
     cabal build
-    sudo ./frenetic-demo -h # Mininet requires sudo
+    sudo ./demo.py <your username> # Mininet requires sudo
 
 Slice Verification
 ------------------
