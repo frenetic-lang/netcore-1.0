@@ -15,14 +15,14 @@ import unittest
 # 
 #           sysctl -w net.ipv4.ip_forward=1
 
-topo = mininet.topolib.TreeTopo(depth=1, fanout=2)
+topo = mininet.topo.SingleSwitchTopo(k=2)
 net = Mininet(topo=topo,controller=RemoteController,switch=UserSwitch)
 
 
 print "Configuring NAT (iptables) ..."
 gateHostIP = '10.0.0.100'
 gateIP = '10.0.0.100'
-fakeMAC = '00:00:00:00:00:01'
+gateMAC = '00:00:00:00:00:11'
 
 os.system('sysctl -w net.ipv4.ip_forward=1')
 os.system('iptables -F')
@@ -34,7 +34,7 @@ os.system('iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED '
 os.system('iptables -A POSTROUTING -t nat -j MASQUERADE')
 
 
-os.system('ip link add name gate-host address 00:00:00:00:00:11 type veth peer name gate-mn')
+os.system('ip link add name gate-host address %s type veth peer name gate-mn' % gateMAC)
 os.system('ip link set gate-host up')
 os.system('ip link set gate-mn up')
 os.system('ip addr add %s/24 dev gate-host' % (gateIP))
@@ -53,10 +53,13 @@ for h in net.hosts:
   print h
   h.cmd('route add -net 10.0.0.0 netmask 255.255.255.0 %s-eth0' % h.name)
   h.cmd('route add default gw %s %s-eth0' % (gateIP, h.name))
-  h.cmd('arp -s %s %s' % (gateIP, fakeMAC))
+  h.cmd('arp -s %s %s' % (gateIP, gateMAC))
 
 net.interact()
 
 os.system('ip link del gate-host')
 os.system('iptables -F')
 os.system('iptables -Z')
+
+os.system('mn -c')
+
