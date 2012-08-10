@@ -11,7 +11,7 @@ Description:
   a NetCore compiler and runtime system for OpenFlow networks.
 
   See the 'Frenetic.NetCore' module for commonly used functions.
-  
+
   We have several example programs available online at
   <https://github.com/frenetic-lang/netcore/tree/master/examples>
 

@@ -122,7 +122,7 @@ data Field
   = DlSrc | DlDst | DlVlan | DlVlanPcp | NwSrc | NwDst | NwTos | TpSrc | TpDst
   deriving (Eq, Ord, Show)
 
--- |For each fields with a value Just v, modify that field to be v. 
+-- |For each fields with a value Just v, modify that field to be v.
 --  If the field is Nothing then there is no modification of that field.
 data Modification = Modification {
   modifyDlSrc :: Maybe Word48,

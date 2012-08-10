@@ -71,7 +71,7 @@ case_regress_1 = do
   let pkt = FreneticPkt (Packet {pktDlSrc = ethernetAddress64 4410948387332,
               pktDlDst = ethernetAddress64 6609988486150, pktDlTyp = 1,
               pktDlVlan = Just 4,
-              pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5, 
+              pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5,
               pktNwProto = 5,
               pktNwTos = 7, pktTpSrc = Just 5, pktTpDst = Just 0,
               pktInPort = 6})
@@ -86,7 +86,7 @@ negation_regress_maker pred = do
   let pol = PoUnion (PoBasic pred act) (PoBasic (PrNegate pred) act')
   let pkt = Packet {pktDlSrc = ethernetAddress64 200,
               pktDlDst = ethernetAddress64 500, pktDlTyp = 1, pktDlVlan = Just 4,
-              pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5, 
+              pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5,
               pktNwProto = 5,
               pktNwTos = 7, pktTpSrc = Just 5, pktTpDst = Just 0, pktInPort = 6}
   let polAct = interpretPolicy pol (Transmission top 0 (FreneticPkt pkt))
@@ -108,7 +108,7 @@ case_regress_neg_1_ok = do
   negation_regress_maker (dlDst (ethernetAddress64 500))
 
 case_regress_neg_1_2 = do
-  negation_regress_maker (dlDst (ethernetAddress64 500) <&&> 
+  negation_regress_maker (dlDst (ethernetAddress64 500) <&&>
                           dlSrc (ethernetAddress64 200))
 
 -- Invariant: given an arbitrary classifier c, minimze c yields an

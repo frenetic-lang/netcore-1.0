@@ -117,7 +117,7 @@ instance Monoid Action where
 
 -- |Join: overloaded to find the union of policies and the join of actions.
 (<+>) :: Monoid a => a -> a -> a
-(<+>) = mappend 
+(<+>) = mappend
 
 -- |Abbreviation for predicate union.
 (<||>) = PrUnion

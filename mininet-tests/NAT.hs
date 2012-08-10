@@ -15,7 +15,7 @@ import Data.Bits
 
 -- Shorthand for hard-coded IP addresses
 addr :: (Word8, Word8, Word8, Word8) -> Word32
-addr (a, b, c, d) = 
+addr (a, b, c, d) =
   let a' = fromIntegral a
       b' = fromIntegral b
       c' = fromIntegral c
@@ -82,7 +82,7 @@ pktsByLocation = do
   return (uniqPktChan, polChan)
 
 -- Implement NAT logic here.
--- 
+--
 --  This version of a NAT simply maps internal (IP, Port) pairs to
 --  a unique externap port.  We implement this with modification actions
 --  on the switch:
@@ -91,7 +91,7 @@ pktsByLocation = do
 --         for the outside world.  Replace dlDst with 0x11, nwSrc with fakeIP,
 --         and tpSrc with the mapping from (srcIP, tpSrc).
 --
---      2: External -> Internal.  Packets arriving on port 3 (i.e. from the 
+--      2: External -> Internal.  Packets arriving on port 3 (i.e. from the
 --         outside world) will have dstIP = fakeIP and dstPort = map(srcIP, tpSrc).
 --         Replace with the proper IP, port, and MAC.
 installHosts :: Chan Packet -> IO (Chan Policy)
@@ -117,7 +117,7 @@ installHosts pktChan = do
                   Nothing -> (pNum, pNum + 1) }
               -- Create the policy that rewrites the internal source on outgoing packets.
               let outMod = (modNwSrc fakeIP) {modifyTpSrc = Just extPort}
-              let outPol = dlSrc srcMac 
+              let outPol = dlSrc srcMac
                       <&&> dlDst gateMAC
                       <&&> nwSrc srcIp
                       <&&> tpSrc srcTp
@@ -141,7 +141,7 @@ installHosts pktChan = do
 
 
 nonNATPolicy :: Policy
-nonNATPolicy = 
+nonNATPolicy =
   -- ARP
   ((arp ==> allPorts unmodified) <+>
   -- Internal traffic

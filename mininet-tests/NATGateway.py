@@ -12,7 +12,7 @@ from time import gmtime, strftime, sleep
 import unittest
 
 # NOTE: IP forwarding must be enabled on the VM for this to work:
-# 
+#
 #           sysctl -w net.ipv4.ip_forward=1
 
 topo = mininet.topo.SingleSwitchTopo(k=2)

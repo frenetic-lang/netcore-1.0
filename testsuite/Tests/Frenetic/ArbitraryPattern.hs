@@ -13,7 +13,7 @@ instance (Arbitrary a) => Arbitrary (Wildcard a) where
 
 instance (Num a, Bits a, Arbitrary a) => Arbitrary (Prefix a) where
   arbitrary = do
-    val <- arbitrary 
+    val <- arbitrary
     len <- oneof (map return [ 0 .. bitSize val ])
     return (Prefix val len)
 

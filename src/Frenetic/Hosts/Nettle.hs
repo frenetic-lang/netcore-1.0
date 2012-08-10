@@ -100,8 +100,8 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   -- 5. On new policy, update the switch and accumulator
   let switchID = handle2SwitchID switch
   policiesAndMessages <- select policyChan msgChan
-  let loop :: (Policy, Int, Bool) 
-           -> IO () 
+  let loop :: (Policy, Int, Bool)
+           -> IO ()
            -> Either Policy (TransactionID, SCMessage)
            -> IO ()
       loop (policy, flowTblLen, cookie)  oldThreads (Left policy') = do
@@ -123,7 +123,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         let delPriorities :: [Priority]= case cookie of
               False -> take flowTblLen ([ 65534 .. ])
               True -> take flowTblLen ([65534 - fromIntegral flowTblLen .. ])
-        let mkDelFlow prio = 
+        let mkDelFlow prio =
               (0, FlowMod (DeleteExactFlow matchAny Nothing prio))
         mapM_ (sendToSwitch switch) (map mkDelFlow delPriorities)
         newThreads <- runQueryOnSwitch nettle switch classifier

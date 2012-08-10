@@ -79,7 +79,7 @@ doArp routeChan = do
   --   haven't learned one yet, and
   -- * A map from IP addresses to MAC addresses, which stores the ARP lookups
   --   which we already know about.
-  -- 
+  --
   -- Ultimately, we need to generate a new routing and packet query  policy that
   -- routes the ARP packets we're not going to handle, plus installs the packet
   -- receiving actions to query the packets we want to either reply to or learn

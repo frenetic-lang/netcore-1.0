@@ -27,7 +27,7 @@ pktsByLocation = do
   polChan <- newChan -- policy to monitor new hosts and moved hosts
   (pktChan, act) <- getPkts
   -- In a loop, inspect packets, and learn the ingress port for hosts
-  let loop :: Map.Map (Switch, EthernetAddress) (Port, Predicate) 
+  let loop :: Map.Map (Switch, EthernetAddress) (Port, Predicate)
            -> IO ()
       loop locs = do
         (sw, pkt) <- readChan pktChan

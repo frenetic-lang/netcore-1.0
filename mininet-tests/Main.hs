@@ -36,9 +36,9 @@ argSpec =
       "monitor traffic from source IPs"
   , Option [] ["monitor"] (NoArg (Example SimpleMonitor.main))
       "monitor traffic from source IPs"
-  , Option ['r'] ["repeater"] (NoArg (Example Repeater.main)) 
+  , Option ['r'] ["repeater"] (NoArg (Example Repeater.main))
       "a simple repeater"
-  , Option [] ["query1"] (NoArg (Example Query1.main)) 
+  , Option [] ["query1"] (NoArg (Example Query1.main))
       "a repeater that also counts packets"
   , Option [] ["maclearning"] (NoArg (Example MacLearning.main))
       "a learning switch"

@@ -28,14 +28,14 @@ newScore score count count' =
    (0.7 * score + fromIntegral (count' - count), count')
 
 nextState :: Float -> Float -> Maybe Msg
-nextState score score' = 
+nextState score score' =
   if score' < 1 then Just Unmonitor
   else if score' > 5000 && score <= 5000 then Just Block
   else if score' < 100 && score >= 100 then Just Unblock
   else Nothing
 
--- |'monitorHost eth ip chan' produces a policy that monitors traffic from a 
--- single host. Monitor writes commands to 'chan' that direct 
+-- |'monitorHost eth ip chan' produces a policy that monitors traffic from a
+-- single host. Monitor writes commands to 'chan' that direct
 -- 'monitoringProcess' to either block, unblock, or stop monitoring the host.
 monitorHost :: EthernetAddress -- ^ethernet address to monitor
             -> Word32 -- ^IP address to monitor
@@ -55,11 +55,11 @@ monitorHost eth ip actionChan = do
         let score' = case Map.lookup sw traffic' of
               Nothing -> error "sw should be in traffic'"
               Just (s, _) -> s
-        debugM "monitor" $  show ip ++ " has score " ++ (printf "%7.2f" score') 
+        debugM "monitor" $  show ip ++ " has score " ++ (printf "%7.2f" score')
         let action = nextState score score'
         case action of
           Nothing -> loop traffic'
-          Just act -> do 
+          Just act -> do
             writeChan actionChan (act, ip)
             infoM "monitor" $ show act ++ " " ++ show ip
             loop traffic'
@@ -95,13 +95,13 @@ monitoringProcess = do
           -- Unblock if directed
           Right (Unblock, srcIP) -> return (monitors, Set.delete srcIP blocked)
           -- Unmonitor if directed
-          Right (Unmonitor, srcIP) -> 
+          Right (Unmonitor, srcIP) ->
             return (Map.delete srcIP monitors, Set.delete srcIP blocked)
         -- run all monitors'
         let monitoringPol = foldr (<+>) PoBottom (Map.elems monitors)
         -- block all blocked' hosts IP traffic
-        let mkBlock srcIP = nwSrc srcIP <&&> dlTyp 0x0800 
-        let blockingPred = 
+        let mkBlock srcIP = nwSrc srcIP <&&> dlTyp 0x0800
+        let blockingPred =
               neg $ foldr (<||>) matchNone (map mkBlock (Set.elems blocked'))
         -- run monitoringPol, and send all other packets to the controller,
         -- so we can monitor them.

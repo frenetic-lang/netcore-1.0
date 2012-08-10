@@ -12,7 +12,7 @@ arpReply :: Word48 -> Word32 -> Word48 -> Word32 -> ByteString
 arpReply srcEth srcIP dstEth dstIP =
   runPut $ putArpReply srcEth srcIP dstEth dstIP
 
-putArpReply :: Word48 
+putArpReply :: Word48
             -> Word32
             -> Word48
             -> Word32

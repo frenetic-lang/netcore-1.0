@@ -125,7 +125,7 @@ case_testInputPredicates = do
   let (topo, [(s1, p1), (s2, p2)]) = linearHostsQ [[0, 1, 2, 3], [0, 1, 2, 3]] qs
   let s1' = s1 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 100)
                                   (ingress s1)}
-  let s2' = s2 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 200) 
+  let s2' = s2 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 200)
                                   (ingress s2)}
   let c1 = compileSlice s1' 1 p1
   let c2 = compileSlice s2' 2 p2
@@ -141,9 +141,9 @@ case_testInputPredicates = do
 case_testInputPredicatesEdge = do
   qs <- queries
   let (topo, [(s1, p1), (s2, p2)]) = linearHostsQ [[0, 1], [0, 1]] qs
-  let s1' = s1 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 100) 
+  let s1' = s1 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 100)
                                   (ingress s1)}
-  let s2' = s2 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 200) 
+  let s2' = s2 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 200)
                                   (ingress s2)}
   let [(a1, (_, _)), (a2, (_, _))] = edge topo [(s1', p1), (s2', p2)]
   let c1 = edgeCompileSlice s1' a1 p1

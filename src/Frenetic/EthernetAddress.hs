@@ -18,7 +18,7 @@ data EthernetAddress = EthernetAddress { unpackEth64 :: Word64 }
   deriving (Eq, Ord)
 
 instance Show EthernetAddress where
-  show eth = concat $ 
+  show eth = concat $
     intersperse ":" (map (\n -> showHex n "") [w0,w1,w2,w3,w4,w5])
       where (w0,w1,w2,w3,w4,w5) = unpackEthernetAddress eth
 
@@ -27,9 +27,9 @@ instance Enum EthernetAddress where
   fromEnum (EthernetAddress w64) = fromEnum w64
 
 instance Binary EthernetAddress where
-  
+
   get = do
-    w32 <- getWord32be  
+    w32 <- getWord32be
     w16 <- getWord16be
     let w64 = (fromIntegral w32 `shiftL` 16) .|. fromIntegral w16
     return (EthernetAddress w64)
@@ -39,12 +39,12 @@ instance Binary EthernetAddress where
     putWord16be (fromIntegral (w64 `mod` 0x010000))
 
 ethernetAddress :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8
-                -> EthernetAddress                                
+                -> EthernetAddress
 ethernetAddress w1 w2 w3 w4 w5 w6  = EthernetAddress w64
   where w64 = (shiftL (fromIntegral w1) 40) .|.
               (shiftL (fromIntegral w2) 32) .|.
-              (shiftL (fromIntegral w3) 24) .|.                       
-              (shiftL (fromIntegral w4) 16) .|.      
+              (shiftL (fromIntegral w3) 24) .|.
+              (shiftL (fromIntegral w4) 16) .|.
               (shiftL (fromIntegral w5) 8) .|.
               (fromIntegral w6)
 

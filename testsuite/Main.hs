@@ -23,7 +23,7 @@ main = do
   let args' = if sat then delete "sat" args else args
   defaultMainWithArgs ourTests args'
 
-mainTests = 
+mainTests =
   [
     compilerTests
   , netCoreTests

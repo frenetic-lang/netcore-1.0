@@ -113,7 +113,7 @@ queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
            Just v -> v
            Nothing -> error $
                       "assignment map incomplete at " ++ (show l) ++
-                      "\nmap:   " ++ (show assignment) ++ 
+                      "\nmap:   " ++ (show assignment) ++
                       "\nslice: " ++ (show $ internal slice)
 
 -- |Remove forwarding actions from policy leaving only queries

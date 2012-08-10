@@ -12,7 +12,7 @@ import Frenetic.Common
 -- The controller reads NetCore programs from the given channel. When
 -- the controller receives a program on the channel, it compiles it and
 -- reconfigures the network to run it.
-dynController :: Chan Policy 
+dynController :: Chan Policy
               -> Chan (Loc, ByteString) -- ^packets to emit
               -> IO ()
 dynController = nettleServer

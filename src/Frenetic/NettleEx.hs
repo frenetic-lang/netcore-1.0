@@ -50,16 +50,16 @@ startOpenFlowServerEx host port = do
   txHandlers <- newIORef Map.empty
   return (Nettle server switches nextTxId txHandlers)
 
-acceptSwitch :: Nettle 
-             -> IO (SwitchHandle, 
+acceptSwitch :: Nettle
+             -> IO (SwitchHandle,
                     SwitchFeatures,
                     Chan (TransactionID, SCMessage))
 acceptSwitch nettle = do
   let exnHandler (e :: SomeException) = do
         infoM "nettle" $ "could not accept switch " ++ show e
-        accept 
+        accept
       accept = do
-        (Server.acceptSwitch (server nettle)) `catches` 
+        (Server.acceptSwitch (server nettle)) `catches`
           [ Handler (\(e :: AsyncException) -> throw e),
             Handler exnHandler ]
   (switch, switchFeatures) <- accept
@@ -83,13 +83,13 @@ closeServer nettle = Server.closeServer (server nettle)
 
 sendToSwitch :: SwitchHandle -> (TransactionID, CSMessage) -> IO ()
 sendToSwitch sw (xid, msg) = do
-  debugM "nettle" $ "msg to switch with xid=" ++ show xid ++ "; msg=" ++ 
+  debugM "nettle" $ "msg to switch with xid=" ++ show xid ++ "; msg=" ++
                     show msg
   Server.sendToSwitch sw (xid, msg)
 
 sendToSwitchWithID :: Nettle -> SwitchID -> (TransactionID, CSMessage) -> IO ()
 sendToSwitchWithID nettle sw (xid, msg) = do
-  debugM "nettle" $ "msg to switch with xid=" ++ show xid ++ "; msg=" ++ 
+  debugM "nettle" $ "msg to switch with xid=" ++ show xid ++ "; msg=" ++
                     show msg
   Server.sendToSwitchWithID (server nettle) sw (xid, msg)
 
