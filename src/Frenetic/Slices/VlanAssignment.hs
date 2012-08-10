@@ -7,7 +7,8 @@ import Data.Maybe
 import Data.Word
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Frenetic.NetCore
+import Frenetic.NetCore.Short
+import Frenetic.NetCore.Types
 import Frenetic.Slices.Slice
 import Frenetic.Topo
 

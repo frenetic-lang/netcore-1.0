@@ -1,7 +1,6 @@
 module Frenetic.Slices.Slice
   ( -- * Data Structures
     Slice (..)
-  , Loc (..)
   -- * Utilities
   , internalSlice
   , simpleSlice
@@ -18,19 +17,34 @@ import qualified Data.Map as Map
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Data.Word
-import Frenetic.NetCore
+import Frenetic.NetCore.Short
+import Frenetic.NetCore.Types
 import Frenetic.Pattern
 import Frenetic.Topo
 import Frenetic.NetCore.Types
 
+-- |A slice represents a subgraph of the network for the purposes of isolating
+-- programs from each other.
+--
+-- The interface to a slice has two components: a topology comprising switches,
+-- ports, and links; and a collection of predicates, one for each outward-facing
+-- edge port.
+--
+-- We represent the topology as a collection of locations in the network, and
+-- the predicates as a mapping from locations to predicates.
+--
+-- Intuitively, packets may travel freely between internal locations, but must
+-- satisfy the associated predicate to enter the slice at an ingress location,
+-- or leave the slice at an egress location.  If an external port is not listed
+-- in the ingress or egress set, then no packets may enter or leave
+-- (respectively) on that port.
 data Slice = Slice {
   -- |Ports internal to the slice.
   internal :: Set.Set Loc
   -- |External ports, and restrictions on inbound packets.
 , ingress :: Map.Map Loc Predicate
   -- |External ports, and restrictions on outbound packets.
-, egress  :: Map.Map Loc Predicate
-} deriving (Eq, Ord, Show)
+, egress  :: Map.Map Loc Predicate } deriving (Eq, Ord, Show)
 
 linkToLoc (n, _, p) = Loc (fromIntegral n) p
 

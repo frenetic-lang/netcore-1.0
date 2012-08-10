@@ -1,10 +1,19 @@
-Name:             frenetic
-Version:          0.2.0
-Copyright:        2011, 2012, Cornell University, Princeton University
+Name:             netcore
+Version:          1.0.0
+Copyright:        (c) 2011--2012, Cornell University and Princeton University
 License:          BSD3
 License-File:     LICENSE
 Cabal-Version:    >= 1.9.2
 Build-Type:       Simple
+Synopsis: The NetCore compiler and runtime system for OpenFlow networks.
+Description:
+  NetCore is a high-level network programming language. This package provides
+  a NetCore compiler and runtime system for OpenFlow networks.
+
+  See the 'Frenetic.NetCore' module for commonly used functions.
+  
+  We have several example programs available online at
+  <https://github.com/frenetic-lang/netcore/tree/master/examples>
 
 Library
   build-depends:
@@ -26,46 +35,46 @@ Library
     bimap == 0.2.*,
     network == 2.3.*
   exposed-modules:
+    Frenetic.Common,
+    Frenetic.Compat,
+    Frenetic.EthernetAddress,
     Frenetic.NetCore,
     Frenetic.NetCore.Semantics,
-    Frenetic.NetCore.Short
-    Frenetic.Compat,
-    Frenetic.Pattern,
+    Frenetic.NetCore.Short,
     Frenetic.NetCore.Types,
-    Frenetic.Server,
-    Frenetic.EthernetAddress,
     Frenetic.NetworkFrames,
-    Frenetic.Topo,
-    Frenetic.Slices.Slice
-    Frenetic.Slices.Compile
-    Frenetic.Common
+    Frenetic.Pattern,
+    Frenetic.Server
   other-modules:
-    Frenetic.NetCore.Pretty
-    Frenetic.Switches.OpenFlow
-    Frenetic.NetCore.Compiler
-    Frenetic.Hosts.Nettle
-    Frenetic.NettleEx
-    Frenetic.NetCore.Reduce
-    Frenetic.Slices.VlanAssignment
-    Nettle.Ethernet.EthernetAddress
-    Nettle.Ethernet.EthernetFrame
-    Nettle.Ethernet.AddressResolutionProtocol
-    Nettle.IPv4.IPAddress
-    Nettle.IPv4.IPPacket
-    Nettle.OpenFlow.Port
-    Nettle.OpenFlow.Action
-    Nettle.OpenFlow.Switch
-    Nettle.OpenFlow.Match
-    Nettle.OpenFlow.FlowTable
-    Nettle.OpenFlow.Statistics
-    Nettle.OpenFlow.Error
-    Nettle.OpenFlow.Packet
-    Nettle.OpenFlow.Messages
-    Nettle.OpenFlow.StrictPut
-    Nettle.OpenFlow.MessagesBinary
-    Nettle.OpenFlow
+    Frenetic.Hosts.Nettle,
+    Frenetic.NetCore.Compiler,
+    Frenetic.NetCore.Pretty,
+    Frenetic.NetCore.Reduce,
+    Frenetic.NettleEx,
+    Frenetic.Slices.Compile,
+    Frenetic.Slices.Slice,
+    Frenetic.Slices.VlanAssignment,
+    Frenetic.Switches.OpenFlow,
+    Frenetic.Topo,
+    Nettle.Ethernet.AddressResolutionProtocol,
+    Nettle.Ethernet.EthernetAddress,
+    Nettle.Ethernet.EthernetFrame,
+    Nettle.IPv4.IPAddress,
+    Nettle.IPv4.IPPacket,
+    Nettle.OpenFlow,
+    Nettle.OpenFlow.Action,
+    Nettle.OpenFlow.Error,
+    Nettle.OpenFlow.FlowTable,
+    Nettle.OpenFlow.Match,
+    Nettle.OpenFlow.Messages,
+    Nettle.OpenFlow.MessagesBinary,
+    Nettle.OpenFlow.Packet,
+    Nettle.OpenFlow.Port,
+    Nettle.OpenFlow.Statistics,
+    Nettle.OpenFlow.StrictPut,
+    Nettle.OpenFlow.Switch,
+    Nettle.Servers.Client,
     Nettle.Servers.Server
-    Nettle.Servers.Client
   Extensions:
     ScopedTypeVariables, TypeFamilies, FlexibleInstances,
     FlexibleContexts, DoAndIfThenElse, RecordWildCards
