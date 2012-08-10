@@ -18,14 +18,15 @@ import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
 
 
-mkFlowMod :: (Match, ActionSequence)
+mkFlowMod :: Bool
+          -> (Match, ActionSequence)
           -> Priority
           -> CSMessage
-mkFlowMod (pat, acts) pri = FlowMod AddFlow {
+mkFlowMod cookie (pat, acts) pri = FlowMod AddFlow {
   match=pat,
   priority=pri,
   actions=acts,
-  cookie=0,
+  cookie= if cookie then 1 else 0,
   notifyWhenRemoved=False,
   idleTimeOut=Permanent,
   hardTimeOut=Permanent,
@@ -99,25 +100,40 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   -- 5. On new policy, update the switch and accumulator
   let switchID = handle2SwitchID switch
   policiesAndMessages <- select policyChan msgChan
-  let loop oldPolicy oldThreads (Left policy) = do
-        sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
-        let classifier = compile (handle2SwitchID switch) policy
+  let loop :: (Policy, Int, Bool) 
+           -> IO () 
+           -> Either Policy (TransactionID, SCMessage)
+           -> IO ()
+      loop (policy, flowTblLen, cookie)  oldThreads (Left policy') = do
+        let classifier = compile (handle2SwitchID switch) policy'
         let flowTbl = rawClassifier classifier
-        debugM "nettle" $ "policy is \n" ++ toString policy ++
+        debugM "nettle" $ "policy is \n" ++ toString policy' ++
                           "\n and flow table is \n" ++
                           (concat $ intersperse "\n"
                                       (map prettyClassifier flowTbl))
         oldThreads
+        let priorities :: [Priority] = case cookie of
+              False -> [ 65534 .. ]
+              True -> [ 65534 - fromIntegral flowTblLen .. ]
+        let cookie' = not cookie
+        let flowMods = zipWith (mkFlowMod cookie') flowTbl priorities
+        let flowTblLen' = length flowMods
+        -- Install new rules and run queries
+        mapM_ (sendToSwitch switch) (zip (repeat 0) flowMods)
+        let delPriorities :: [Priority]= case cookie of
+              False -> take flowTblLen ([ 65534 .. ])
+              True -> take flowTblLen ([65534 - fromIntegral flowTblLen .. ])
+        let mkDelFlow prio = 
+              (0, FlowMod (DeleteExactFlow matchAny Nothing prio))
+        mapM_ (sendToSwitch switch) (map mkDelFlow delPriorities)
         newThreads <- runQueryOnSwitch nettle switch classifier
-        -- Priority 65535 is for microflow rules from reactive-specialization
-        let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
-        mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
+
         debugM "nettle" $ "finished reconfiguring switch " ++
                           show (handle2SwitchID switch)
         nextMsg <- readChan policiesAndMessages
 
-        loop policy newThreads nextMsg
-      loop policy threads (Right (xid, msg)) = case msg of
+        loop (policy', flowTblLen', cookie') newThreads nextMsg
+      loop p@(policy, _, _) threads (Right (xid, msg)) = case msg of
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                                    reasonSent=ExplicitSend,
                                    enclosedFrame=Right frame})) -> do
@@ -127,7 +143,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
           let actions = interpretPolicy policy t
           actnControllerPart (actnTranslate actions) switchID (toOFPkt pkt)
           nextMsg <- readChan policiesAndMessages
-          loop policy threads nextMsg
+          loop p threads nextMsg
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                                    reasonSent=NotMatched,
                                    enclosedFrame=Right frame})) -> do
@@ -145,11 +161,11 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
                           (filter unCtrl (fromOFAct $ actnTranslate actions))
               sendToSwitch switch (2, msg)
           nextMsg <- readChan policiesAndMessages
-          loop policy threads nextMsg
+          loop p threads nextMsg
         otherwise -> do
           nextMsg <- readChan policiesAndMessages
-          loop policy threads nextMsg
-  loop PoBottom (return ()) (Left initPolicy)
+          loop p threads nextMsg
+  loop (PoBottom, 0, False) (return ()) (Left initPolicy)
 
 nettleServer :: Chan Policy -> Chan (Loc, ByteString) -> IO ()
 nettleServer policyChan pktChan = do
