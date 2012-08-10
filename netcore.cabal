@@ -5,6 +5,14 @@ License:          BSD3
 License-File:     LICENSE
 Cabal-Version:    >= 1.9.2
 Build-Type:       Simple
+Maintainer:       Arjun Guha <arjun@cs.cornell.edu>,
+                  Cole Schlesinger <cschlesi@cs.princeton.edu>,
+                  Alec Story <avs38@cornell.edu>
+Stability: experimental
+Homepage: http://frenetic-lang.org
+Bug-reports: http://github.com/frenetic-lang/netcore/issues
+Tested-with: GHC==7.4.1
+Category: Network
 Synopsis: The NetCore compiler and runtime system for OpenFlow networks.
 Description:
   NetCore is a high-level network programming language. This package provides
@@ -14,6 +22,15 @@ Description:
 
   We have several example programs available online at
   <https://github.com/frenetic-lang/netcore/tree/master/examples>
+
+Source-repository head
+   type: git
+   location: git://github.com/frenetic-lang/netcore.git
+
+Source-repository this
+   type: git
+   location: git://github.com/frenetic-lang/netcore.git
+   tag: 1.0.0
 
 Library
   build-depends:
