@@ -38,6 +38,7 @@ Library
     Frenetic.Common,
     Frenetic.Compat,
     Frenetic.EthernetAddress,
+    Frenetic.IPAddress,
     Frenetic.NetCore,
     Frenetic.NetCore.Semantics,
     Frenetic.NetCore.Short,

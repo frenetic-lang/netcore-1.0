@@ -111,6 +111,11 @@ case_regress_neg_1_2 = do
   negation_regress_maker (dlDst (ethernetAddress64 500) <&&>
                           dlSrc (ethernetAddress64 200))
 
+prop_ipAddr_ok :: IPAddr -> Bool
+prop_ipAddr_ok addr = 
+  addr == ipAddr b3 b2 b1 b0
+    where (b3, b2, b1, b0) = unpackIPAddr addr
+
 -- Invariant: given an arbitrary classifier c, minimze c yields an
 --            equivalent classifier.
 -- Test with OpenFlow patterns and actions.

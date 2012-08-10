@@ -11,6 +11,11 @@ import Tests.Frenetic.ArbitraryCompat
 
 import Test.QuickCheck
 
+instance Arbitrary IPAddr where
+  arbitrary = do
+    w <- arbitrary
+    return (IPAddr w)
+
 instance Arbitrary Predicate where
   -- Bound the size of the predicate
   arbitrary = sized $ \s -> if s > 0

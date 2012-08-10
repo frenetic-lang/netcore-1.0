@@ -36,6 +36,7 @@ module Frenetic.NetCore.Types
   , poUnUnion
   , poDom
   , module Frenetic.EthernetAddress
+  , module Frenetic.IPAddress
   , size
   ) where
 
@@ -50,6 +51,7 @@ import Frenetic.Pattern
 import System.IO.Unsafe
 import Data.Maybe (catMaybes)
 import Frenetic.EthernetAddress
+import Frenetic.IPAddress
 
 -- |A switch's unique identifier.
 type Switch = Word64
@@ -69,7 +71,6 @@ data PseudoPort
 
 -- |VLAN tags. Only the lower 12-bits are used.
 type Vlan = Word16
-
 
 -- |Ethernet addresses are 48-bits wide.
 type Word48 = EthernetAddress
