@@ -4,11 +4,11 @@
 module NAT where
 
 import Control.Concurrent
+import Control.Monad (forever)
 import Frenetic.NetCore
 import Frenetic.NetCore.Types
 import Frenetic.EthernetAddress
 import qualified Data.Map as Map
-import Frenetic.NetCore.Types (poDom, modifyNwSrc)
 import Data.Word
 import Data.Bits
 
@@ -122,6 +122,7 @@ installHosts pktChan = do
                       <&&> nwSrc srcIp
                       <&&> tpSrc srcTp
                        ==> modify [(gatePort, outMod)]
+              let outPol = dlDst gateMAC ==> forward [gatePort]
               -- Create the policy that replaces the internal source on incoming packets.
               let inMod  = (modNwDst srcIp) {modifyTpDst = Just srcTp, modifyDlSrc = Just srcMac}
               let inPol  = nwDst srcIp
@@ -134,7 +135,7 @@ installHosts pktChan = do
               writeChan polChan newPol
               loop locs' pNum
             otherwise -> loop locs pNum
-  writeChan polChan $ (dlDst gateMAC ==> dropPkt) <+> (nwDst fakeIP ==> dropPkt)
+  writeChan polChan $ (dlDst gateMAC ==> forward [gatePort]) <+> (nwDst fakeIP ==> dropPkt)
   forkIO (loop Map.empty 1)
   return polChan
 
@@ -142,50 +143,27 @@ installHosts pktChan = do
 nonNATPolicy :: Policy
 nonNATPolicy = 
   -- ARP
-  (arp ==> allPorts unmodified) <+>
+  ((arp ==> allPorts unmodified) <+>
   -- Internal traffic
-  (private ==> allPorts unmodified) 
+  (private ==> allPorts unmodified)) <%>
+  -- Restricted to traffic not destined for the gateway
+  (neg $ dlDst gateMAC)
 
 
 nat :: IO (Chan Policy)
 nat = do
   (uniqPktsChan, queryPolChan) <- pktsByLocation
   fwdPolChan <- installHosts uniqPktsChan
-  bothPolsChan <- mergeChan queryPolChan fwdPolChan
+  bothPolsChan <- both queryPolChan fwdPolChan
   polChan <- newChan
-  pktOutChan <- newChan
-  let loop fwdPol queryPol = do
-        -- Check for new policies
-        pol <- readChan bothPolsChan
-        case (pol, fwdPol, queryPol) of
-          (Left queryPol, Nothing, _) -> loop Nothing (Just queryPol)
-          (Right fwdPol, _, Nothing) -> loop (Just fwdPol) Nothing
-          (Left queryPol, Just fwdPol, _) -> do
-            writeChan polChan (nonNATPolicy <+> fwdPol <+> queryPol)
-            loop (Just fwdPol) (Just queryPol)
-          (Right fwdPol, _, Just queryPol) -> do
-            writeChan polChan (nonNATPolicy <+> fwdPol <+> queryPol)
-            loop (Just fwdPol) (Just queryPol)
-  forkIO (loop Nothing Nothing)
+  forkIO $ forever $ do
+    (queryPol, fwdPol) <- readChan bothPolsChan
+    writeChan polChan (nonNATPolicy <+> fwdPol <+> queryPol)
   return polChan
-
-
---policy = 
---  -- ARP
---  (arp ==> allPorts unmodified) <+>
---  -- Internal traffic
---  (private ==> allPorts unmodified) <+>
---  -- Outgoing external traffic
---  (toGateway ==> modify [(gatePort, outMods)]) <+>
---  -- Incoming external traffic
---  (fromGateway ==> modify demux)
---  where
---    outMods = 
 
 
 main = do
   polChan <- nat
   pktChan <- newChan
-  -- dynController polChan pktChan
-  controller nonNATPolicy
+  dynController polChan pktChan
 

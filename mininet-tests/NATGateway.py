@@ -60,3 +60,6 @@ net.interact()
 os.system('ip link del gate-host')
 os.system('iptables -F')
 os.system('iptables -Z')
+
+os.system('mn -c')
+
