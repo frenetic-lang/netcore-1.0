@@ -11,7 +11,6 @@ import qualified Query1
 import qualified Repeater
 import qualified Monitor
 import qualified NAT
-import qualified SimpleMonitor
 import qualified KitchenSink
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
@@ -32,9 +31,7 @@ argSpec =
       "sets the verbosity of the log"
   , Option ['a'] ["arp"] (NoArg (Example Arp.main))
       "an interesting controller-based ARP cache"
-  , Option [] ["firewall"] (NoArg (Example Monitor.main))
-      "monitor traffic from source IPs"
-  , Option [] ["monitor"] (NoArg (Example SimpleMonitor.main))
+  , Option [] ["monitor"] (NoArg (Example Monitor.main))
       "monitor traffic from source IPs"
   , Option ['r'] ["repeater"] (NoArg (Example Repeater.main))
       "a simple repeater"
