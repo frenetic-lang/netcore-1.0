@@ -21,7 +21,7 @@ Installation
 Install Frenetic from Hackage:
 
     cabal update
-    cabal install frenetic
+    cabal install netcore
 
 This installs a Haskell library that you can use to write Frenetic applications.
 
