@@ -3,7 +3,8 @@ module KitchenSink (sink, main) where
 import Arp (doArp)
 import MacLearning (learningSwitch)
 import Monitor (monitor)
-
+import System.IO
+import System.Log.Logger
 import Control.Concurrent
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.Set as Set
@@ -40,7 +41,11 @@ sink routing = do
                                                , dlTyp 0x0800 <&&> nwProto 0x01]))
   let spySlice = simpleSlice topo matchAll
   (arpPolicy, arpPacket) <- doArp arpRoute
-  monitorPolicy <- monitor monitorRoute
+  rootLogger  <- getRootLogger
+  let logLevel = case getLevel rootLogger of
+        Nothing -> INFO
+        Just v -> v
+  monitorPolicy <- monitor stderr logLevel monitorRoute
   policies <- dynTransform [ (routeSlice, route)
                                , (arpSlice, arpPolicy)
                                , (monitorSlice, monitorPolicy)
