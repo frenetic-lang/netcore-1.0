@@ -12,11 +12,7 @@ import Control.Monad (forever)
 import Frenetic.NetCore.Types (poDom)
 import MacLearning (learningSwitch)
 import System.Log.Logger
-import System.Log.Handler hiding (setLevel)
-import System.Log.Handler.Simple
-import System.Log.Formatter
 import Text.Printf
-import System.IO
 
 data Msg
   = Block
@@ -116,21 +112,13 @@ monitoringProcess = do
   writeChan resultChan (matchAll ==> inspectPkt, matchNone)
   return resultChan
 
-myLogFormatter = simpleLogFormatter "[$prio : $time : $loggername] $msg"
-
 -- |'monitor routeChan' runs a monitoring process that detects
 -- hosts that send too much traffic. The resulting policy is a
 -- restriction of 'routeChan' to exclude those hosts.
-monitor :: Handle -- ^log to this handle
-        -> Priority
-        -> Chan Policy -- ^policy that establishes connnectivity
+monitor :: Chan Policy -- ^policy that establishes connnectivity
                        --  between hosts
         -> IO (Chan Policy) -- ^a restriction of 'routeChan'
-monitor logHandle logPriority routeChan = do
-  handler <- streamHandler logHandle logPriority
-  let handler' = setFormatter handler myLogFormatter
-  logger <- getLogger "monitor"
-  saveGlobalLogger $ setLevel logPriority (setHandlers [handler'] logger)
+monitor routeChan = do
   resultChan <- newChan
   monitorChan <- monitoringProcess
   chan <- both routeChan monitorChan
@@ -144,6 +132,6 @@ monitor logHandle logPriority routeChan = do
 -- stop sending traffic.
 main = do
   routeChan <- learningSwitch
-  polChan <- monitor stderr DEBUG routeChan
+  polChan <- monitor routeChan
   pktChan <- newChan
   dynController polChan pktChan
