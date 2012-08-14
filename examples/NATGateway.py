@@ -11,6 +11,8 @@ import os, sys
 from time import gmtime, strftime, sleep
 import unittest
 
+mn_gate_eth = "zzzgate-eth"
+
 # NOTE: IP forwarding must be enabled on the VM for this to work:
 #
 #           sysctl -w net.ipv4.ip_forward=1
@@ -34,20 +36,24 @@ os.system('iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED '
 os.system('iptables -A POSTROUTING -t nat -j MASQUERADE')
 
 
-os.system('ip link add name gate-host address %s type veth peer name gate-mn' % gateMAC)
+os.system('ip link add name gate-host address %s type veth peer name %s' % (gateMAC, mn_gate_eth))
 os.system('ip link set gate-host up')
-os.system('ip link set gate-mn up')
+os.system('ip link set %s up' % mn_gate_eth)
 os.system('ip addr add %s/24 dev gate-host' % (gateIP))
+
+
+s1 = net.switches[0]
+
+wanPort = s1.newPort()
+s1.addIntf(mn_gate_eth, wanPort)
 
 net.start()
 
-s1 = net.switches[0]
 print "Switch is %s" % s1
-
-wanPort = s1.newPort()
-s1.addIntf('gate-mn', wanPort)
 print "WAN port is %s" % wanPort
+print "Interfaces: %s" % s1.intfs
 print "Switch ports: %s" % s1.ports
+
 
 print "Hosts are:"
 for h in net.hosts:
