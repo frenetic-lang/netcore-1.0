@@ -124,7 +124,7 @@ checkBool :: IO (Maybe a) -> IO Bool
 checkBool = fmap isJust
 
 -- use smt2 syntax, disable warnings, emit the model, use stdin
-z3Process = CreateProcess (ShellCommand "z3 -smt2 -nw -m -in")
+z3Process = CreateProcess (ShellCommand "z3 -smt2 -nw -in")
                           Nothing -- No working directory
                           Nothing -- No special environment
                           CreatePipe -- Pipe to stdin
