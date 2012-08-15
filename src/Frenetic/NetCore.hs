@@ -59,9 +59,11 @@ module Frenetic.NetCore
   , Word48
   , broadcastAddress
   , EthernetAddress
+  , ethernetAddress
   , IPAddr
   , ipAddr
   , unpackIPAddr
+  , NetworkEvent (..)
   -- * Packets
   , Packet (..)
   -- * Packet modifications
