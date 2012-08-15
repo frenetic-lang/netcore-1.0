@@ -75,7 +75,6 @@ instance FreneticImpl () where
           (Just pt, pat) -> wMatch pt pat)
     && wMatch (pktInPort pkt) (ptrnInPort ptrn)
   fromPattern pat = FreneticPat pat
-  toPattern (FreneticPat x) = x
   actnDefault = FreneticAct dropPkt
   actnController = FreneticAct dropPkt
   actnTranslate x = FreneticAct x

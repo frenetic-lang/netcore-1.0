@@ -239,25 +239,6 @@ instance FreneticImpl OpenFlow where
     dstTransportPort = wildcardToMaybe $ ptrnTpDst ptrn,
     inPort = wildcardToMaybe $ ptrnInPort ptrn
   }
-
-  toPattern (OFPat ptrn) = Pattern {
-    ptrnDlSrc     = maybeToWildcard $ fmap ethToEthernetAddress $ srcEthAddress ptrn,
-    ptrnDlDst     = maybeToWildcard $ fmap ethToEthernetAddress $ dstEthAddress ptrn,
-    ptrnDlTyp     = maybeToWildcard $ ethFrameType ptrn,
-    ptrnDlVlan    = case vLANID ptrn of
-                      Just vl | vl == fromIntegral ofpVlanNone -> Exact Nothing
-                              | otherwise  -> Exact (Just vl)
-                      Nothing -> Wildcard,
-    ptrnDlVlanPcp = maybeToWildcard $ vLANPriority ptrn,
-    ptrnNwSrc     = ipAddressPrefixToPrefix $ srcIPAddress ptrn,
-    ptrnNwDst     = ipAddressPrefixToPrefix $ dstIPAddress ptrn,
-    ptrnNwProto   = maybeToWildcard $ matchIPProtocol ptrn,
-    ptrnNwTos     = maybeToWildcard $ ipTypeOfService ptrn,
-    ptrnTpSrc     = maybeToWildcard $ srcTransportPort ptrn,
-    ptrnTpDst     = maybeToWildcard $ dstTransportPort ptrn,
-    ptrnInPort    = maybeToWildcard $ inPort ptrn
-    }
-
   actnController = OFAct toController []
   actnDefault = OFAct toController []
 

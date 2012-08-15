@@ -22,19 +22,6 @@ import Frenetic.NetCore.Types hiding (ethernetAddress)
 
 switchTests = $(testGroupGenerator)
 
-prop_fromPattern_toPattern :: PatternImpl OpenFlow -> Bool
-prop_fromPattern_toPattern sptrn =
-  sptrn == (fromPattern $ toPattern sptrn)
-
-prop_fromPattern_toPattern_match :: PatternImpl OpenFlow -> Bool
-prop_fromPattern_toPattern_match sptrn =
-  p1 `match` p2
-    where
-      p1 = toPattern sptrn
-      p2 = toPattern p2'
-      p2' :: PatternImpl OpenFlow
-      p2' = fromPattern $ toPattern sptrn
-
 prop_ipAddressPrefix :: Word32 -> Word8 -> Bool
 prop_ipAddressPrefix ip len_in = prefix == idPrefix
   where
@@ -42,32 +29,6 @@ prop_ipAddressPrefix ip len_in = prefix == idPrefix
     len = len_in `mod` 32
     idPrefix = prefixToIPAddressPrefix $ ipAddressPrefixToPrefix prefix
 
-
--- The following tests pinpoint values that have failed at some
--- point in the past.
-case_fromPattern_toPattern_regression_1 = do
-  let p = toOFPat $ Match {
-      inPort = Just 27
-    , srcEthAddress = Nothing
-    , dstEthAddress = Just (ethernetAddress 7 43 42 48 39 35)
-    , vLANID = Just 0
-    , vLANPriority = Just 40
-    , ethFrameType = Nothing
-    , ipTypeOfService = Nothing
-    , matchIPProtocol = Nothing
-    , srcIPAddress = (IPAddress 41,7)
-    , dstIPAddress = (IPAddress 11,32)
-    , srcTransportPort = Just 28
-    , dstTransportPort = Nothing
-    }
-  p @=? (fromPattern $ toPattern p)
-
-case_exact_regression_1 = p @=? (toPattern p')
-  where
-    p :: Pattern
-    p' :: PatternImpl OpenFlow
-    p = top{ptrnNwSrc = Prefix 0x5000001 0}
-    p' = fromPattern p
 
 -- case_OFMatch_fail_1 = (matches (0, ethFrame) match) @=? True
 --   where

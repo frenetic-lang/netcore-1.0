@@ -44,7 +44,6 @@ class (Show (PatternImpl a),
   toPacket :: PacketImpl a -> Maybe Packet
 
   fromPattern :: Pattern -> PatternImpl a
-  toPattern :: PatternImpl a -> Pattern
 
   actnDefault :: ActionImpl a
   actnController :: ActionImpl a

@@ -80,7 +80,7 @@ minimizeClassifier :: FreneticImpl a
 minimizeClassifier rules = minimizeShadowing fst rules
 
 {-| Each rule of the intermediate form is called a Bone. -}
-data Bone ptrn actn = Bone ptrn Pattern actn
+data Bone ptrn actn = Bone ptrn actn
   deriving (Show, Eq)
 
 {-| Skeletons are the intermediate form. -}
@@ -88,7 +88,7 @@ type Skeleton ptrn actn = [Bone ptrn actn]
 
 {-| Map the actions. |-}
 skelMap :: (a -> b) -> Skeleton ptrn a -> Skeleton ptrn b
-skelMap f bones = map (\(Bone ptrn pr actns) -> Bone ptrn pr (f actns)) bones
+skelMap f bones = map (\(Bone ptrn actns) -> Bone ptrn (f actns)) bones
 
 {-| Cartesian combine two skeletons given a combination function for the actions. -}
 skelCart :: FreneticImpl a
@@ -104,15 +104,12 @@ skelCart f bs1 bs2 =
   in
    (bs1', bs2', bs3')
   where
-    h bs x@(Bone ptrn1 iptrn1 actns1) y@(Bone ptrn2 iptrn2 actns2) =
+    h bs x@(Bone ptrn1 actns1) y@(Bone ptrn2 actns2) =
         case intersect ptrn1 ptrn2 of
           Just ptrn12 ->
-            case intersect iptrn1 iptrn2 of
-              Just iptrn12 ->
-                (bs ++ [Bone ptrn12 iptrn12 (f actns1 actns2)],
-                 if ptrn12 == ptrn1 then Nothing else Just x,
-                 if ptrn12 == ptrn2 then Nothing else Just y)
-              Nothing -> error "skelCart: i-pattern intersection failed."
+            (bs ++ [Bone ptrn12 (f actns1 actns2)],
+             if ptrn12 == ptrn1 then Nothing else Just x,
+             if ptrn12 == ptrn2 then Nothing else Just y)
           Nothing ->
             (bs, Just x, Just y)
 
@@ -121,15 +118,15 @@ skelMinimize :: FreneticImpl a
              => Skeleton (PatternImpl a) actn
              -> Skeleton (PatternImpl a) actn
 skelMinimize bones = minimizeShadowing getPat bones
-  where getPat (Bone p1 p2 as) = FreneticPat p2
+  where getPat (Bone p1 as) = p1
 
 {-| Compile a predicate to intermediate form. -}
 compilePredicate :: FreneticImpl a
                  => Switch
                  -> Predicate
                  -> Skeleton (PatternImpl a) Bool
-compilePredicate s (PrPattern pat) = [Bone (fromPattern pat) pat True]
-compilePredicate s (PrTo s') | s == s' = [Bone top top True]
+compilePredicate s (PrPattern pat) = [Bone (fromPattern pat) True]
+compilePredicate s (PrTo s') | s == s' = [Bone top True]
                              | otherwise = []
 compilePredicate s (PrIntersect pr1 pr2) = skelMinimize skel12'
     where
@@ -142,7 +139,7 @@ compilePredicate s (PrUnion pr1 pr2) = skelMinimize $ skel12' ++ skel1' ++ skel2
       skel2 = compilePredicate s pr2
       (skel12', skel1', skel2') = skelCart (||) skel1 skel2
 compilePredicate s (PrNegate pr) =
-  skelMap not (compilePredicate s pr) ++ [Bone top top True]
+  skelMap not (compilePredicate s pr) ++ [Bone top True]
 
 {-| Compile a policy to intermediate form -}
 compilePolicy :: FreneticImpl a
@@ -166,8 +163,6 @@ compile :: FreneticImpl a
         -> Classifier (PatternImpl a) (ActionImpl a)
 compile s po = map f skel
   where
-    f (Bone sptrn iptrn actn)
-      | toPattern sptrn `match` iptrn = (sptrn, actnTranslate actn)
-      | otherwise = (sptrn, actnController)
+    f (Bone sptrn actn) = (sptrn, actnTranslate actn)
     skel = compilePolicy s po
 
