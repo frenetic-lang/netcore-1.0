@@ -77,6 +77,7 @@ module Frenetic.NetCore
   -- * Channels
   , select
   , both
+  , mapChan
   -- * Slices
   , Slice(..)
   -- ** Topology constructors

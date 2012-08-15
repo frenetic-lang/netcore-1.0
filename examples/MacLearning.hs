@@ -4,6 +4,7 @@
 module MacLearning where
 
 import Control.Concurrent
+import Data.IORef
 import Control.Monad (forever)
 import Frenetic.NetCore
 import qualified Data.Map as Map
@@ -26,7 +27,7 @@ pktsByLocation = do
   locChan <- newChan -- hosts' locations
   polChan <- newChan -- policy to monitor new hosts and moved hosts
   (pktChan, act) <- getPkts
-  -- In a loop, inspect packets, and learn the ingress port for hosts
+  -- In a loop, inspect packets, and learn the ingress port for hosts  
   let loop :: Map.Map (Switch, EthernetAddress) (Port, Predicate)
            -> IO ()
       loop locs = do
@@ -78,18 +79,18 @@ placeRoutes pktChan = do
   polChan <- newChan
   -- When a hosts location arrives, update the map and recompute the forwarding
   -- policy.
-  let loop :: Map.Map (Switch, EthernetAddress) Port -> IO ()
-      loop locs = do
-        (dlSrc, Loc sw pt) <- readChan pktChan
-        let locs' = Map.insert (sw, dlSrc) pt locs
-        let fwdPol = foldr (<+>) PoBottom (map (fwdTo locs') (Map.toList locs'))
-        -- Flood all other packets to maintain connectivity.
-        let floodPol = neg (poDom fwdPol) ==> allPorts unmodified
-        writeChan polChan (fwdPol <+> floodPol)
-        loop locs'
+  locsRef <- newIORef Map.empty
   -- Initially, flood all packets
   writeChan polChan (matchAll ==> allPorts unmodified)
-  forkIO (loop Map.empty)
+  forkIO $ forever $ do
+    (dlSrc, Loc sw pt) <- readChan pktChan
+    locs <- readIORef locsRef
+    let locs' = Map.insert (sw, dlSrc) pt locs
+    let fwdPol = foldr (<+>) PoBottom (map (fwdTo locs') (Map.toList locs'))
+    -- Flood all other packets to maintain connectivity.
+    let floodPol = neg (poDom fwdPol) ==> allPorts unmodified
+    writeChan polChan (fwdPol <+> floodPol)
+    writeIORef locsRef locs'
   return polChan
 
 learningSwitch = do

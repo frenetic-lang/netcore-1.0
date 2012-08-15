@@ -10,6 +10,7 @@ module Frenetic.Common
   , module Data.Monoid
   , select
   , both
+  , mapChan
   , catMaybes
   ) where
 
@@ -61,3 +62,13 @@ both chan1 chan2 = do
             loop (Just a) (Just b)
   forkIO (loop Nothing Nothing)
   return result
+
+mapChan :: Chan a -> (a -> IO b) -> IO (Chan b)
+mapChan chanA f = do
+  chanB <- newChan
+  forkIO $ forever $ do
+    a <- readChan chanA
+    b <- f a
+    writeChan chanB b
+  return chanB
+     
