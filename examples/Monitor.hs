@@ -134,6 +134,4 @@ main = do
   routeChan <- learningSwitch
   polChan <- monitor routeChan
   pktChan <- newChan
-  evts <- dynController polChan pktChan
-  forkIO $ forever (readChan evts)
-  return ()
+  dynController polChan pktChan

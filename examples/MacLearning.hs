@@ -106,6 +106,4 @@ learningSwitch = do
 main = do
   polChan <- learningSwitch
   pktChan <- newChan
-  evts <- dynController polChan pktChan
-  forkIO $ forever (readChan evts)
-  return ()
+  dynController polChan pktChan

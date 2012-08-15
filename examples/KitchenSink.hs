@@ -3,7 +3,7 @@ module KitchenSink (sink, main) where
 import Arp (doArp)
 import MacLearning (learningSwitch)
 import Monitor (monitor)
-import Control.Monad
+
 import Control.Concurrent
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.Set as Set
@@ -50,6 +50,4 @@ sink routing = do
 
 main = do
   (policies, packets) <- sink learningSwitch
-  evts <- dynController policies packets
-  forkIO $ forever (readChan evts)
-  return ()
+  dynController policies packets

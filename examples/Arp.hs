@@ -8,7 +8,6 @@ import Frenetic.NetCore
 import Frenetic.NetworkFrames (arpReply)
 import MacLearning (learningSwitch)
 import System.Log.Logger
-import Control.Monad
 
 type IpMap = Map.Map Word32 EthernetAddress
 
@@ -150,7 +149,4 @@ doArp routeChan = do
 main = do
   lsChan <- learningSwitch
   (policyChan, packetChan) <- doArp lsChan
-  evts <- dynController policyChan packetChan
-  forkIO $ forever (readChan evts)
-  return ()
-  
+  dynController policyChan packetChan
