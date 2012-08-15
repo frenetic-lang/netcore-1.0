@@ -48,6 +48,7 @@ module Frenetic.NetCore.Short
   , modNwTos
   , modTpSrc
   , modTpDst
+  , explodePattern
   ) where
 
 import Data.Word
@@ -56,6 +57,7 @@ import qualified Data.MultiSet as MS
 import Frenetic.Pattern
 import Frenetic.NetCore.Types
 import Data.Monoid
+import Frenetic.Common
 
 -- |Matches all packets.
 matchAll :: Predicate
@@ -212,3 +214,30 @@ modNwDst     value = unmodified {modifyNwDst = Just value}
 modNwTos     value = unmodified {modifyNwTos = Just value}
 modTpSrc     value = unmodified {modifyTpSrc = Just value}
 modTpDst     value = unmodified {modifyTpDst = Just value}
+
+explodePattern :: Pattern -> [Predicate]
+explodePattern (Pattern{..}) = catMaybes fields where
+  fields = [ case ptrnDlSrc of { Exact v -> Just (dlSrc v); 
+                                 Wildcard -> Nothing }
+           , case ptrnDlDst of { Exact v -> Just (dlDst v); 
+                                 Wildcard -> Nothing }
+           , case ptrnDlVlan of { Exact (Just v) -> Just (dlVlan v);
+                                  Exact Nothing -> Just dlNoVlan;
+                                  Wildcard -> Nothing }
+           , case ptrnDlVlanPcp of { Exact v -> Just (dlVlanPcp v);
+                                     Wildcard -> Nothing }
+           , case ptrnNwSrc of { Prefix _ 0 -> Nothing;
+                                 Prefix v n -> Just (nwSrcPrefix v n) }
+           , case ptrnNwDst of { Prefix _ 0 -> Nothing;
+                                 Prefix v n -> Just (nwDstPrefix v n) }
+           , case ptrnNwProto of { Exact v -> Just (nwProto v);
+                                   Wildcard -> Nothing }
+           , case ptrnNwTos of { Exact v -> Just (nwTos v); 
+                                 Wildcard -> Nothing }
+           , case ptrnTpSrc of { Exact v -> Just (tpSrc v); 
+                                 Wildcard -> Nothing }
+           , case ptrnTpDst of { Exact v -> Just (tpDst v);
+                                 Wildcard -> Nothing }
+           , case ptrnInPort of { Exact v -> Just (inPort v); 
+                                  Wildcard -> Nothing }
+           ]

@@ -20,6 +20,7 @@ module Frenetic.NetCore.Types
   , actionForwardsTo
   -- * Patterns
   , Pattern (..)
+  , matchedFields
   -- * Predicates
   , Predicate (..)
   , exactMatch
@@ -105,6 +106,24 @@ data Pattern = Pattern {
   , ptrnInPort :: Wildcard Port
  } deriving (Ord, Eq)
 
+matchedFields :: Pattern -> [Field]
+matchedFields (Pattern{..}) = catMaybes fields where
+  fields = [ case ptrnDlSrc of { Exact _ -> Just DlSrc; Wildcard -> Nothing }
+           , case ptrnDlDst of { Exact _ -> Just DlDst; Wildcard -> Nothing }
+           , case ptrnDlVlan of { Exact _ -> Just DlVlan; Wildcard -> Nothing }
+           , case ptrnDlVlanPcp of { Exact _ -> Just DlVlanPcp;
+                                     Wildcard -> Nothing }
+           , case ptrnNwSrc of { Prefix _ 32 -> Just NwSrc; 
+                                 otherwise -> Nothing }
+           , case ptrnNwDst of { Prefix _ 32 -> Just NwDst; 
+                                 otherwise -> Nothing }
+           , case ptrnNwProto of { Exact _ -> Just NwProto; Wildcard -> Nothing }
+           , case ptrnNwTos of { Exact _ -> Just NwTos; Wildcard -> Nothing }
+           , case ptrnTpSrc of { Exact _ -> Just TpSrc; Wildcard -> Nothing }
+           , case ptrnTpDst of { Exact _ -> Just TpDst; Wildcard -> Nothing }
+           , case ptrnInPort of { Exact _ -> Just InPort; Wildcard -> Nothing }
+           ]
+
 -- |Predicates to match packets.
 data Predicate
   = PrPattern Pattern -- ^Match with a simple pattern.
@@ -117,6 +136,7 @@ data Predicate
 -- |Names of common header fields.
 data Field
   = DlSrc | DlDst | DlVlan | DlVlanPcp | NwSrc | NwDst | NwTos | TpSrc | TpDst
+  | NwProto | InPort
   deriving (Eq, Ord, Show)
 
 -- |For each fields with a value Just v, modify that field to be v.
@@ -150,6 +170,7 @@ exactMatch (Packet{..}) = PrPattern pat
 unmodified :: Modification
 unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing
                           Nothing Nothing Nothing
+
 
 modifiedFields :: Modification -> Set Field
 modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
