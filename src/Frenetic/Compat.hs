@@ -34,10 +34,6 @@ class (Show (PatternImpl a),
   data PacketImpl a
   -- |'PatternImpl a' represents switch-level patterns, which may not be
   -- as expressive as Frenetic's pattern language.
-  --
-  --  @patOverapprox@ and @patUnderapprox@ must follow the laws in the
-  -- Approx class. If the pattern is not a real underapproximation,
-  -- @patUnderapprox@ must return Nothing.
   data PatternImpl a
   -- |'ActionImpl a' represents switch-level actions. All Frenetic actions
   -- (@Action@) may not be realizable on switches.
