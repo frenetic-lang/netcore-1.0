@@ -17,6 +17,7 @@ module Frenetic.NettleEx
   , ethTOS
   , srcPort
   , dstPort
+  , switchPortNumbers
   ) where
 
 import Frenetic.Common
@@ -29,6 +30,7 @@ import Nettle.Ethernet.EthernetFrame
 import Nettle.Ethernet.AddressResolutionProtocol
 import Prelude hiding (catch)
 import Control.Exception
+import Data.Word
 
 data Nettle = Nettle {
   server :: OpenFlowServer,
@@ -195,3 +197,6 @@ dstPort (IPInEthernet (HCons _ (HCons pk _))) = case pk of
   ICMPInIP (typ, cod) -> Just (fromIntegral cod)
   UninterpretedIPBody _ -> Nothing
 dstPort _ = Nothing
+
+switchPortNumbers :: SwitchFeatures -> [Word16]
+switchPortNumbers (SwitchFeatures { ports = ps }) = map portID ps

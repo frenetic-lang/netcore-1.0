@@ -16,6 +16,7 @@ import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
+import Frenetic.NetCore.Types
 
 
 mkFlowMod :: (Match, ActionSequence)
@@ -112,8 +113,9 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
           loop policy threads nextMsg
   loop PoBottom (return ()) (Left initPolicy)
 
-nettleServer :: Chan Policy -> Chan (Loc, ByteString) -> IO ()
+nettleServer :: Chan Policy -> Chan (Loc, ByteString) -> IO (Chan NetworkEvent)
 nettleServer policyChan pktChan = do
+  networkEvents <- newChan
   server <- startOpenFlowServerEx Nothing 6633
   currentPolicy <- newIORef PoBottom
   forkIO $ forever $ do
@@ -124,7 +126,7 @@ nettleServer policyChan pktChan = do
     let msg = PacketOut $ PacketOutRecord (Right (BS.concat . toChunks $ pkt))
                                           Nothing (sendOnPort pt)
     sendToSwitchWithID server swID (0,msg)
-  forever $ do
+  forkIO $ forever $ do
     -- Nettle does the OpenFlow handshake
     (switch, switchFeatures, msgChan) <- acceptSwitch server
     noticeM "controller" $ "switch " ++ show (handle2SwitchID switch) ++
@@ -133,8 +135,10 @@ nettleServer policyChan pktChan = do
     -- each switch.
     switchPolicyChan <- dupChan policyChan
     initPolicy <- readIORef currentPolicy
+    writeChan networkEvents (SwitchConnected (handle2SwitchID switch)
+                                             (switchPortNumbers switchFeatures))
     forkIO (handleSwitch server switch initPolicy switchPolicyChan msgChan)
-  closeServer server
+  return networkEvents
 
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
 -- The actions include queries that are not realizable on switches.
