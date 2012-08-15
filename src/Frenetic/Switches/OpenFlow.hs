@@ -32,12 +32,12 @@ import Control.Concurrent
 import Frenetic.NettleEx hiding (AllPorts, ethernetAddress64)
 import qualified Frenetic.NettleEx as NettleEx
 
-{-| Convert an EthernetAddress to a Word48. -}
-ethToWord48 :: NettleEx.EthernetAddress
+{-| Convert an EthernetAddress to a EthernetAddress. -}
+ethToEthernetAddress :: NettleEx.EthernetAddress
             -> Frenetic.NetCore.Types.EthernetAddress
-ethToWord48 = ethernetAddress64.unpack64
+ethToEthernetAddress = ethernetAddress64.unpack64
 
-{-| Convert a Word48 to an EthernetAddress. -}
+{-| Convert a EthernetAddress to an EthernetAddress. -}
 word48ToEth :: Frenetic.NetCore.Types.EthernetAddress
             -> NettleEx.EthernetAddress
 word48ToEth = NettleEx.ethernetAddress64 . unpackEth64
@@ -209,8 +209,8 @@ instance FreneticImpl OpenFlow where
     body <- nettleEthernetBody pkt
     proto <- ethProto body
     tos <- ethTOS body
-    return $ Packet (ethToWord48 (sourceMACAddress hdrs))
-                    (ethToWord48 (destMACAddress hdrs))
+    return $ Packet (ethToEthernetAddress (sourceMACAddress hdrs))
+                    (ethToEthernetAddress (destMACAddress hdrs))
                     (typeCode hdrs)
                     (ethVLANId hdrs)
                     (ethVLANPcp hdrs)
@@ -241,8 +241,8 @@ instance FreneticImpl OpenFlow where
   }
 
   toPattern (OFPat ptrn) = Pattern {
-    ptrnDlSrc     = maybeToWildcard $ fmap ethToWord48 $ srcEthAddress ptrn,
-    ptrnDlDst     = maybeToWildcard $ fmap ethToWord48 $ dstEthAddress ptrn,
+    ptrnDlSrc     = maybeToWildcard $ fmap ethToEthernetAddress $ srcEthAddress ptrn,
+    ptrnDlDst     = maybeToWildcard $ fmap ethToEthernetAddress $ dstEthAddress ptrn,
     ptrnDlTyp     = maybeToWildcard $ ethFrameType ptrn,
     ptrnDlVlan    = case vLANID ptrn of
                       Just vl | vl == fromIntegral ofpVlanNone -> Exact Nothing

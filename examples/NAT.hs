@@ -53,7 +53,7 @@ pktsByLocation = do
   uniqPktChan <- newChan
   polChan <- newChan
   (pktChan, act) <- getPkts
-  let loop :: Map.Map (Word32, Port) (Word48, Predicate) -> IO ()
+  let loop :: Map.Map (Word32, Port) (EthernetAddress, Predicate) -> IO ()
       loop locs = do
         (sw, pkt) <- readChan pktChan
         let srcMac = pktDlSrc pkt

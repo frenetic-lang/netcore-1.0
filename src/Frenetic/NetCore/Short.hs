@@ -142,11 +142,11 @@ instance Monoid Policy where
   mempty = PoBottom
 
 -- |Match ethernet source address.
-dlSrc     :: Word48     -> Predicate
+dlSrc     :: EthernetAddress     -> Predicate
 dlSrc     value = PrPattern (top {ptrnDlSrc = Exact value})
 
 -- |Match ethernet destination address.
-dlDst     :: Word48     -> Predicate
+dlDst     :: EthernetAddress     -> Predicate
 dlDst     value = PrPattern (top {ptrnDlDst = Exact value})
 
 -- |Match ethernet type code (e.g., 0x0800 for IP packets).

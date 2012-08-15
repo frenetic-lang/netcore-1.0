@@ -10,13 +10,13 @@ import Data.Binary.Put
 import Frenetic.Common
 import Frenetic.NetCore.Types
 
-arpReply :: Word48 -> Word32 -> Word48 -> Word32 -> ByteString
+arpReply :: EthernetAddress -> Word32 -> EthernetAddress -> Word32 -> ByteString
 arpReply srcEth srcIP dstEth dstIP =
   runPut $ putArpReply srcEth srcIP dstEth dstIP
 
-putArpReply :: Word48
+putArpReply :: EthernetAddress
             -> Word32
-            -> Word48
+            -> EthernetAddress
             -> Word32
             -> Put
 putArpReply srcEth srcIP dstEth dstIP = do
@@ -31,7 +31,7 @@ putArpReply srcEth srcIP dstEth dstIP = do
   put dstEth
   put dstIP
 
-putEthHeader :: Word48 -> Word48 -> Word16 -> Put
+putEthHeader :: EthernetAddress -> EthernetAddress -> Word16 -> Put
 putEthHeader srcMac dstMac ethType = do
   put dstMac
   put srcMac

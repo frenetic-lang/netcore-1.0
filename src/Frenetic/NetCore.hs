@@ -56,9 +56,8 @@ module Frenetic.NetCore
   , Port
   , Vlan
   , Loc (..)
-  , Word48
-  , broadcastAddress
   , EthernetAddress
+  , broadcastAddress
   , ethernetAddress
   , IPAddr
   , ipAddr

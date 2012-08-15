@@ -5,7 +5,6 @@ module Frenetic.NetCore.Types
   , Vlan
   , Loc (..)
   , PseudoPort (..)
-  , Word48
   , NetworkEvent (..)
   -- * Actions
   , Action (..)
@@ -73,13 +72,10 @@ data PseudoPort
 -- |VLAN tags. Only the lower 12-bits are used.
 type Vlan = Word16
 
--- |Ethernet addresses are 48-bits wide.
-type Word48 = EthernetAddress
-
 -- |Packets' headers.
 data Packet = Packet {
-  pktDlSrc :: Word48, -- ^source ethernet address
-  pktDlDst :: Word48, -- ^destination ethernet address
+  pktDlSrc :: EthernetAddress, -- ^source ethernet address
+  pktDlDst :: EthernetAddress, -- ^destination ethernet address
   pktDlTyp :: Word16, -- ^ethernet type code (e.g., 0x800 for IP packets)
   pktDlVlan :: Maybe Vlan,  -- ^VLAN tag
   pktDlVlanPcp :: Word8, -- ^VLAN priority code
@@ -96,8 +92,8 @@ data Packet = Packet {
 -- |Patterns to match packets. Patterns translate directly to a single OpenFlow
 -- match rule.
 data Pattern = Pattern {
-    ptrnDlSrc :: Wildcard Word48
-  , ptrnDlDst :: Wildcard Word48
+    ptrnDlSrc :: Wildcard EthernetAddress
+  , ptrnDlDst :: Wildcard EthernetAddress
   , ptrnDlTyp :: Wildcard Word16
   , ptrnDlVlan :: Wildcard (Maybe Vlan)
   , ptrnDlVlanPcp :: Wildcard Word8
@@ -127,8 +123,8 @@ data Field
 -- |For each fields with a value Just v, modify that field to be v.
 --  If the field is Nothing then there is no modification of that field.
 data Modification = Modification {
-  modifyDlSrc :: Maybe Word48,
-  modifyDlDst :: Maybe Word48,
+  modifyDlSrc :: Maybe EthernetAddress,
+  modifyDlDst :: Maybe EthernetAddress,
   modifyDlVlan :: Maybe (Maybe Vlan),
   modifyDlVlanPcp :: Maybe Word8,
   modifyNwSrc :: Maybe Word32,
