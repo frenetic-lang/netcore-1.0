@@ -50,7 +50,7 @@ instance FreneticImpl () where
     deriving (Show, Eq)
 
   toPacket (FreneticPkt x) = Just x
-  updatePacket pkt1 pkt2 = FreneticPkt pkt2
+
   ptrnMatchPkt (FreneticPkt pkt) (FreneticPat ptrn) =
     wMatch (pktDlSrc pkt) (ptrnDlSrc ptrn)
     && wMatch (pktDlDst pkt) (ptrnDlDst ptrn)

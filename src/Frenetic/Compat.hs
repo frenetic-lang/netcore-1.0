@@ -47,8 +47,6 @@ class (Show (PatternImpl a),
   ptrnMatchPkt :: PacketImpl a -> PatternImpl a -> Bool
   toPacket :: PacketImpl a -> Maybe Packet
 
-  updatePacket :: PacketImpl a -> Packet -> PacketImpl a
-
   fromPattern :: Pattern -> PatternImpl a
   toPattern :: PatternImpl a -> Pattern
 
