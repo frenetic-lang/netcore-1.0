@@ -5,7 +5,6 @@ module Frenetic.NetCore.Types
   , Vlan
   , Loc (..)
   , PseudoPort (..)
-  , NetworkEvent (..)
   -- * Actions
   , Action (..)
   , Query (..)
@@ -393,8 +392,3 @@ prSize (PrTo _) = 1
 prSize (PrUnion p1 p2) = prSize p1 + prSize p2 + 1
 prSize (PrIntersect p1 p2) = prSize p1 + prSize p2 + 1
 prSize (PrNegate p) = prSize p + 1
-
-data NetworkEvent
-  = SwitchConnected Switch [Port]
-  | SwitchDisconnected Switch
-  deriving (Show, Ord, Eq)

@@ -14,7 +14,7 @@ import Frenetic.Common
 -- reconfigures the network to run it.
 dynController :: Chan Policy
               -> Chan (Loc, ByteString) -- ^packets to emit
-              -> IO (Chan NetworkEvent)
+              -> IO ()
 dynController = nettleServer
 
 -- |Starts an OpenFlow controller that runs a static NetCore program.
@@ -23,7 +23,4 @@ controller policy = do
   ch <- newChan
   writeChan ch policy
   pktChan <- newChan
-  evts <- dynController ch pktChan
-  forkIO $ forever
-    readChan evts
-  return ()
+  dynController ch pktChan

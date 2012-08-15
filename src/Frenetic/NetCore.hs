@@ -62,7 +62,6 @@ module Frenetic.NetCore
   , IPAddr
   , ipAddr
   , unpackIPAddr
-  , NetworkEvent (..)
   -- * Packets
   , Packet (..)
   -- * Packet modifications

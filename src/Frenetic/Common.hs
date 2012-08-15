@@ -8,7 +8,6 @@ module Frenetic.Common
   , module Control.Concurrent
   , module System.Log.Logger
   , module Data.Monoid
-  , module Control.Monad
   , select
   , both
   , mapChan
