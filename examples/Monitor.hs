@@ -65,7 +65,7 @@ monitorHost eth ip actionChan = do
             loop traffic'
   forkIO (loop Map.empty)
   -- TODO(arjun): do not bake this optimization in here
-  return (dlSrc eth <&&> dlTyp 0x0800 <&&> nwSrc ip ==> countAction)
+  return (DlSrc eth <&&> DlTyp 0x0800 <&&> NwSrc (Prefix ip 32) ==> countAction)
 
 monitoringProcess :: IO (Chan (Policy, Predicate))
 monitoringProcess = do
@@ -100,16 +100,16 @@ monitoringProcess = do
         -- run all monitors'
         let monitoringPol = foldr (<+>) PoBottom (Map.elems monitors)
         -- block all blocked' hosts IP traffic
-        let mkBlock srcIP = nwSrc srcIP <&&> dlTyp 0x0800
+        let mkBlock srcIP = NwSrc (Prefix srcIP 32) <&&> DlTyp 0x0800
         let blockingPred =
-              neg $ foldr (<||>) matchNone (map mkBlock (Set.elems blocked'))
+              Not $ foldr (<||>) None (map mkBlock (Set.elems blocked'))
         -- run monitoringPol, and send all other packets to the controller,
         -- so we can monitor them.
-        let pol = monitoringPol <+> (neg (poDom monitoringPol) ==> inspectPkt)
+        let pol = monitoringPol <+> (Not (poDom monitoringPol) ==> inspectPkt)
         writeChan resultChan (pol, blockingPred)
         loop monitors' blocked'
   forkIO (loop Map.empty Set.empty)
-  writeChan resultChan (matchAll ==> inspectPkt, matchNone)
+  writeChan resultChan (Any ==> inspectPkt, None)
   return resultChan
 
 -- |'monitor routeChan' runs a monitoring process that detects

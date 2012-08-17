@@ -23,7 +23,7 @@ import Frenetic.Pattern
 import Tests.Frenetic.ArbitraryPattern
 import Frenetic.NetCore
 import Tests.Frenetic.NetCore.ArbitraryTypes
-
+import System.IO
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Tests.Frenetic.Switches.ArbitraryOpenFlow
@@ -41,7 +41,7 @@ freneticToOFAct = fromOFAct.actnTranslate.fromFreneticAct
 
 case_test_query_1 = do
   (_, act) <- countPkts 1000
-  let policy = PoBasic (PrTo 0) act
+  let policy = PoBasic (Switch 0) act
   let tbl = compile 0 policy
   case tbl of
     [(_, act)] -> assertEqual
@@ -53,8 +53,8 @@ case_test_query_1 = do
 test_query_2 = do
   (_, act) <- countPkts 1000
   let policy =
-        PoUnion (PoBasic (PrPattern top) (allPorts unmodified))
-                (PoBasic (PrPattern $ top { ptrnDlDst = Exact $ ethernetAddress64 1 }) act)
+        PoUnion (PoBasic Any (allPorts unmodified))
+                (PoBasic (DlDst (ethernetAddress64 1)) act)
   let tbl = compile 0 policy
   case tbl of
     [(_, act1), (_, act2)] -> do
@@ -66,7 +66,7 @@ test_query_2 = do
       "query should create two entries in the flow table"
 
 case_regress_1 = do
-  let pred = PrNegate (PrNegate (PrTo 0))
+  let pred = Not (Not (Switch 0))
   let policy = PoBasic pred (allPorts unmodified)
   let pkt = FreneticPkt (Packet {pktDlSrc = ethernetAddress64 4410948387332,
               pktDlDst = ethernetAddress64 6609988486150, pktDlTyp = 1,
@@ -83,7 +83,7 @@ case_regress_1 = do
 negation_regress_maker pred = do
   let act = forward [2]
   let act' = forward [90]
-  let pol = PoUnion (PoBasic pred act) (PoBasic (PrNegate pred) act')
+  let pol = PoUnion (PoBasic pred act) (PoBasic (Not pred) act')
   let pkt = Packet {pktDlSrc = ethernetAddress64 200,
               pktDlDst = ethernetAddress64 500, pktDlTyp = 1, pktDlVlan = Just 4,
               pktDlVlanPcp = 0, pktNwSrc = Just 6, pktNwDst = Just 5,
@@ -102,14 +102,14 @@ negation_regress_maker pred = do
     (Just (FreneticAct act')) classAct'
 
 case_regress_neg_1 = do
-  negation_regress_maker (dlDst (ethernetAddress64 500) <&&> PrTo 0)
+  negation_regress_maker (DlDst (ethernetAddress64 500) <&&> Switch 0)
 
 case_regress_neg_1_ok = do
-  negation_regress_maker (dlDst (ethernetAddress64 500))
+  negation_regress_maker (DlDst (ethernetAddress64 500))
 
 case_regress_neg_1_2 = do
-  negation_regress_maker (dlDst (ethernetAddress64 500) <&&>
-                          dlSrc (ethernetAddress64 200))
+  negation_regress_maker (DlDst (ethernetAddress64 500) <&&>
+                          DlSrc (ethernetAddress64 200))
 
 prop_ipAddr_ok :: IPAddr -> Bool
 prop_ipAddr_ok addr = 
@@ -153,10 +153,68 @@ prop_semanticEquivalence_compile_OFpattern sw po pk =
     Nothing -> polActs == dropPkt
     Just [] -> polActs == dropPkt
     Just as -> as == fromOFAct (actnTranslate polActs)
-  where topP = top
-        polActs = interpretPolicy po $ Transmission {trPattern=topP, trSwitch=sw, trPkt=pk}
+  where polActs = interpretPolicy po $ Transmission top sw pk
         classifier = compile sw po
         classActs = classify sw pk classifier
+
+pkx = Packet {pktDlSrc = ethernetAddress64 0x00000000006e, 
+       pktDlDst = ethernetAddress64 0x0000000002ca, pktDlTyp = 55,
+       pktDlVlan = Just 25, pktDlVlanPcp = 11, pktNwSrc = Just 9,
+       pktNwDst = Just 10, pktNwProto = 44, pktNwTos = 59, pktTpSrc = Just 52, 
+       pktTpDst = Nothing, pktInPort = 8}
+
+case_sem_bug_1 = do
+  let po = PoBasic (NwSrc (Prefix 4 0)) (forward [999])
+  let pk = FreneticPkt $ pkx { pktNwSrc = Nothing }
+  let sw = 0
+  let polActs = interpretPolicy po $ Transmission top sw pk
+      classifier = compile sw po
+      classActs = classify sw pk classifier
+  let ret = case fmap freneticToOFAct classActs of
+        Nothing -> polActs == dropPkt
+        Just [] -> polActs == dropPkt
+        Just as -> as == fromOFAct (actnTranslate polActs)
+  assertEqual "sem_bug_1" ret True
+
+case_sem_bug_2 = do
+  let po = PoBasic (NwSrc (Prefix 0 0)) (forward [999])
+  let pk = FreneticPkt (Packet {pktDlSrc = ethernetAddress64 0x00000000006e, pktDlDst = ethernetAddress64 0x0000000002ca, pktDlTyp = 55, pktDlVlan = Just 25, pktDlVlanPcp = 11, pktNwSrc = Just 1574, pktNwDst = Just 10, pktNwProto = 44, pktNwTos = 59, pktTpSrc = Just 52, pktTpDst = Nothing, pktInPort = 8})
+  let sw = 0
+  let polActs = interpretPolicy po $ Transmission top sw pk
+      classifier = compile sw po
+      classActs = classify sw pk classifier
+  let ret = case fmap freneticToOFAct classActs of
+        Nothing -> polActs == dropPkt
+        Just [] -> polActs == dropPkt
+        Just as -> as == fromOFAct (actnTranslate polActs)
+  assertEqual "sem_bug_2" ret True
+
+case_sem_bug_3 = do
+  let po = PoBasic (NwSrc (Prefix 5 1)) (forward [999])
+  let pk = FreneticPkt (Packet {pktDlSrc = ethernetAddress64 0x00000000006e, pktDlDst = ethernetAddress64 0x0000000002ca, pktDlTyp = 55, pktDlVlan = Just 25, pktDlVlanPcp = 11, pktNwSrc = Just 9, pktNwDst = Just 10, pktNwProto = 44, pktNwTos = 59, pktTpSrc = Just 52, pktTpDst = Nothing, pktInPort = 8})
+  let sw = 0
+  let polActs = interpretPolicy po $ Transmission top sw pk
+      classifier = compile sw po
+      classActs = classify sw pk classifier
+  let ret = case fmap freneticToOFAct classActs of
+        Nothing -> polActs == dropPkt
+        Just [] -> polActs == dropPkt
+        Just as -> as == fromOFAct (actnTranslate polActs)
+  assertEqual "sem_bug_3" ret True
+
+case_sem_bug_4 = do
+  let po = PoBasic (NwDst (Prefix 12 27)) (forward [999])
+  let pk = FreneticPkt $ pkx { pktNwDst = Nothing }
+  let sw = 0
+  let polActs = interpretPolicy po $ Transmission top sw pk
+      classifier = compile sw po
+      classActs = classify sw pk classifier
+  let ret = case fmap freneticToOFAct classActs of
+        Nothing -> polActs == dropPkt
+        Just [] -> polActs == dropPkt
+        Just as -> as == fromOFAct (actnTranslate polActs)
+  hPutStrLn stderr $ "interp: " ++ show polActs ++ "\nclassifier: " ++ show classActs ++ "\nas: " ++ show (fmap freneticToOFAct classActs) ++ "\ntrans: " ++ show (fromOFAct (actnTranslate polActs))
+  assertEqual "sem_bug_4" ret True
 
 
 case_quiescence_bug_1 = do
@@ -170,7 +228,7 @@ case_quiescence_bug_1 = do
       Transmission { trPattern=topP, trSwitch=0, trPkt= packet }
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
-    policy = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) (allPorts unmodified)
+    policy = PoBasic (NwSrc (Prefix 0x5000001 32)) (allPorts unmodified)
     packet = FreneticPkt $ Packet {
         pktDlSrc = ethernetAddress64 0
       , pktDlDst = ethernetAddress64 0
@@ -197,8 +255,8 @@ case_quiescence_bug_2 = do
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
     policy = PoUnion p1 p2
-    p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) (allPorts unmodified)
-    p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix  0x5000002 32}) (allPorts unmodified)
+    p1 = PoBasic (NwSrc (Prefix 0x5000001 32)) (allPorts unmodified)
+    p2 = PoBasic (NwSrc (Prefix 0x5000002 32)) (allPorts unmodified)
     packet = FreneticPkt $ Packet {
         pktDlSrc = ethernetAddress64 0
       , pktDlDst = ethernetAddress64 0
@@ -225,8 +283,8 @@ case_quiescence_bug_3 = do
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
     policy = PoUnion p1 p2
-    p1 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000001 32}) (allPorts unmodified)
-    p2 = PoBasic (PrPattern top{ptrnNwSrc = Prefix 0x5000002 32}) (allPorts unmodified)
+    p1 = PoBasic (NwSrc (Prefix 0x5000001 32)) (allPorts unmodified)
+    p2 = PoBasic (NwSrc (Prefix 0x5000002 32)) (allPorts unmodified)
     packet = FreneticPkt $ Packet {
         pktDlSrc = ethernetAddress64 0
       , pktDlDst = ethernetAddress64 0
@@ -252,22 +310,21 @@ case_quiescence_bug_4 = do
     polActs = interpretPolicy policy $ Transmission {trPattern=topP, trSwitch=0, trPkt=packet}
     classifier = compile 0 policy
     classActs = classify 0 packet classifier
-    policy = PoBasic (PrUnion (PrPattern pattern) (PrTo switch)) (allPorts unmodified)
+    policy = PoBasic (Or pattern (Switch switch)) (allPorts unmodified)
     switch = 0
-    pattern = Pattern {
-        ptrnDlSrc = Exact (ethernetAddress64 0)
-      , ptrnDlDst = Exact (ethernetAddress64 0)
-      , ptrnDlTyp = Exact 0
-      , ptrnDlVlan = Exact Nothing
-      , ptrnDlVlanPcp = Exact 0
-      , ptrnNwSrc = Prefix 0 32
-      , ptrnNwDst = Prefix 0 32
-      , ptrnNwProto = Exact 0
-      , ptrnNwTos = Exact 0
-      , ptrnTpSrc = Exact 0
-      , ptrnTpDst = Exact 0
-      , ptrnInPort = Wildcard
-      }
+    pattern = prAnd
+      [ DlSrc (ethernetAddress64 0)
+      , DlDst (ethernetAddress64 0)
+      , DlTyp 0
+      , DlVlan Nothing
+      , DlVlanPcp 0
+      , NwSrc (Prefix 0 32)
+      , NwDst (Prefix 0 32)
+      , NwProto 0
+      , NwTos 0
+      , TpSrcPort 0
+      , TpDstPort 0
+      ]
     packet = FreneticPkt $ Packet {
         pktDlSrc = ethernetAddress64 0
       , pktDlDst = ethernetAddress64 0
@@ -293,7 +350,7 @@ case_quiescence_bug_5 = do
     polActs = interpretPolicy policy $ Transmission topP 0 packet
     classifier = compile switch policy
     classActs = classify switch packet classifier
-    policy = PrTo switch ==> forward [1]
+    policy = Switch switch ==> forward [1]
     switch = 0
     packet = FreneticPkt $ Packet {
         pktDlSrc = ethernetAddress64 1

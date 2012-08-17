@@ -42,9 +42,9 @@ linearHosts nodess = (topo,
   mkSlice :: Integral n => Set.Set n -> Slice
   mkSlice nodes = Slice (getAllIntLocs nodes)
                         (Map.fromList $ zip (Set.toList $ getAllHostLocs nodes)
-                                            (repeat top))
+                                            (repeat Any))
                         (Map.fromList $ zip (Set.toList $ getAllHostLocs nodes)
-                                            (repeat top))
+                                            (repeat Any))
   wholeSlice nodes = Set.map fromIntegral $ Set.union switches hosts where
     switches = nodes
     hosts = Set.unions . Set.toList .
@@ -94,9 +94,9 @@ linearHostsQ nodess queries = (topo, map (\(ns, q) -> (mkSlice ns, mkPolicy ns q
   mkSlice :: Integral n => Set.Set n -> Slice
   mkSlice nodes = Slice (getAllIntLocs nodes)
                         (Map.fromList $ zip (Set.toList $ getAllHostLocs nodes)
-                                            (repeat top))
+                                            (repeat Any))
                         (Map.fromList $ zip (Set.toList $ getAllHostLocs nodes)
-                                            (repeat top))
+                                            (repeat Any))
   wholeSlice nodes = Set.map fromIntegral $ Set.union switches hosts where
     switches = nodes
     hosts = Set.unions . Set.toList .
@@ -147,7 +147,7 @@ kCompleteQHosts k queries = (topo, map mkCombined $ zip sliceNodes queries) wher
             map fromIntegral $
             nodes
     min = fromIntegral $ minimum nodes
-    inbound  = Map.fromList . map (\l -> (l, nwDst min)) $ edges
-    outbound = Map.fromList . map (\l -> (l, nwSrc min)) $ edges
+    inbound  = Map.fromList . map (\l -> (l, NwDst (Prefix min 32))) $ edges
+    outbound = Map.fromList . map (\l -> (l, NwSrc (Prefix min 32))) $ edges
     slice = (internalSlice topo') {ingress = inbound, egress = outbound}
     policy = simuFloodQuery topo' q

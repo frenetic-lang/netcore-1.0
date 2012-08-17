@@ -124,7 +124,7 @@ start options = do
                  ShortestPath -> shortestPath
                  Multicast -> multicast
                $ g
-  let slice = (simpleSlice g matchNone) {egress = Map.empty}
+  let slice = (simpleSlice g None) {egress = Map.empty}
   let (compiled1, compiled2) =
         if optEdge options then
           -- Force them to be distinct by adding PoBottom to them.  Edge

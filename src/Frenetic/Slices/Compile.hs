@@ -27,7 +27,7 @@ import Frenetic.Topo
 
 -- |Match a specific vlan tag
 vlanMatch :: Vlan -> Predicate
-vlanMatch vlan = dlVlan vlan
+vlanMatch vlan = DlVlan (Just vlan)
 
 -- TODO(astory): also take in the packet channel and handle that
 -- |Compile a list of slices and dynamic policies as they change.
@@ -104,10 +104,10 @@ edgeCompileSlice slice assignment policy = mconcat (queryPols : forwardPols)
 queryOnly :: Slice -> Map.Map Loc Vlan -> Policy -> Policy
 queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
   onSlice = prOr . map onPort . Set.toList $ internal slice
-  inBound = ingressPredicate slice <&&> dlNoVlan
+  inBound = ingressPredicate slice <&&> (DlVlan Nothing)
   justQueries = removeForwards policy
-  onPort l@(Loc s p) = inport s p <&&> dlVlan vlan <&&>
-                       Map.findWithDefault top l (ingress slice) where
+  onPort l@(Loc s p) = inport s p <&&> (DlVlan (Just vlan)) <&&>
+                       Map.findWithDefault Any l (ingress slice) where
     vlan = case Map.lookup l assignment of
            Just v -> v
            Nothing -> error $
@@ -158,13 +158,13 @@ forwardEdges slice assignment policy = concatMap buildPort locs where
     destinations = case Map.lookup s portLookup of
                      Just dests -> dests
                      Nothing -> error "Port lookup malformed."
-    ourVlan = if Set.member l ing then dlNoVlan
+    ourVlan = if Set.member l ing then DlVlan Nothing
               else case Map.lookup l assignment of
-                     Just v -> dlVlan v
+                     Just v -> DlVlan (Just v)
                      Nothing -> error "Vlan assignment malformed."
     restriction = inport s p <&&>
                   ourVlan <&&>
-                  Map.findWithDefault top l (ingress slice)
+                  Map.findWithDefault Any l (ingress slice)
     policy' = policy <%> restriction
     hop :: Port -> Policy -- Get the policies for one switch forwarding
     hop port = policy''' where
@@ -202,7 +202,7 @@ inportPo :: Slice -> Vlan -> Policy -> Policy
 inportPo slice vlan policy =
   let incoming = ingressPredicate slice in
   let policyIntoVlan = modifyVlan (Just vlan) policy in
-  policyIntoVlan <%> (incoming <&&> dlNoVlan)
+  policyIntoVlan <%> (incoming <&&> DlVlan Nothing)
 
 -- |Produce a new policy the same as the old, but wherever a packet leaves an
 -- outgoing edge, unset its VLAN.  Precondition:  every PoBasic must match at
@@ -219,7 +219,7 @@ ingressPredicate slice =
 
 -- |Produce a predicate matching the ingress predicate at a particular location
 ingressSpecToPred :: (Loc, Predicate) -> Predicate
-ingressSpecToPred (loc, pred) = PrIntersect pred (locToPred loc)
+ingressSpecToPred (loc, pred) = And pred (locToPred loc)
 
 -- |Walk through the policy and globally set VLAN to vlan at each forwarding
 -- action
@@ -258,8 +258,8 @@ setVlan vlan (Loc switch port) pol@(PoBasic pred (Action m obs)) =
 
 -- |Determine if a predicate can match any packets on a switch (overapproximate)
 matchesSwitch :: Switch -> Predicate -> Bool
-matchesSwitch _ (PrPattern _)       = True
-matchesSwitch s1 (PrTo s2)          = s1 == s2
-matchesSwitch s (PrUnion p1 p2)     = matchesSwitch s p1 || matchesSwitch s p2
-matchesSwitch s (PrIntersect p1 p2) = matchesSwitch s p1 && matchesSwitch s p2
-matchesSwitch s (PrNegate _)        = True
+matchesSwitch s1 (Switch s2)          = s1 == s2
+matchesSwitch s (Or p1 p2)     = matchesSwitch s p1 || matchesSwitch s p2
+matchesSwitch s (And p1 p2) = matchesSwitch s p1 && matchesSwitch s p2
+matchesSwitch s (Not _)        = True
+matchesSwitch s _ = True

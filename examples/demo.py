@@ -88,8 +88,8 @@ def main():
   parser.add_argument('user', metavar='USER', type=str,
                       help='user to ssh to (usually you)')
   args = parser.parse_args()
-  #demo_learning_switch()
-  #demo_arp()
+  demo_learning_switch()
+  demo_arp()
   demo_sink(args.user)
 
 if __name__ == '__main__':

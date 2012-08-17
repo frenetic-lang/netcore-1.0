@@ -2,6 +2,6 @@ module Repeater where
 
 import Frenetic.NetCore
 
-policy = matchAll ==> allPorts unmodified
+policy = Any ==> allPorts unmodified
 
 main = controller policy

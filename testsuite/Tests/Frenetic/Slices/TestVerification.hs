@@ -23,19 +23,19 @@ s1 = Slice (Set.fromList [ Loc 1 0
                          , Loc 3 0
                          , Loc 4 0
                          , Loc 5 0 ])
-           (Map.singleton (Loc 6 0) top)
-           (Map.singleton (Loc 7 0) top)
+           (Map.singleton (Loc 6 0) Any)
+           (Map.singleton (Loc 7 0) Any)
 s2 = Slice (Set.fromList [ Loc 10 0
                          , Loc 10 1
                          , Loc 20 0
                          , Loc 30 0
                          , Loc 40 0
                          , Loc 50 0 ])
-           (Map.singleton (Loc 60 0) top)
-           (Map.singleton (Loc 70 0) top)
+           (Map.singleton (Loc 60 0) Any)
+           (Map.singleton (Loc 70 0) Any)
 s3 = Slice (Set.singleton (Loc 1 0)) Map.empty Map.empty
-s4 = Slice Set.empty (Map.singleton (Loc 6 0) top) Map.empty
-s5 = Slice Set.empty Map.empty (Map.singleton (Loc 7 0) top)
+s4 = Slice Set.empty (Map.singleton (Loc 6 0) Any) Map.empty
+s5 = Slice Set.empty Map.empty (Map.singleton (Loc 7 0) Any)
 
 case_testSeparated = do
   False @=? separated s1 s1

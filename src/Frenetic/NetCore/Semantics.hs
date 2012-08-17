@@ -14,17 +14,35 @@ interpretPredicate :: FreneticImpl a
                    => Predicate
                    -> Transmission (PatternImpl a) (PacketImpl a)
                    -> Bool
-interpretPredicate (PrPattern ptrn) tr = case toPacket (trPkt tr) of
+interpretPredicate pred tr = case toPacket (trPkt tr) of
   Nothing -> False
-  Just pk -> FreneticPkt pk `ptrnMatchPkt` FreneticPat ptrn
-interpretPredicate (PrTo sw) tr =
-  sw == trSwitch tr
-interpretPredicate (PrUnion pr1 pr2) tr =
-  interpretPredicate pr1 tr || interpretPredicate pr2 tr
-interpretPredicate (PrIntersect pr1 pr2) tr =
-   interpretPredicate pr1 tr && interpretPredicate pr2 tr
-interpretPredicate (PrNegate pr) tr =
-  not (interpretPredicate pr tr)
+  Just (Packet{..}) -> case pred of
+    DlSrc eth -> pktDlSrc == eth
+    DlDst eth -> pktDlDst == eth
+    DlTyp typ -> pktDlTyp == typ
+    DlVlan vlan -> pktDlVlan == vlan
+    DlVlanPcp pcp -> pktDlVlanPcp == pcp
+    NwSrc ipPrefix@(Prefix _ len) -> case pktNwSrc of
+      Nothing -> len == 0
+      Just ip -> (Prefix ip 32) `match` ipPrefix
+    NwDst ipPrefix@(Prefix _ len) -> case pktNwDst of
+      Nothing -> len == 0
+      Just ip -> (Prefix ip 32) `match` ipPrefix 
+    NwProto proto -> pktNwProto == proto
+    NwTos tos -> pktNwTos == tos
+    TpSrcPort pt -> case pktTpSrc of
+      Nothing -> False
+      Just pt' -> pt == pt'
+    TpDstPort pt -> case pktTpDst of
+      Nothing -> False
+      Just pt' -> pt == pt'
+    IngressPort pt -> pt == pktInPort
+    Any -> True
+    None -> False
+    Switch sw -> sw == trSwitch tr
+    Or pr1 pr2 -> interpretPredicate pr1 tr || interpretPredicate pr2 tr
+    And pr1 pr2 -> interpretPredicate pr1 tr && interpretPredicate pr2 tr
+    Not pr -> not (interpretPredicate pr tr)
 
 -- |Implements the denotation function for policies.
 interpretPolicy :: FreneticImpl a

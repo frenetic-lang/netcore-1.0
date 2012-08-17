@@ -99,8 +99,8 @@ printResult i = do
 -- that vlan is unset
 realSlice :: Slice -> Slice
 realSlice (Slice int ing egr) = Slice int ing' egr' where
-  ing' = Map.map (\pred -> pred <&&> dlNoVlan) ing
-  egr' = Map.map (\pred -> pred <&&> dlNoVlan) egr
+  ing' = Map.map (\pred -> pred <&&> DlVlan Nothing) ing
+  egr' = Map.map (\pred -> pred <&&> DlVlan Nothing) egr
 
 -- | Try to find some packets outside the interior or ingress of the slice that
 -- the policy forwards or observes.
@@ -108,7 +108,7 @@ unconfinedDomain :: Topo -> Slice -> Policy -> IO (Maybe String)
 unconfinedDomain topo slice policy = doCheck consts assertions where
   consts = getConsts [p, p'] []
   assertions = [ onTopo topo p, onTopo topo p'
-               , Not (sInput slice p) , forwards policy p p' ]
+               , ZNot (sInput slice p) , forwards policy p p' ]
 
 -- | Try to find some packets outside the interior or egress of the slice that
 -- the policy produces
@@ -116,7 +116,7 @@ unconfinedRange :: Topo -> Slice -> Policy -> IO (Maybe String)
 unconfinedRange topo slice policy = doCheck consts assertions where
   consts = getConsts [p, p'] []
   assertions = [ onTopo topo p, onTopo topo p'
-               , forwards policy p p', Not (sOutput slice p') ]
+               , forwards policy p p', ZNot (sOutput slice p') ]
 
 -- | Try to find some forwarding path over an edge that the policy receives
 -- packets on (either forwarding or observing), and another packet
@@ -136,7 +136,7 @@ multipleVlanEdge topo policy = doCheck consts assertions  where
                , forwards policy q q'
                , Equals (switch p') (switch q')
                , Equals (port p') (port q')
-               , Not (Equals (vlan p') (vlan q'))
+               , ZNot (Equals (vlan p') (vlan q'))
                ]
 
 -- |Try to find a packet that produces an observation for which no equivalent
@@ -150,7 +150,7 @@ breaksObserves topo mSlice a b = doCheck consts assertions where
                          Nothing -> [ onTopo topo p ]
   assertions = locationAssertions ++
                [ queries a p qid
-               , ForAll [ConstInt v] (Not (queriesWith b (p, Just v) qid))
+               , ForAll [ConstInt v] (ZNot (queriesWith b (p, Just v) qid))
                ]
 
 -- | Try to find a pair of packets that a forwards for which there are no two
@@ -169,7 +169,7 @@ breaksForwards topo mSlice a b = doCheck consts assertions where
   assertions = locationAssertions ++
                [ forwards a p p'
                , ForAll [ConstInt v, ConstInt v']
-                        (Not (forwardsWith b (p, Just v) (p', Just v')))
+                        (ZNot (forwardsWith b (p, Just v) (p', Just v')))
                ]
 
 -- | Try to find a two-hop forwarding path in a for which there isn't a
@@ -192,8 +192,8 @@ breaksForwards2 topo mSlice a b = doCheck consts assertions where
                  -- Find a similar path for some vlans.  We don't need to test
                  -- topology transfer because it's insensitive to vlans.
                , ForAll [ConstInt v, ConstInt v', ConstInt v'']
-                        (Not (And (forwardsWith b (p, Just v)  (p', Just v'))
-                                  (forwardsWith b (q, Just v') (q', Just v''))))
+                        (ZNot (ZAnd (forwardsWith b (p, Just v)  (p', Just v'))
+                                    (forwardsWith b (q, Just v') (q', Just v''))))
                ]
 
 -- | Try to find a packet that p1 produces that p2 does something with
@@ -227,21 +227,21 @@ sharedTransit topo p1 p2 = doCheck consts assertions where
   consts = getConsts [p, p', p'', q', q''] []
 
   -- We try to find a packet p
-  assertions = [ Or (pIngress p1 p p')
-                    (And (pEgress p1 p' p'') (transfer topo p'' p))
-               , Or (pIngress p2 p q')
-                    (And (pEgress p2 q' q'') (transfer topo q'' p))
+  assertions = [ ZOr (pIngress p1 p p')
+                     (ZAnd (pEgress p1 p' p'') (transfer topo p'' p))
+               , ZOr (pIngress p2 p q')
+                     (ZAnd (pEgress p2 q' q'') (transfer topo q'' p))
                ]
 
 -- | Is the packet coming into the compiled slice?
-pIngress policy p p' = And (input policy p p') (noVlan p)
+pIngress policy p p' = ZAnd (input policy p p') (noVlan p)
 -- | Is the packet leaving the compiled slice?
-pEgress policy p p' = And (output policy p p') (noVlan p')
+pEgress policy p p' = ZAnd (output policy p p') (noVlan p')
 
 -- | Does policy use p to produce any packets or observations?
 input :: Policy -> Z3Packet -> Z3Packet -> BoolExp
-input policy p p' = Or (forwards policy p p')
-                       (observes policy p)
+input policy p p' = ZOr (forwards policy p p')
+                        (observes policy p)
 
 -- | Can p' be produced by policy?
 output :: Policy -> Z3Packet -> Z3Packet -> BoolExp
@@ -258,5 +258,5 @@ sOutput = inOutput egress
 inOutput :: (Slice -> Map.Map Loc Predicate) -> Slice -> Z3Packet -> BoolExp
 inOutput gress slice pkt = nOr (onInternal ++ onGress) where
   onInternal = map (\l -> atLoc l pkt) (Set.toList (internal slice))
-  onGress = map (\(l, pred) -> And (atLoc l pkt) (match pred pkt))
+  onGress = map (\(l, pred) -> ZAnd (atLoc l pkt) (match pred pkt))
                  (Map.toList (gress slice))

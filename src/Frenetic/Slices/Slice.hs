@@ -80,7 +80,7 @@ localize slice policy = case policy of
   PoUnion p1 p2 -> localize slice p1 <+> localize slice p2
   PoBasic pred act ->
     let ss = Set.toList (switchesOfPredicate switches pred) in
-    mconcat [localizeMods (pred' <&&> PrTo s) act
+    mconcat [localizeMods (pred' <&&> Switch s) act
                               (Map.findWithDefault Set.empty s ports)
                 | s <- ss]
     where
@@ -110,7 +110,7 @@ localizeMods pred (Action m obs) ports = mconcat (forwardPol : floodPols)
   -- Put the observations with the forwards so we don't duplicate them
   forwardPol = pred ==> Action forwards' obs
   floodPols = [mkFlood p mods | p <- Set.toList ports, mods <- MS.toList floods]
-  mkFlood port mods = pred <&&> inPort port ==> Action mods' MS.empty where
+  mkFlood port mods = pred <&&> IngressPort port ==> Action mods' MS.empty where
     mods' = MS.fromList [(Physical p, mods) | p <- otherPorts]
     otherPorts = Set.toList $ Set.delete port ports
 
@@ -120,13 +120,13 @@ split (AllPorts, rewrite) = Right rewrite
 -- |Starting with a set of switches, get the switches the predicate might match.
 switchesOfPredicate :: Set.Set Switch -> Predicate -> Set.Set Switch
 switchesOfPredicate switches pred = case pred of
-  PrPattern _       -> switches
-  PrTo s            -> Set.intersection switches (Set.singleton s)
-  PrUnion p1 p2     -> Set.union (switchesOfPredicate switches p1)
+  Switch s            -> Set.intersection switches (Set.singleton s)
+  Or p1 p2     -> Set.union (switchesOfPredicate switches p1)
                            (switchesOfPredicate switches p2)
-  PrIntersect p1 p2 -> Set.intersection (switchesOfPredicate switches p1)
+  And p1 p2 -> Set.intersection (switchesOfPredicate switches p1)
                                         (switchesOfPredicate switches p2)
-  PrNegate _        -> switches
+  Not _        -> switches
+  otherwise -> switches
 
 -- |Determine if a policy ever matches on or sets VLAN tags.
 poUsesVlans :: Policy -> Bool
@@ -136,11 +136,12 @@ poUsesVlans (PoBasic pred action) = prUsesVlans pred || actUsesVlans action
 
 -- |Determine if a predicate matches on VLAN tags
 prUsesVlans :: Predicate -> Bool
-prUsesVlans (PrPattern (Pattern {ptrnDlVlan = vl})) = vl /= Wildcard
-prUsesVlans (PrTo _) = False
-prUsesVlans (PrUnion p1 p2) = prUsesVlans p1 || prUsesVlans p2
-prUsesVlans (PrIntersect p1 p2) = prUsesVlans p1 || prUsesVlans p2
-prUsesVlans (PrNegate p) = prUsesVlans p
+prUsesVlans (DlVlan (Just _)) = True
+prUsesVlans (Switch _) = False
+prUsesVlans (Or p1 p2) = prUsesVlans p1 || prUsesVlans p2
+prUsesVlans (And p1 p2) = prUsesVlans p1 || prUsesVlans p2
+prUsesVlans (Not p) = prUsesVlans p
+prUsesVlans _ = False
 
 actUsesVlans :: Action -> Bool
 actUsesVlans (Action ms _) =

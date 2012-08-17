@@ -45,9 +45,9 @@ case_testFloodCompile = do
   qs <- queries
   let topo = buildGraph [ ((1, 0), (9, 1))
                         , ((2, 0), (9, 2)) ]
-  let p = PrTo 9 ==> allPorts unmodified
-  let slice = Slice Set.empty (Map.fromList [(Loc 9 1, top), (Loc 9 2, top)])
-                              (Map.fromList [(Loc 9 1, top), (Loc 9 2, top)])
+  let p = Switch 9 ==> allPorts unmodified
+  let slice = Slice Set.empty (Map.fromList [(Loc 9 1, Any), (Loc 9 2, Any)])
+                              (Map.fromList [(Loc 9 1, Any), (Loc 9 2, Any)])
   let c = compileSlice slice 1 p
   result <- compiledCorrectly topo slice p c
   assertBool "Compiled correctly" result
@@ -123,9 +123,9 @@ case_testHostsCompileEdge = do
 case_testInputPredicates = do
   qs <- queries
   let (topo, [(s1, p1), (s2, p2)]) = linearHostsQ [[0, 1, 2, 3], [0, 1, 2, 3]] qs
-  let s1' = s1 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 100)
+  let s1' = s1 {ingress = Map.map (\_ -> DlSrc $ ethernetAddress64 100)
                                   (ingress s1)}
-  let s2' = s2 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 200)
+  let s2' = s2 {ingress = Map.map (\_ -> DlSrc $ ethernetAddress64 200)
                                   (ingress s2)}
   let c1 = compileSlice s1' 1 p1
   let c2 = compileSlice s2' 2 p2
@@ -141,9 +141,9 @@ case_testInputPredicates = do
 case_testInputPredicatesEdge = do
   qs <- queries
   let (topo, [(s1, p1), (s2, p2)]) = linearHostsQ [[0, 1], [0, 1]] qs
-  let s1' = s1 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 100)
+  let s1' = s1 {ingress = Map.map (\_ -> DlSrc $ ethernetAddress64 100)
                                   (ingress s1)}
-  let s2' = s2 {ingress = Map.map (\_ -> dlSrc $ ethernetAddress64 200)
+  let s2' = s2 {ingress = Map.map (\_ -> DlSrc $ ethernetAddress64 200)
                                   (ingress s2)}
   let [(a1, (_, _)), (a2, (_, _))] = edge topo [(s1', p1), (s2', p2)]
   let c1 = edgeCompileSlice s1' a1 p1

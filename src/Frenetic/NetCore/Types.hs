@@ -108,35 +108,48 @@ data Pattern = Pattern {
 
 matchedFields :: Pattern -> [Field]
 matchedFields (Pattern{..}) = catMaybes fields where
-  fields = [ case ptrnDlSrc of { Exact _ -> Just DlSrc; Wildcard -> Nothing }
-           , case ptrnDlDst of { Exact _ -> Just DlDst; Wildcard -> Nothing }
-           , case ptrnDlVlan of { Exact _ -> Just DlVlan; Wildcard -> Nothing }
-           , case ptrnDlVlanPcp of { Exact _ -> Just DlVlanPcp;
+  fields = [ case ptrnDlSrc of { Exact _ -> Just FDlSrc; Wildcard -> Nothing }
+           , case ptrnDlDst of { Exact _ -> Just FDlDst; Wildcard -> Nothing }
+           , case ptrnDlVlan of { Exact _ -> Just FDlVlan; Wildcard -> Nothing }
+           , case ptrnDlVlanPcp of { Exact _ -> Just FDlVlanPcp;
                                      Wildcard -> Nothing }
-           , case ptrnNwSrc of { Prefix _ 32 -> Just NwSrc; 
+           , case ptrnNwSrc of { Prefix _ 32 -> Just FNwSrc; 
                                  otherwise -> Nothing }
-           , case ptrnNwDst of { Prefix _ 32 -> Just NwDst; 
+           , case ptrnNwDst of { Prefix _ 32 -> Just FNwDst; 
                                  otherwise -> Nothing }
-           , case ptrnNwProto of { Exact _ -> Just NwProto; Wildcard -> Nothing }
-           , case ptrnNwTos of { Exact _ -> Just NwTos; Wildcard -> Nothing }
-           , case ptrnTpSrc of { Exact _ -> Just TpSrc; Wildcard -> Nothing }
-           , case ptrnTpDst of { Exact _ -> Just TpDst; Wildcard -> Nothing }
-           , case ptrnInPort of { Exact _ -> Just InPort; Wildcard -> Nothing }
+           , case ptrnNwProto of { Exact _ -> Just FNwProto; Wildcard -> Nothing }
+           , case ptrnNwTos of { Exact _ -> Just FNwTos; Wildcard -> Nothing }
+           , case ptrnTpSrc of { Exact _ -> Just FTpSrc; Wildcard -> Nothing }
+           , case ptrnTpDst of { Exact _ -> Just FTpDst; Wildcard -> Nothing }
+           , case ptrnInPort of { Exact _ -> Just FInPort; Wildcard -> Nothing }
            ]
 
 -- |Predicates to match packets.
 data Predicate
-  = PrPattern Pattern -- ^Match with a simple pattern.
-  | PrTo Switch -- ^Match only at this switch.
-  | PrUnion Predicate Predicate -- ^Match either predicates.
-  | PrIntersect Predicate Predicate -- ^Match both predicates.
-  | PrNegate Predicate -- ^PrNegate P matches packets that do not match P.
-  deriving (Eq, Ord)
+  = DlSrc EthernetAddress -- ^Match ethernet source address
+  | DlDst EthernetAddress -- ^Match ethernet destination address
+  | DlTyp Word16 -- ^Match ethernet type code (e.g., 0x0800 for IP packets)
+  | DlVlan (Maybe Word16) -- ^Match VLAN tag
+  | DlVlanPcp Word8 -- ^Match VLAN priority
+  | NwSrc (Prefix Word32) -- ^Match source IP address
+  | NwDst (Prefix Word32) -- ^Match destination IP address
+  | NwProto Word8 -- ^Match IP protocol code (e.g., 0x6 indicates TCP segments)
+  | NwTos Word8 -- ^Match IP TOS field
+  | TpSrcPort Word16 -- ^Match IP source port
+  | TpDstPort Word16 -- ^Match IP destination port
+  | IngressPort Word16 -- ^Match the ingress port on which packets arrive
+  | Switch Switch -- ^Match only at this switch
+  | Or Predicate Predicate -- ^Match either predicates
+  | And Predicate Predicate -- ^Match both predicates
+  | Not Predicate -- ^Not P matches packets that do not match P.
+  | Any -- ^Matches all packets
+  | None -- ^Matches no packets
+  deriving (Eq, Ord, Show)
 
 -- |Names of common header fields.
 data Field
-  = DlSrc | DlDst | DlVlan | DlVlanPcp | NwSrc | NwDst | NwTos | TpSrc | TpDst
-  | NwProto | InPort
+  = FDlSrc | FDlDst | FDlVlan | FDlVlanPcp | FNwSrc | FNwDst | FNwTos 
+  | FTpSrc | FTpDst | FNwProto | FInPort
   deriving (Eq, Ord, Show)
 
 -- |For each fields with a value Just v, modify that field to be v.
@@ -155,17 +168,21 @@ data Modification = Modification {
 
 -- |A predicate that exactly matches a packet's headers.
 exactMatch :: Packet -> Predicate
-exactMatch (Packet{..}) = PrPattern pat
-  where pat = Pattern (Exact pktDlSrc) (Exact pktDlDst) (Exact pktDlTyp)
-                      (Exact pktDlVlan) (Exact pktDlVlanPcp)
-                      (prefix pktNwSrc) (prefix pktNwDst)
-                      (Exact pktNwProto)
-                      (Exact pktNwTos) (exact pktTpSrc) (exact pktTpDst)
-                      (Exact pktInPort)
-        prefix Nothing = Prefix 0 0
-        prefix (Just v) = Prefix v 32
-        exact Nothing = Wildcard
-        exact (Just v) = Exact v
+exactMatch (Packet{..}) = foldl f None lst
+  where f pr Nothing = pr
+        f pr (Just pr') = And pr pr'
+        lst = [ Just (DlSrc pktDlSrc), 
+                Just (DlDst pktDlDst),
+                Just (DlTyp pktDlTyp),
+                Just (DlVlan pktDlVlan),
+                Just (DlVlanPcp pktDlVlanPcp),
+                fmap (\v -> NwSrc (Prefix v 32)) pktNwSrc, 
+                fmap (\v -> NwDst (Prefix v 32)) pktNwDst,
+                Just (NwProto pktNwProto), 
+                Just (NwTos pktNwTos), 
+                fmap TpSrcPort pktTpSrc,
+                fmap TpDstPort pktTpDst, 
+                Just (IngressPort pktInPort) ]
 
 unmodified :: Modification
 unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing
@@ -174,16 +191,16 @@ unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing
 
 modifiedFields :: Modification -> Set Field
 modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
-  fields = [ case modifyDlSrc of { Just _ -> Just DlSrc; Nothing -> Nothing }
-           , case modifyDlDst of { Just _ -> Just DlDst; Nothing -> Nothing }
-           , case modifyDlVlan of { Just _ -> Just DlVlan; Nothing -> Nothing }
-           , case modifyDlVlanPcp of { Just _ -> Just DlVlanPcp;
+  fields = [ case modifyDlSrc of { Just _ -> Just FDlSrc; Nothing -> Nothing }
+           , case modifyDlDst of { Just _ -> Just FDlDst; Nothing -> Nothing }
+           , case modifyDlVlan of { Just _ -> Just FDlVlan; Nothing -> Nothing }
+           , case modifyDlVlanPcp of { Just _ -> Just FDlVlanPcp;
                                        Nothing -> Nothing }
-           , case modifyNwSrc of { Just _ -> Just NwSrc; Nothing -> Nothing }
-           , case modifyNwDst of { Just _ -> Just NwDst; Nothing -> Nothing }
-           , case modifyNwTos of { Just _ -> Just NwTos; Nothing -> Nothing }
-           , case modifyTpSrc of { Just _ -> Just TpSrc; Nothing -> Nothing }
-           , case modifyTpDst of { Just _ -> Just TpDst; Nothing -> Nothing }
+           , case modifyNwSrc of { Just _ -> Just FNwSrc; Nothing -> Nothing }
+           , case modifyNwDst of { Just _ -> Just FNwDst; Nothing -> Nothing }
+           , case modifyNwTos of { Just _ -> Just FNwTos; Nothing -> Nothing }
+           , case modifyTpSrc of { Just _ -> Just FTpSrc; Nothing -> Nothing }
+           , case modifyTpDst of { Just _ -> Just FTpDst; Nothing -> Nothing }
            ]
 
 
@@ -280,7 +297,7 @@ data Query
 data Action = Action {
   actionForwards :: MS.MultiSet (PseudoPort, Modification),
   actionQueries :: MS.MultiSet Query
-} deriving (Eq, Ord)
+} deriving (Eq, Ord, Show)
 
 isPktQuery (PktQuery _ _) = True
 isPktQuery _               = False
@@ -338,7 +355,7 @@ prUnIntersect :: Predicate -> [Predicate]
 prUnIntersect po = List.unfoldr f [po] where
   f predicates = case predicates of
     [] -> Nothing
-    (PrIntersect p1 p2) : rest -> f (p1 : (p2 : rest))
+    (And p1 p2) : rest -> f (p1 : (p2 : rest))
     p : rest -> Just (p, rest)
 
 -- |Get back all predicates in the union.  Does not return any naked unions.
@@ -346,7 +363,7 @@ prUnUnion :: Predicate -> [Predicate]
 prUnUnion po = List.unfoldr f [po] where
   f predicates = case predicates of
     [] -> Nothing
-    (PrUnion p1 p2) : rest -> f (p1 : (p2 : rest))
+    (Or p1 p2) : rest -> f (p1 : (p2 : rest))
     p : rest -> Just (p, rest)
 
 {-| Policies denote functions from (switch, packet) to packets. -}
@@ -354,26 +371,25 @@ data Policy
   = PoBottom -- ^Performs no actions.
   | PoBasic Predicate Action -- ^Performs the given action on packets matching the given predicate.
   | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
+{-
 instance Show Predicate where
-  show (PrPattern pat) = show pat
-  show (PrTo s) = "switch(" ++ show s ++ ")"
-  show (PrUnion pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
-  show (PrIntersect pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
-  show (PrNegate pr) = "~(" ++ show pr ++ ")"
-
-instance Matchable Predicate where
-  top = PrPattern top
-  intersect p1 p2 = Just (PrIntersect p1 p2)
+  show (Switch s) = "switch(" ++ show s ++ ")"
+  show (Or pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
+  show (And pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
+  show (Not pr) = "~(" ++ show pr ++ ")"
+-}
 
 instance Ord Query where
   compare q1 q2 = compare qid1 qid2 where
     qid1 = idOfQuery q1
     qid2 = idOfQuery q2
 
+{-
 instance Show Action where
   show (Action fwd q) = "<fwd=" ++ show (MS.toAscList fwd) ++ " q=" ++ show q ++ ">"
+-}
 
 instance Show Query where
   show (NumPktQuery{..}) =
@@ -381,10 +397,12 @@ instance Show Query where
     show idOfQuery ++ ")"
   show (PktQuery{..}) = "getPkts(id=" ++ show idOfQuery ++  ")"
 
+{-
 instance Show Policy where
   show PoBottom = "(PoBottom)"
   show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
   show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
+-}
 
 -- |Get back all basic policies in the union.  Does not return any unions.
 poUnUnion :: Policy -> [Policy]
@@ -396,9 +414,9 @@ poUnUnion po = List.unfoldr f [po] where
 
 -- |Returns a predicate that matches the domain of the policy.
 poDom :: Policy -> Predicate
-poDom PoBottom = PrNegate top
+poDom PoBottom = None
 poDom (PoBasic pred _) = pred
-poDom (PoUnion pol1 pol2) = PrUnion (poDom pol1) (poDom pol2)
+poDom (PoUnion pol1 pol2) = Or (poDom pol1) (poDom pol2)
 
 -- |Returns the approximate size of the policy
 size :: Policy -> Int
@@ -408,8 +426,7 @@ size (PoUnion p1 p2) = size p1 + size p2 + 1
 
 -- |Returns the approximate size of the predicate
 prSize :: Predicate -> Int
-prSize (PrPattern _) = 1
-prSize (PrTo _) = 1
-prSize (PrUnion p1 p2) = prSize p1 + prSize p2 + 1
-prSize (PrIntersect p1 p2) = prSize p1 + prSize p2 + 1
-prSize (PrNegate p) = prSize p + 1
+prSize (Or p1 p2) = prSize p1 + prSize p2 + 1
+prSize (And p1 p2) = prSize p1 + prSize p2 + 1
+prSize (Not p) = prSize p + 1
+prSize _ = 1

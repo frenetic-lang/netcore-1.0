@@ -54,9 +54,9 @@ instance Show Const where
 
 data BoolExp = ZTrue
              | ZFalse
-             | Not BoolExp
-             | And BoolExp BoolExp
-             | Or BoolExp BoolExp
+             | ZNot BoolExp
+             | ZAnd BoolExp BoolExp
+             | ZOr BoolExp BoolExp
              | Implies BoolExp BoolExp
              | Equals IntExp IntExp
              | ForAll [Const] BoolExp
@@ -94,9 +94,9 @@ instance Show Z3Input where
 instance Show BoolExp where
   show ZTrue = "true"
   show ZFalse = "false"
-  show (Not b) = "(not " ++ show b ++ ")"
-  show (And b1 b2) = "(and " ++ show b1 ++ " " ++ show b2 ++ ")"
-  show (Or b1 b2) = "(or " ++ show b1 ++ " " ++ show b2 ++ ")"
+  show (ZNot b) = "(not " ++ show b ++ ")"
+  show (ZAnd b1 b2) = "(and " ++ show b1 ++ " " ++ show b2 ++ ")"
+  show (ZOr b1 b2) = "(or " ++ show b1 ++ " " ++ show b2 ++ ")"
   show (Implies b1 b2) = "(implies " ++ show b1 ++ " " ++ show b2 ++ ")"
   show (Equals i1 i2) = "(equals " ++ show i1 ++ " " ++ show i2 ++ ")"
   show (ForAll consts b) = "(forall (" ++ join " " (map show consts) ++ ") " ++
@@ -112,12 +112,12 @@ instance Show IntExp where
 -- |Nary And, return True if empty
 nAnd :: [BoolExp] -> BoolExp
 nAnd [] = ZTrue
-nAnd bs = foldr1 (\ b1 b2 -> And b1 b2) bs
+nAnd bs = foldr1 (\ b1 b2 -> ZAnd b1 b2) bs
 
 -- |Nary Or, return False if empty
 nOr :: [BoolExp] -> BoolExp
 nOr [] = ZFalse
-nOr bs = foldr1 (\ b1 b2 -> Or b1 b2) bs
+nOr bs = foldr1 (\ b1 b2 -> ZOr b1 b2) bs
 
 -- |Convert true-is-Just-false-is-Nothing to boolean
 checkBool :: IO (Maybe a) -> IO Bool

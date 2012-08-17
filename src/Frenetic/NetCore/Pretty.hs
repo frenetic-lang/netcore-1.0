@@ -34,13 +34,13 @@ hPutNetCoreLn h p = do
   hPutNetCore h p
   hPutChar h '\n'
 
-prettyPr (PrPattern p) = prettyPattern " = " p
-prettyPr (PrTo s) = text "switch = " <> integer (fromIntegral s)
-prettyPr p@(PrUnion _ _) = text "Or " <>
+prettyPr (Switch s) = text "switch = " <> integer (fromIntegral s)
+prettyPr p@(Or _ _) = text "Or " <>
                            (align . tupled . map prettyPr $ prUnUnion p)
-prettyPr p@(PrIntersect _ _) = text "And " <>
+prettyPr p@(And _ _) = text "And " <>
                            (align . tupled . map prettyPr $ prUnIntersect p)
-prettyPr (PrNegate p) = text "Not " <> align (tupled [prettyPr p])
+prettyPr (Not p) = text "Not " <> align (tupled [prettyPr p])
+prettyPr x = text (show x)
 
 prettyAc (Action fwds qs) =
   (semiBraces . map prettyForward . MS.toAscList $ fwds) </>

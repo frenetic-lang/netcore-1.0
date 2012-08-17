@@ -35,8 +35,8 @@ a5 = modify [ (3, modNwSrc 50)
 
 pr1 = inport 1 0
 pr2 = inport 1 0 <||> inport 2 3
-pr3 = inport 3 3 <&&> dlSrc (ethernetAddress64 10)
-pr4 = pr3 <&&> neg (dlDst (ethernetAddress64 20))
+pr3 = inport 3 3 <&&> DlSrc (ethernetAddress64 10)
+pr4 = pr3 <&&> Not (DlDst (ethernetAddress64 20))
 
 po1 = pr1 ==> a1
 po2 = pr2 ==> a2

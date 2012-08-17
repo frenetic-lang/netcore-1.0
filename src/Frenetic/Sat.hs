@@ -40,8 +40,8 @@ port = PktHeader "InPort"
 vlan = PktHeader "DlVlan"
 
 atLoc :: Loc -> Z3Packet -> BoolExp
-atLoc (Loc s p) pkt = And (Equals (switch pkt) (Primitive (fint s)))
-                          (Equals (port pkt) (Primitive (fint p)))
+atLoc (Loc s p) pkt = ZAnd (Equals (switch pkt) (Primitive (fint s)))
+                           (Equals (port pkt) (Primitive (fint p)))
 
 -- |Build the predicate for a packet being on the topology
 onTopo :: Topo -> Z3Packet -> BoolExp
@@ -94,10 +94,10 @@ forwardsWith :: Policy ->
                 (Z3Packet, Maybe Z3Int) ->
                 BoolExp
 forwardsWith PoBottom _ _ = ZFalse
-forwardsWith (PoUnion p1 p2) p q = Or (forwardsWith p1 p q)
-                                      (forwardsWith p2 p q)
-forwardsWith (PoBasic pred action) p q = And (matchWith pred p)
-                                             (produceWith action p q)
+forwardsWith (PoUnion p1 p2) p q = ZOr (forwardsWith p1 p q)
+                                       (forwardsWith p2 p q)
+forwardsWith (PoBasic pred action) p q = ZAnd (matchWith pred p)
+                                              (produceWith action p q)
 
 -- |Build the constraint that some query is fired by the policy.
 observes :: Policy -> Z3Packet -> BoolExp
@@ -110,7 +110,7 @@ observesWith PoBottom _ = ZFalse
 observesWith (PoUnion p1 p2) p =
   if p1' == ZFalse then p2'
   else if p2' == ZFalse then p1'
-  else Or p1' p2'
+  else ZOr p1' p2'
   where
     p1' = observesWith p1 p
     p2' = observesWith p2 p
@@ -130,13 +130,13 @@ queriesWith PoBottom _ _ = ZFalse
 queriesWith (PoUnion p1 p2) p qid =
   if p1' == ZFalse then p2'
   else if p2' == ZFalse then p1'
-  else Or p1' p2'
+  else ZOr p1' p2'
   where
     p1' = queriesWith p1 p qid
     p2' = queriesWith p2 p qid
 queriesWith (PoBasic pred action) p qid = if observesAct action
-                                            then And (matchWith pred p)
-                                                     (queryAct action qid)
+                                            then ZAnd (matchWith pred p)
+                                                      (queryAct action qid)
                                             else ZFalse
 
 -- |Build the constraint for pred matching packet.
@@ -146,56 +146,39 @@ match pred pkt = matchWith pred (pkt, Nothing)
 -- |Build the constraint for pred matching packet, maybe substituting a value
 -- for the VLAN.
 matchWith :: Predicate -> (Z3Packet, Maybe Z3Int) -> BoolExp
-matchWith (PrPattern pat) p = matchPatternWith pat p
-matchWith (PrTo s) (pkt, _) = Equals (switch pkt) (Primitive (fromIntegral s))
-matchWith (PrUnion p1 p2) p = Or (matchWith p1 p)
-                                      (matchWith p2 p)
-matchWith (PrIntersect p1 p2) p = And (matchWith p1 p)
-                                           (matchWith p2 p)
-matchWith (PrNegate pred) p = Not (matchWith pred p)
-
--- |Build the constraint for a packet matching a pattern
-matchPatternWith :: Pattern -> (Z3Packet, Maybe Z3Int) -> BoolExp
-matchPatternWith pat p = nAnd (catMaybes matches) where
-  matches = [ matchField p "DlSrc"     (fmap (fint.unpackEth64) (ptrnDlSrc pat))
-            , matchField p "DlDst"     (fmap (fint.unpackEth64) (ptrnDlDst pat))
-            , matchField p "DlTyp"     (fmap fint (ptrnDlTyp pat))
-            , matchField p "DlVlan"    (case ptrnDlVlan pat of
-                                          Exact (Just vl) -> Exact $ fint vl
-                                          Exact Nothing ->
-                                            Exact $ fint ofpVlanNone
-                                          Wildcard -> Wildcard)
-            , matchField p "DlVlanPcp" (fmap fint (ptrnDlVlanPcp pat))
-            , matchField p "NwSrc"     (fromPrefix  (ptrnNwSrc pat))
-            , matchField p "NwDst"     (fromPrefix  (ptrnNwDst pat))
-            , matchField p "NwProto"   (fmap fint (ptrnNwProto pat))
-            , matchField p "NwTos"     (fmap fint (ptrnNwTos pat))
-            , matchField p "TpSrc"     (fmap fint (ptrnTpSrc pat))
-            , matchField p "TpDst"     (fmap fint (ptrnTpDst pat))
-            , matchField p "InPort"    (fmap fint (ptrnInPort pat))
-            ]
-
-fromPrefix :: (Integral a, Bits a) => Prefix a -> Wildcard Integer
-fromPrefix (Prefix value 0) = Wildcard
-fromPrefix (Prefix value v) =
-  if v == bitSize value then Exact (fromIntegral value)
-                        else error "Cannot use SMT on non-exact prefixes."
-
-matchField :: (Z3Packet, Maybe Z3Int) ->
-              String -> Wildcard Integer ->
-              Maybe BoolExp
-matchField pkt "DlVlan" (Exact value) =
-  Just (Equals (vlanOfPacket pkt) (Primitive value))
-matchField (pkt', _) field (Exact value) =
-  Just (Equals (PktHeader field pkt') (Primitive value))
-matchField _ _ Wildcard = Nothing
+matchWith pred p@(pk, _) = case pred of
+  DlSrc v -> Equals (PktHeader "DlSrc" pk) 
+                    (Primitive (fromIntegral (unpackEth64 v)))
+  DlDst v -> Equals (PktHeader "DlDst" pk)
+                    (Primitive (fromIntegral (unpackEth64 v)))
+  DlTyp v -> Equals (PktHeader "DlTyp" pk) (Primitive (fromIntegral v))
+  DlVlan Nothing -> Equals (vlanOfPacket p) (Primitive ofpVlanNone)
+  DlVlan (Just vlan) -> Equals (vlanOfPacket p) (Primitive (fromIntegral vlan))
+  DlVlanPcp v -> Equals (PktHeader "DlVlanPcp" pk) (Primitive (fromIntegral v))
+  NwSrc (Prefix v 32) -> Equals (PktHeader "NwSrc" pk)
+                                (Primitive (fromIntegral v))
+  NwSrc (Prefix _ _) -> error "cannot use SMT on non-exact prefixes."
+  NwDst (Prefix v 32) -> Equals (PktHeader "NwDst" pk)
+                                (Primitive (fromIntegral v))
+  NwDst (Prefix _ _) -> error "cannot use SMT on non-exact prefixes."
+  NwProto v -> Equals (PktHeader "NwProto" pk) (Primitive (fromIntegral v))
+  NwTos v -> Equals (PktHeader "NwTos" pk) (Primitive (fromIntegral v))
+  TpSrcPort v -> Equals (PktHeader "TpSrc" pk) (Primitive (fromIntegral v))
+  TpDstPort v -> Equals (PktHeader "TpDst" pk) (Primitive (fromIntegral v))
+  IngressPort v -> Equals (PktHeader "InPort" pk) (Primitive (fromIntegral v))
+  Switch s -> Equals (switch pk) (Primitive (fromIntegral s))
+  Or p1 p2 -> ZOr (matchWith p1 p) (matchWith p2 p)
+  And p1 p2 -> ZAnd (matchWith p1 p) (matchWith p2 p)
+  Not pred -> ZNot (matchWith pred p)
+  Any -> ZTrue
+  None -> ZFalse
 
 -- |Build the constraint for a packet being produced from another packet by an
 -- action, maybe substituting a value for VLAN on either or both
 produceWith :: Action -> (Z3Packet, Maybe Z3Int) -> (Z3Packet, Maybe Z3Int)
                -> BoolExp
 produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
-  And (Equals (switch p') (switch q')) (nOr portConstraints)
+  ZAnd (Equals (switch p') (switch q')) (nOr portConstraints)
   where
     portConstraints = map fieldConstraint (MS.distinctElems rewrite)
     fieldConstraint (pp, m) = nAnd cs where
@@ -203,7 +186,7 @@ produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
                                                  (Primitive (fint port'))]
                        -- Flood means to forward out all ports but the one we
                        -- came in
-                       AllPorts  -> [Not (Equals (port p') (port q'))]) ++
+                       AllPorts  -> [ZNot (Equals (port p') (port q'))]) ++
         [ updateField p q "DlSrc"    (fmap (fint.unpackEth64) (modifyDlSrc m))
         , updateField p q "DlDst"    (fmap (fint.unpackEth64) (modifyDlDst m))
         , updateField p q "DlTyp"     Nothing

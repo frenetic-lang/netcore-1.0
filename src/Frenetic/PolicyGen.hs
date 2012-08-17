@@ -44,7 +44,7 @@ queries = do
 realFlood :: Topo -> Policy
 realFlood topo = mconcat policies where
   ss = switches topo
-  policies = [PrTo (fromIntegral s) ==> allPorts unmodified | s <- ss]
+  policies = [Switch (fromIntegral s) ==> allPorts unmodified | s <- ss]
 
 -- | For each switch, direct each packet to every port on that switch that's in
 -- the topology.  Different from realFlood when dealing with subgraphs because
@@ -52,19 +52,19 @@ realFlood topo = mconcat policies where
 simuFlood :: Topo -> Policy
 simuFlood topo = mconcat policies where
   ss = switches topo
-  policies = [PrTo (fromIntegral s) <&&> validPort s ==>
+  policies = [Switch (fromIntegral s) <&&> validPort s ==>
               modify (ports' s) | s <- ss]
   ports' s = zip (ports topo s) (repeat unmodified)
-  validPort s = prOr . map (\p -> inPort p) $ ports topo s
+  validPort s = prOr . map (\p -> IngressPort p) $ ports topo s
 
 -- |Simulate flooding, and observe all packets with query.
 simuFloodQuery :: Topo -> Action -> Policy
 simuFloodQuery topo q = mconcat policies where
   ss = switches topo
-  policies = [PrTo (fromIntegral s) <&&> validPort s ==>
+  policies = [Switch (fromIntegral s) <&&> validPort s ==>
               (modify (ports' s) <+> q) | s <- ss]
   ports' s = zip (ports topo s) (repeat unmodified)
-  validPort s = prOr . map inPort $ ports topo s
+  validPort s = prOr . map IngressPort $ ports topo s
 
 -- |Construct an all-pairs-shortest-path routing policy between hosts, using the
 -- ID of the host as the MAC address.
@@ -87,8 +87,8 @@ shortestPath topo = mconcat policies where
     policies = mapMaybe (buildHop source dest) $ hops
   buildHop source dest (s1, s2) =
     if Set.member s1 hostsSet then Nothing
-    else Just (PrTo (fromIntegral s1) <&&>
-               dlSrc source <&&> dlDst dest ==> forward [destPort])
+    else Just (Switch (fromIntegral s1) <&&>
+               DlSrc source <&&> DlDst dest ==> forward [destPort])
     where
     destPort = case getEdgeLabel topo s1 s2 of
                  Just port -> port
@@ -97,7 +97,7 @@ shortestPath topo = mconcat policies where
 -- |Construct a policy that routes traffic to DlDst:FF:FF:FF:FF:FF:FF to all
 -- hosts except the one it came in on
 multicast :: Topo -> Policy
-multicast topo = mconcat policies <%> dlDst broadcastAddress where
+multicast topo = mconcat policies <%> DlDst broadcastAddress where
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (hosts topo)
   tree = msTree routingTopo

@@ -29,19 +29,19 @@ gateMAC = ethernetAddress 0x00 0x00 0x00 0x00 0x00 0x11
 fakeIP = addr (10,0,0,101)
 
 -- Internal IP traffic
-private = nwDstPrefix 0x0a000000 24
+private = NwDst (Prefix 0x0a000000 24)
 
 -- ARP traffic
-arp = dlTyp 0x0806
+arp = DlTyp 0x0806
 
 -- Traffic directed to the gateway
-toGateway = dlDst gateMAC
+toGateway = DlDst gateMAC
 
 -- Port to gateway
 gatePort = 3
 
 -- Traffic arriving from the gateway
-fromGateway = inPort gatePort
+fromGateway = IngressPort gatePort
 
 -- Returns a pair of two channels: the first is a channel of unique packets
 -- (unique tuples of MAC address, location, and source TCP port) that have
@@ -68,16 +68,17 @@ pktsByLocation = do
               otherwise -> do
                 -- Either a new outgoing stream or a new MAC address associated
                 -- with an existing IP (we're kind of simulating ARP here...)
-                let pred = dlSrc srcMac <&&> nwSrc srcIp <&&> tpSrc srcTp
+                let pred = DlSrc srcMac <&&> NwSrc (Prefix srcIp 32) 
+                           <&&> TpSrcPort srcTp
                 let locs' = Map.insert (srcIp, srcTp) (srcMac, pred) locs
                 writeChan uniqPktChan pkt
                 writeChan polChan $
-                  (dlDst gateMAC) <&&>
-                  (neg (prOr (map snd (Map.elems locs')))) ==> act
+                  (DlDst gateMAC) <&&>
+                  (Not (prOr (map snd (Map.elems locs')))) ==> act
                 loop locs'
           otherwise -> loop locs
   -- Initially, inspect all packets destined for the gateway.
-  writeChan polChan (dlDst gateMAC ==> act)
+  writeChan polChan (DlDst gateMAC ==> act)
   forkIO (loop Map.empty)
   return (uniqPktChan, polChan)
 
@@ -117,16 +118,16 @@ installHosts pktChan = do
                   Nothing -> (pNum, pNum + 1) }
               -- Create the policy that rewrites the internal source on outgoing packets.
               let outMod = (modNwSrc fakeIP) {modifyTpSrc = Just extPort}
-              let outPol = dlSrc srcMac
-                      <&&> dlDst gateMAC
-                      <&&> nwSrc srcIp
-                      <&&> tpSrc srcTp
+              let outPol = DlSrc srcMac
+                      <&&> DlDst gateMAC
+                      <&&> NwSrc (Prefix srcIp 32)
+                      <&&> TpSrcPort srcTp
                        ==> modify [(gatePort, outMod)]
-              let outPol = dlDst gateMAC ==> forward [gatePort]
+              let outPol = DlDst gateMAC ==> forward [gatePort]
               -- Create the policy that replaces the internal source on incoming packets.
               let inMod  = (modNwDst srcIp) {modifyTpDst = Just srcTp, modifyDlSrc = Just srcMac}
-              let inPol  = nwDst srcIp
-                      <&&> tpDst extPort
+              let inPol  = NwDst (Prefix srcIp 32)
+                      <&&> TpDstPort extPort
                        ==> modify [(inSwitchPort, inMod)]
               -- Update the map.
               let locs' = Map.insert (srcIp, srcTp) (extPort, inPol <+> outPol) locs
@@ -135,7 +136,7 @@ installHosts pktChan = do
               writeChan polChan newPol
               loop locs' pNum
             otherwise -> loop locs pNum
-  writeChan polChan $ (dlDst gateMAC ==> forward [gatePort]) <+> (nwDst fakeIP ==> dropPkt)
+  writeChan polChan $ (DlDst gateMAC ==> forward [gatePort]) <+> (NwDst (Prefix fakeIP 32) ==> dropPkt)
   forkIO (loop Map.empty 1)
   return polChan
 
@@ -147,7 +148,7 @@ nonNATPolicy =
   -- Internal traffic
   (private ==> allPorts unmodified)) <%>
   -- Restricted to traffic not destined for the gateway
-  (neg $ dlDst gateMAC)
+  (Not $ DlDst gateMAC)
 
 
 nat :: IO (Chan Policy)
@@ -170,9 +171,9 @@ main = do
   let loop = do
       packet <- readChan qchan
       print packet
-  let badPolicy = (inPort 1 ==> forward [2]) <+>
-                  (inPort 2 ==> forward [1]) <+>
-                  (matchAll ==> q)
+  let badPolicy = (IngressPort 1 ==> forward [2]) <+>
+                  (IngressPort 2 ==> forward [1]) <+>
+                  (Any ==> q)
   forkIO $ forever $ loop
   controller badPolicy
 

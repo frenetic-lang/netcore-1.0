@@ -10,7 +10,7 @@ import Frenetic.NetCore
 import qualified Data.Map as Map
 import Frenetic.NetCore.Types (poDom)
 
-isFlood = dlDst broadcastAddress
+isFlood = DlDst broadcastAddress
 
 -- |Learns the location of hosts at each switch.
 --
@@ -41,19 +41,19 @@ pktsByLocation = do
           otherwise -> do
             -- Either (1) srcMac has never sent a packet to the switch, or
             -- (2) it has before, but from a different port.
-            let pred = dlSrc srcMac <&&>
-                       onSwitch sw <&&>
-                       inPort port
+            let pred = DlSrc srcMac <&&>
+                       Switch sw <&&>
+                       IngressPort port
             let locs' = Map.insert (sw, srcMac) (port, pred) locs
             writeChan locChan (srcMac, Loc sw port)
             -- Update the policy so that we do not see packets from known
             -- hosts at known locations.
             let knownHosts = prOr (map snd (Map.elems locs'))
             writeChan polChan $
-              neg (dlSrc broadcastAddress <||> knownHosts) ==> act
+              Not (DlSrc broadcastAddress <||> knownHosts) ==> act
             loop locs'
   -- Initially, inspect all packets (excluding broadcasts)
-  writeChan polChan (neg (dlSrc broadcastAddress) ==> act)
+  writeChan polChan (Not (DlSrc broadcastAddress) ==> act)
   forkIO (loop Map.empty)
   return (locChan, polChan)
 
@@ -69,7 +69,7 @@ fwdTo locs ((sw, dstMac), port) = foldr (<+>) PoBottom (map f srcMacs)
         srcMacs = map (\((_, srcMac), _) -> srcMac) $
                     filter (\((sw', _), _) -> sw' == sw)
                       (Map.toList locs)
-        f srcMac = (onSwitch sw <&&> dlSrc srcMac <&&> dlDst dstMac)
+        f srcMac = (Switch sw <&&> DlSrc srcMac <&&> DlDst dstMac)
                    ==> forward [port]
 
 -- |'placeRoutes pktChan' produces a stream of NetCore forwarding policies that
@@ -81,14 +81,14 @@ placeRoutes pktChan = do
   -- policy.
   locsRef <- newIORef Map.empty
   -- Initially, flood all packets
-  writeChan polChan (matchAll ==> allPorts unmodified)
+  writeChan polChan (Any ==> allPorts unmodified)
   forkIO $ forever $ do
     (dlSrc, Loc sw pt) <- readChan pktChan
     locs <- readIORef locsRef
     let locs' = Map.insert (sw, dlSrc) pt locs
     let fwdPol = foldr (<+>) PoBottom (map (fwdTo locs') (Map.toList locs'))
     -- Flood all other packets to maintain connectivity.
-    let floodPol = neg (poDom fwdPol) ==> allPorts unmodified
+    let floodPol = Not (poDom fwdPol) ==> allPorts unmodified
     writeChan polChan (fwdPol <+> floodPol)
     writeIORef locsRef locs'
   return polChan

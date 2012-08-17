@@ -7,6 +7,7 @@ module Frenetic.NetCore.Compiler
   , minimizeClassifier
   ) where
 
+import Prelude hiding (pred)
 import           Frenetic.Compat
 import           Frenetic.Pattern
 import           Frenetic.Common
@@ -18,6 +19,12 @@ import qualified Data.List            as List
 import           Data.Maybe
 import qualified Data.Set             as Set
 import qualified Data.Map             as Map
+
+compilePredicate :: FreneticImpl a
+                 => Switch
+                 -> Predicate
+                 -> Skeleton (PatternImpl a) Bool
+compilePredicate = pred
 
 {-| Input: a function, a value, and two lists. Apply the function to each pair from the two lists and the current value. The function may modify the two lists and modify the current value. -}
 cartMap :: (c -> a -> b -> (c, Maybe a, Maybe b)) -> c -> [a] -> [b] -> (c, [a], [b])
@@ -121,40 +128,50 @@ skelMinimize bones = minimizeShadowing getPat bones
   where getPat (Bone p1 as) = p1
 
 {-| Compile a predicate to intermediate form. -}
-compilePredicate :: FreneticImpl a
-                 => Switch
-                 -> Predicate
-                 -> Skeleton (PatternImpl a) Bool
-compilePredicate s (PrPattern pat) = [Bone (fromPattern pat) True]
-compilePredicate s (PrTo s') | s == s' = [Bone top True]
-                             | otherwise = []
-compilePredicate s (PrIntersect pr1 pr2) = skelMinimize skel12'
-    where
-      skel1 = compilePredicate s pr1
-      skel2 = compilePredicate s pr2
-      (skel12', skel1', skel2') = skelCart (&&) skel1 skel2
-compilePredicate s (PrUnion pr1 pr2) = skelMinimize $ skel12' ++ skel1' ++ skel2'
-    where
-      skel1 = compilePredicate s pr1
-      skel2 = compilePredicate s pr2
-      (skel12', skel1', skel2') = skelCart (||) skel1 skel2
-compilePredicate s (PrNegate pr) =
-  skelMap not (compilePredicate s pr) ++ [Bone top True]
+pred :: FreneticImpl a
+     => Switch
+     -> Predicate
+     -> Skeleton (PatternImpl a) Bool
+pred sw pr = case pr of
+  Any -> [Bone (fromPattern top) True]
+  None -> [Bone (fromPattern top) False]
+  DlSrc eth -> [Bone (fromPattern $ top { ptrnDlSrc = Exact eth }) True]
+  DlDst eth -> [Bone (fromPattern $ top { ptrnDlDst = Exact eth }) True]
+  DlTyp typ -> [Bone (fromPattern $ top { ptrnDlTyp = Exact typ }) True]
+  DlVlan vl -> [Bone (fromPattern $ top { ptrnDlVlan = Exact vl }) True]
+  DlVlanPcp pcp -> [Bone (fromPattern $ top { ptrnDlVlanPcp = Exact pcp }) True]
+  NwSrc mac -> [Bone (fromPattern $ top { ptrnNwSrc = mac }) True]
+  NwDst mac -> [Bone (fromPattern $ top { ptrnNwDst = mac }) True]
+  NwProto proto -> [Bone (fromPattern $ top { ptrnNwProto = Exact proto }) True]
+  NwTos tos -> [Bone (fromPattern $ top { ptrnNwTos = Exact tos }) True]
+  TpSrcPort pt -> [Bone (fromPattern $ top { ptrnTpSrc = Exact pt }) True]
+  TpDstPort pt -> [Bone (fromPattern $ top { ptrnTpDst = Exact pt }) True]
+  IngressPort pt -> [Bone (fromPattern $ top { ptrnInPort = Exact pt }) True]
+  Switch s' | sw == s' -> [Bone top True]
+          | otherwise -> []
+  And pr1 pr2 -> skelMinimize skel12'
+    where skel1 = pred sw pr1
+          skel2 = pred sw pr2
+          (skel12', skel1', skel2') = skelCart (&&) skel1 skel2
+  Or pr1 pr2 -> skelMinimize $ skel12' ++ skel1' ++ skel2'
+    where skel1 = pred sw pr1
+          skel2 = pred sw pr2
+          (skel12', skel1', skel2') = skelCart (||) skel1 skel2
+  Not pr -> skelMap not (pred sw pr) ++ [Bone top True]
 
 {-| Compile a policy to intermediate form -}
 compilePolicy :: FreneticImpl a
               => Switch -> Policy -> Skeleton (PatternImpl a) Action
 compilePolicy _ PoBottom = []
 compilePolicy s (PoBasic po as) =
-    skelMap f $ compilePredicate s po
+    skelMap f $ pred s po
       where f True = as
             f False = dropPkt
 compilePolicy s (PoUnion po1 po2) =
    skelMinimize $ skel12' ++ skel1' ++ skel2'
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
-            (skel12', skel1', skel2') =
-              skelCart (<+>) skel1 skel2
+            (skel12', skel1', skel2') = skelCart (<+>) skel1 skel2
 
 {-| Compile a policy to a classifier. -}
 compile :: FreneticImpl a

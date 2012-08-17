@@ -24,6 +24,10 @@ import qualified Data.MultiSet as MS
 
 satTests = $(testGroupGenerator)
 
+dlVlan v = DlVlan (Just v)
+
+nwDst x = NwDst (Prefix x 32)
+
 case_testBasic = do
   let t = Input [] [] [ZTrue]
   result <- check t
@@ -82,43 +86,42 @@ case_testTransferBreaks = do
 case_testBreaksObserves = do
   (_, query1) <- countPkts 1
   (_, query2) <- countPkts 1 -- different query ID
-  let o = PrTo 2 ==> query1
-  let r = PrTo 2 ==> query2
+  let o = Switch 2 ==> query1
+  let r = Switch 2 ==> query2
   result <- checkBool $ breaksObserves topo Nothing o o
   assertBool "identical observations good." (not result)
   result <- checkBool $ breaksObserves topo Nothing o r
   assertBool "separate observations bad." (result)
-
-  let o = top ==> query1
-  let r = (PrTo 2) ==> query1
+  let o = Any ==> query1
+  let r = (Switch 2) ==> query1
   result <- checkBool $ breaksObserves topo Nothing o r
   assertBool "different predicates bad." (result)
 
 case_testBreaksForwards = do
-  let o = (PrTo 2) ==> forward [1]
-  let r = (PrTo 2) ==> forward [1]
+  let o = (Switch 2) ==> forward [1]
+  let r = (Switch 2) ==> forward [1]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "identical switch" (not result)
 
-  let o = (PrTo 2) <&&> (inPort 2) ==> forward [1]
-  let r = (PrTo 2) <&&> (inPort 2) ==> forward [1]
+  let o = (Switch 2) <&&> (IngressPort 2) ==> forward [1]
+  let r = (Switch 2) <&&> (IngressPort 2) ==> forward [1]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "identical locations" (not result)
 
-  let o = (PrTo 2) <&&> (inPort 2) ==> forward [1]
-  let r = (PrTo 2) <&&> (inPort 2) ==> modify [(1, modDlVlan (Just 2))]
+  let o = (Switch 2) <&&> (IngressPort 2) ==> forward [1]
+  let r = (Switch 2) <&&> (IngressPort 2) ==> modify [(1, modDlVlan (Just 2))]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "match vlans" (not result)
   result <- checkBool $ breaksForwards topo Nothing r o
   assertBool "match vlans rev" (not result)
 
-  let o = onSwitch 2 <&&> inPort 1
-                   <&&> dlSrc (ethernetAddress64 32432)
-                   <&&> dlDst (ethernetAddress64 324322)
+  let o = Switch 2 <&&> IngressPort 1
+                   <&&> DlSrc (ethernetAddress64 32432)
+                   <&&> DlDst (ethernetAddress64 324322)
           ==> forward [1]
-  let r = onSwitch 2 <&&> inPort 1
-                     <&&> dlSrc (ethernetAddress64 32432)
-                     <&&> dlDst (ethernetAddress64 324322)
+  let r = Switch 2 <&&> IngressPort 1
+                     <&&> DlSrc (ethernetAddress64 32432)
+                     <&&> DlDst (ethernetAddress64 324322)
           ==> modify [(1, modDlVlan (Just 2))]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "set vlans" (not result)
@@ -130,7 +133,7 @@ case_testBreaksForwardsFlood = do
                          , ((2, 0), (9, 2))
                          , ((3, 0), (9, 3))
                          ]
-  let o = PrTo 9 ==> allPorts unmodified
+  let o = Switch 9 ==> allPorts unmodified
   let r = (inport 9 1 ==> forward [2, 3]) <+>
           (inport 9 2 ==> forward [1, 3]) <+>
           (inport 9 3 ==> forward [1, 2])
@@ -138,20 +141,20 @@ case_testBreaksForwardsFlood = do
   assertBool "flood semantics" (not result)
 
 case_testBreaksForwards2 = do
-  let o = ((PrTo 1) ==> forward [1]) <+> ((PrTo 2) ==> forward [2])
+  let o = ((Switch 1) ==> forward [1]) <+> ((Switch 2) ==> forward [2])
   result <- checkBool $ breaksForwards2 topo Nothing o o
   assertBool "identical switch" (not result)
 
-  let o = ((PrTo 1) ==> forward [1]) <+> ((PrTo 2) ==> forward [2])
-  let r = ((PrTo 1) ==> modify [(1, modDlVlan (Just 2))]) <+>
-          ((PrTo 2) ==> modify [(2, modDlVlan (Just 3))])
+  let o = ((Switch 1) ==> forward [1]) <+> ((Switch 2) ==> forward [2])
+  let r = ((Switch 1) ==> modify [(1, modDlVlan (Just 2))]) <+>
+          ((Switch 2) ==> modify [(2, modDlVlan (Just 3))])
   result <- checkBool $ breaksForwards2 topo Nothing o r
   assertBool "match vlans" (not result)
   result <- checkBool $ breaksForwards2 topo Nothing r o
   assertBool "match vlans rev" (not result)
 
 case_testForwardsRestriction = do
-  let o = top ==> allPorts unmodified
+  let o = Any ==> allPorts unmodified
   let r = (inport 2 1 ==> forward [2]) <+>
           (inport 2 2 ==> forward [1])
   result <- checkBool $ breaksForwards topo (Just basicSlice) o r
@@ -163,7 +166,7 @@ case_testOneVlanPerEdge = do
   let pol = (dlVlan 1) ==> forward [1, 1]
   result <- checkBool $ multipleVlanEdge topo pol
   assertBool "multipleVlanEdge allows functioning programs" (not result)
-  let pol = top ==> modify [(1, modDlVlan (Just 1)), (1, modDlVlan (Just 2))]
+  let pol = Any ==> modify [(1, modDlVlan (Just 1)), (1, modDlVlan (Just 2))]
   result <- checkBool $ multipleVlanEdge topo pol
   assertBool "multipleVlanEdge spots problems" result
 
@@ -171,7 +174,7 @@ case_testDomain = do
   let pol = inport 2 1 ==> forward [2]
   result <- checkBool $ unconfinedDomain topo basicSlice pol
   assertBool "unconfinedDomain false on confined" (not result)
-  let pol = PrTo 3 ==> forward [1]
+  let pol = Switch 3 ==> forward [1]
   result <- checkBool $ unconfinedDomain topo basicSlice pol
   assertBool "unconfinedDomain true on unconfined" result
 
@@ -235,7 +238,7 @@ case_testInOutRestriction = do
                     (Map.fromList [(Loc 2 1, nwDst 80)])
                     (Map.fromList [(Loc 3 2, nwDst 80)])
   let o = inport 2 1 ==> forward [2]
-  let r = (inport 2 1) <&&> nwDst 80 <&&> dlNoVlan ==> forward [2]
+  let r = (inport 2 1) <&&> nwDst 80 <&&> DlVlan Nothing ==> forward [2]
   result <- compiledCorrectly topo slice o r
   assertBool "lifts into vlan" result
 
@@ -258,19 +261,19 @@ case_basicIso = do
   assertBool "disjoint edges isolated" (not result)
 
 case_testSharedInput = do
-  let p1 = inport 0 1 <&&> dlNoVlan ==> forward [2]
-  let p2 = inport 0 2 <&&> dlNoVlan ==> forward [2]
+  let p1 = inport 0 1 <&&> DlVlan Nothing ==> forward [2]
+  let p2 = inport 0 2 <&&> DlVlan Nothing ==> forward [2]
   result <- checkBool $ sharedInput p1 p2
   assertBool "Disjoint policies have disjoint inputs" (not result)
-  let p1 = inport 0 1 <&&> dlNoVlan ==> forward [2]
+  let p1 = inport 0 1 <&&> DlVlan Nothing ==> forward [2]
   result <- checkBool $ sharedInput p1 p1
   assertBool "Identical policies have joint inputs" result
 
 case_testSharedOutput = do
-  let p1 = inport 0 1 <&&> dlNoVlan ==> forward [1]
-  let p2 = inport 0 1 <&&> dlNoVlan ==> forward [2]
+  let p1 = inport 0 1 <&&> DlVlan Nothing ==> forward [1]
+  let p2 = inport 0 1 <&&> DlVlan Nothing ==> forward [2]
   result <- checkBool $ sharedOutput p1 p2
   assertBool "Disjoint policies have disjoint outputs" (not result)
-  let p1 = inport 0 1 <&&> dlNoVlan ==> forward [2]
+  let p1 = inport 0 1 <&&> DlVlan Nothing ==> forward [2]
   result <- checkBool $ sharedOutput p1 p1
   assertBool "Identical policies have joint outputs" result

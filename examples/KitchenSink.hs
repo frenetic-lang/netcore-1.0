@@ -17,7 +17,7 @@ topo = buildGraph [ ((2, 0), (1, 1))
 spy = do
   spyChan <- newChan
   (byteChan, action) <- countBytes 10000 -- every 10 seconds
-  writeChan spyChan (matchAll ==> action)
+  writeChan spyChan (Any ==> action)
   return spyChan
 
 -- |Run a number of examples wrapped in slices.
@@ -32,13 +32,13 @@ sink routing = do
   monitorRoute <- routing
   spyPolicy <- spy
   -- Just ARP
-  let arpSlice = simpleSlice topo (dlTyp 0x0806)
+  let arpSlice = simpleSlice topo (DlTyp 0x0806)
   -- Just ICMP (ping)
-  let monitorSlice = simpleSlice topo (dlTyp 0x0800 <&&> nwProto 0x01)
+  let monitorSlice = simpleSlice topo (DlTyp 0x0800 <&&> NwProto 0x01)
   -- Everything else
-  let routeSlice = simpleSlice topo (neg (prOr [ dlTyp 0x0806
-                                               , dlTyp 0x0800 <&&> nwProto 0x01]))
-  let spySlice = simpleSlice topo matchAll
+  let routeSlice = simpleSlice topo (Not (prOr [ DlTyp 0x0806
+                                               , DlTyp 0x0800 <&&> NwProto 0x01]))
+  let spySlice = simpleSlice topo Any
   (arpPolicy, arpPacket) <- doArp arpRoute
   monitorPolicy <- monitor monitorRoute
   policies <- dynTransform [ (routeSlice, route)

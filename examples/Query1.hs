@@ -7,7 +7,7 @@ import System.IO
 
 main = do
   (ch, queryAct) <- countPkts 1000
-  let pol = matchAll ==> (allPorts unmodified <+> queryAct)
+  let pol = Any ==> (allPorts unmodified <+> queryAct)
   forkIO $ forever $ do
     (sw, n) <- readChan ch
     putStrLn ("Counter is: " ++ show n)

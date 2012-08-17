@@ -18,7 +18,7 @@ import System.Log.Logger hiding (Priority)
 import Control.Concurrent.Chan
 import Control.Concurrent
 import Control.Monad
-import Data.Monoid
+import Data.Monoid hiding (Any)
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.MultiSet

@@ -15,12 +15,12 @@ type IpMap = Map.Map Word32 EthernetAddress
 -- Note that the OpenFlow spec uses the Nw* fields for both IP packets and ARP
 -- packets, which is how nwProto matches the ARP query/reply field.
 -- Ethertype for ARP packets
-isArp = dlTyp 0x0806
+isArp = DlTyp 0x0806
 -- Numbers from ARP protocol
-isQuery = isArp <&&> nwProto 1
-isReply = isArp <&&> nwProto 2
+isQuery = isArp <&&> NwProto 1
+isReply = isArp <&&> NwProto 2
 
-known ips = prOr . map nwDst $ Map.keys ips
+known ips = prOr . map (\ip -> NwDst (Prefix ip 32)) $ Map.keys ips
 
 -- |Maybe produce a reply packet from an ARP request.
 -- Try to look up the IP address in the lookup table.  If there's an associated
@@ -93,7 +93,7 @@ doArp routeChan = do
         -- We want to provide connectivity for all packets except the ones we're
         -- going to reply to directly.  We want to drop those because we're
         -- going to handle them, so there's no use in them reaching other hosts.
-        route' = route <%> neg canReply
+        route' = route <%> Not canReply
         -- The corollary to this is that we need to query all the packets that
         -- we can reply to so that the controller can send an ARP packet their
         -- way.
@@ -101,7 +101,7 @@ doArp routeChan = do
         -- We also want to spy on (but not impede forwarding of) ARP reply
         -- packets so that we can learn the sender's IP and MAC addresses,
         -- letting us reply from the controller next time.
-        reply = isReply <&&> neg (known ips) ==> replyAction
+        reply = isReply <&&> Not (known ips) ==> replyAction
   let loop mRoute ips = do
       update <- readChan allChan
       case update of

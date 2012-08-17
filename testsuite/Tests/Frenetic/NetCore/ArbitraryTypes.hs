@@ -3,8 +3,9 @@
  #-}
 
 module Tests.Frenetic.NetCore.ArbitraryTypes where
-import Data.Set                                 as Set
 
+import Data.Set                                 as Set
+import Control.Monad
 import Frenetic.NetCore.Types
 import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
@@ -17,29 +18,38 @@ instance Arbitrary IPAddr where
     return (IPAddr w)
 
 instance Arbitrary Predicate where
-  -- Bound the size of the predicate
-  arbitrary = sized $ \s -> if s > 0
-    then do
-      pat <- arbitrary
-      sw  <- arbitrary
-      p1  <- resize (s-1) arbitrary
-      p2  <- resize (s-1) arbitrary
-      oneof [ return $ PrPattern pat,
-            return $ PrTo sw,
-            return $ PrUnion p1 p2,
-            return $ PrIntersect p1 p2,
-            return $ PrNegate $ p1 ]
-    else do
-      pat <- arbitrary
-      sw  <- arbitrary
-      oneof [ return $ PrPattern pat,
-            return $ PrTo sw ]
+  arbitrary = sized $ \s -> 
+    let small = 
+          [ liftM DlSrc arbitrary
+          , liftM DlDst arbitrary
+          , liftM DlTyp arbitrary
+          , liftM DlVlan arbitrary
+          , liftM DlVlanPcp arbitrary
+          , liftM NwSrc arbitrary
+          , liftM NwDst arbitrary
+          , liftM NwProto arbitrary
+          , liftM NwTos arbitrary
+          , liftM TpSrcPort arbitrary
+          , liftM TpDstPort arbitrary 
+          , liftM IngressPort arbitrary
+          , liftM Switch arbitrary
+          , return None
+          , return Any
+          ]
+        large =
+          [ liftM2 Or (resize (s-1) arbitrary) (resize (s-1) arbitrary)
+          , liftM2 And (resize (s-1) arbitrary) (resize (s-1) arbitrary)
+          , liftM Not (resize (s-1) arbitrary)
+          ]
+      in if s == 0 then oneof small else oneof (small ++ large)
 
+{-
   shrink (PrPattern p)         = [PrPattern p' | p' <- shrink p]
-  shrink (PrTo s)              = []
-  shrink (PrUnion p1 p2)       = [p1, p2]
-  shrink (PrIntersect p1 p2)   = [p1, p2]
-  shrink (PrNegate p)          = [PrNegate p' | p' <- shrink p]
+  shrink (Switch s)              = []
+  shrink (Or p1 p2)       = [p1, p2]
+  shrink (And p1 p2)   = [p1, p2]
+  shrink (Not p)          = [Not p' | p' <- shrink p]
+-}
 
 instance Arbitrary Policy where
   -- Bound the size of the policy

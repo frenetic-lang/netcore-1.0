@@ -17,10 +17,10 @@ reduce = reducePo
 
 reducePo :: Policy -> Policy
 reducePo PoBottom = PoBottom
-reducePo (PoBasic pr act) = if pr' == matchNone || act == mempty
+reducePo (PoBasic pr act) = if pr' == None || act == mempty
                               then PoBottom
                               else PoBasic pr' act' where
-  pr' = simplToDnf pr
+  pr' = pr
   act' = act
 -- Note that because we use multiset forwarding semantics, we CANNOT do common
 -- subexpression reduction on unions.
@@ -30,87 +30,69 @@ reducePo (PoUnion p1 p2) = if p1' == PoBottom then p2'
   p1' = reducePo p1
   p2' = reducePo p2
 
-simplToDnf = disjList . dnf . explode
+isNonNegatedAtom pred = case pred of
+  DlSrc _ -> True
+  DlDst _ -> True
+  DlTyp _ -> True
+  DlVlan _ -> True
+  DlVlanPcp _ -> True
+  NwSrc _ -> True
+  NwDst _ -> True
+  NwProto _ -> True
+  NwTos _ -> True
+  TpSrcPort _ -> True
+  TpDstPort _ -> True
+  IngressPort _ -> True
+  Switch _ -> True
+  Or _ _ -> False
+  And _ _ -> False
+  Not _ -> True
+  Any -> True
+  None -> True
 
-isPat (PrPattern _) = True
-isPat _ = False
+isAtom (Not x) = isNonNegatedAtom x
+isAtom x = isNonNegatedAtom x
 
-isSwitch (PrTo _) = True
-isSwitch _ = False
-
-getPat (PrPattern pat) = pat
-getPat (PrNegate (PrPattern pat)) = pat
-getPat _ = error "not a pat"
-
-isPatComplement (PrNegate (PrPattern _)) = True
-isPatComplement _ = False
-
-elim :: [Predicate] -> [Predicate]
-elim atoms = 
-  let set = Set.fromList atoms
-      (switches, notSwitches) = Set.partition isSwitch set
-      (pats, notPats) = Set.partition isPat notSwitches
-      rawPats = map getPat (Set.toList pats)
-      clausePat = foldl f (Just top) rawPats where
-          f Nothing _ = Nothing
-          f (Just p1) p2 = intersect p1 p2
-      patComplements = 
-        map getPat (Set.toList (Set.filter isPatComplement notPats))
-    in case Set.size switches > 1 of
-         True -> []
-         False -> case clausePat of
-           Nothing -> []
-           Just pat -> case any (overlap pat) patComplements of
-             True -> []
-             False -> Set.toList set
-        
--- List of lists of atoms
-disjList (PrUnion pr1 pr2) = PrUnion (disjList pr1) (disjList pr2)
-disjList x = case elim (conjList x) of
-  [] -> PrNegate (PrPattern top)
-  x:xs -> foldl PrIntersect x xs
-
-conjList (PrIntersect pr1 pr2) = conjList pr1 ++ conjList pr2
-conjList x = [x]
-
-explode (PrPattern pat) = case explodePattern pat of
-  [] -> top
-  (x:xs) -> foldr PrIntersect x xs
-explode (PrNegate p) = PrNegate (explode p)
-explode (PrUnion p1 p2) = PrUnion (explode p1) (explode p2)
-explode (PrIntersect p1 p2) = PrIntersect (explode p1) (explode p2)
-explode (PrTo sw) = PrTo sw
-
-isConjunction (PrPattern _) = True
-isConjunction (PrTo _) = True
-isConjunction (PrUnion _ _) = False
-isConjunction (PrIntersect pr1 pr2) = isConjunction pr1 && isConjunction pr2
+isConjunction (Or _ _) = False
+isConjunction (And pr1 pr2) = isConjunction pr1 && isConjunction pr2
 isConjunction x = isAtom x
-
-isAtom (PrTo _) = True
-isAtom (PrPattern _) = True
-isAtom (PrNegate (PrTo _)) = True
-isAtom (PrNegate (PrPattern _)) = True
-isAtom _ = False
 
 dnf :: Predicate -> Predicate
 dnf pr = case pr of
-  PrPattern _ -> pr
-  PrTo _ -> pr
-  PrNegate (PrTo _) -> pr
-  PrNegate (PrPattern _) -> pr
-  PrNegate (PrNegate pr') -> dnf pr'
-  PrNegate (PrUnion pr1 pr2) -> dnf (PrIntersect (PrNegate pr1) (PrNegate pr2))
-  PrNegate (PrIntersect pr1 pr2) -> dnf (PrUnion (PrNegate pr1) (PrNegate pr2))
-  PrUnion pr1 pr2 -> PrUnion (dnf pr1) (dnf pr2)
-  PrIntersect x (PrUnion y z) -> 
-    PrUnion (dnf (PrIntersect x y)) (dnf (PrIntersect x z))
-  PrIntersect (PrUnion x y) z ->
-     PrUnion (dnf (PrIntersect x z)) (dnf (PrIntersect y z))
-  PrIntersect x y ->
+  Not (Not pr') -> dnf pr'
+  Not (Or pr1 pr2) -> dnf (And (Not pr1) (Not pr2))
+  Not (And pr1 pr2) -> dnf (Or (Not pr1) (Not pr2))
+  Or pr1 pr2 -> Or (dnf pr1) (dnf pr2)
+  And x (Or y z) -> 
+    Or (dnf (And x y)) (dnf (And x z))
+  And (Or x y) z ->
+     Or (dnf (And x z)) (dnf (And y z))
+  And x y ->
     let x' = dnf x
         y' = dnf y in
     if isConjunction x' && isConjunction y' then
-      PrIntersect x' y'
+      And x' y'
     else
-      dnf (PrIntersect x' y')
+      dnf (And x' y')
+  otherwise ->
+    if isAtom pr then pr else error ("missing case in dnf " ++ show pr)
+
+disjList (Or pr1 pr2) = Or (disjList pr1) (disjList pr2)
+disjList x = case simplify (conjList x) of
+  [] -> None
+  x:xs -> foldl And x xs
+
+conjList (And pr1 pr2) = conjList pr1 ++ conjList pr2
+conjList x = [x]
+
+isAny Any = True
+isAny _ = False
+
+isNone None = True
+isNone _ = False
+
+-- Simplifies a conjunction
+simplify :: [Predicate] -> [Predicate]
+simplify atomList = Set.toList result
+  where result = if None `Set.member` atoms then Set.empty else atoms
+        atoms = Set.fromList (filter isAny atomList)

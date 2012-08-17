@@ -10,34 +10,14 @@ module Frenetic.NetCore
   , (<%>)
   , (<+>)
   -- * Predicates
-  , Predicate
+  , Predicate (..)
   , exactMatch
   , inport
   , (<||>)
   , (<&&>)
-  , matchAll
-  , matchNone
-  , neg
   , prSubtract
   , prOr
   , prAnd
-  -- ** Exact match predicate constructors
-  , onSwitch
-  , dlSrc
-  , dlDst
-  , dlTyp
-  , dlVlan
-  , dlNoVlan
-  , dlVlanPcp
-  , nwSrc
-  , nwDst
-  , nwSrcPrefix
-  , nwDstPrefix
-  , nwProto
-  , nwTos
-  , tpSrc
-  , tpDst
-  , inPort
   -- * Actions
   , Action
   -- ** Constructors
@@ -62,6 +42,7 @@ module Frenetic.NetCore
   , IPAddr
   , ipAddr
   , unpackIPAddr
+  , Prefix (..)
   -- * Packets
   , Packet (..)
   -- * Packet modifications

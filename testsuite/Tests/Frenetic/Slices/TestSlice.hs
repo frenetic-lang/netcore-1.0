@@ -34,8 +34,8 @@ a4 = modify [ (4, modNwSrc 40)
 
 pr1 = inport 1 0
 pr2 = inport 1 0 <||> inport 2 3
-pr3 = inport 3 3 <&&> dlSrc (ethernetAddress64 10)
-pr4 = pr3 <&&> neg (dlDst (ethernetAddress64 20))
+pr3 = inport 3 3 <&&> DlSrc (ethernetAddress64 10)
+pr4 = pr3 <&&> Not (DlDst (ethernetAddress64 20))
 
 po1 = pr1 ==> a1
 po2 = pr2 ==> a2
@@ -53,17 +53,17 @@ case_testSwitchesOfPredicate = do
 
 case_testPoUsesVlans = do
   assertBool "1" $ not (poUsesVlans (po1 <+> po2 <+> po3 <+> po4))
-  assertBool "2" $ poUsesVlans (dlVlan 3 ==> dropPkt)
-  assertBool "3" $ poUsesVlans (top ==> modify [(1, modDlVlan (Just 3))])
-  assertBool "4" $ not (poUsesVlans ((PrTo 0 ==> forward [2]) <+> (PrTo 2 ==> forward [1])))
+  assertBool "2" $ poUsesVlans (DlVlan (Just 3) ==> dropPkt)
+  assertBool "3" $ poUsesVlans (Any ==> modify [(1, modDlVlan (Just 3))])
+  assertBool "4" $ not (poUsesVlans ((Switch 0 ==> forward [2]) <+> (Switch 2 ==> forward [1])))
 
 slice = Slice (Set.fromList [ Loc 1 1
                             , Loc 1 2
                             , Loc 2 3
                             , Loc 3 2
                             ])
-              (Map.singleton (Loc 1 0) top)
-              (Map.singleton (Loc 3 3) top)
+              (Map.singleton (Loc 1 0) Any)
+              (Map.singleton (Loc 3 3) Any)
 
 --TODO(astory): Finish implementing when we understand what a Transmission is.
 --case_testLocalize = do

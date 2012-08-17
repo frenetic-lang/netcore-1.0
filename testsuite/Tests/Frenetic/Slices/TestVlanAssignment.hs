@@ -33,7 +33,7 @@ case_testBasicEdge = do
   let topo = kComplete 10
   let slices = take 10 . repeat $ internalSlice topo
   -- Policies don't matter, just need to be non-identical
-  let policies = [top ==> forward [i] | i <- [1..10]]
+  let policies = [Any ==> forward [i] | i <- [1..10]]
   let combined = zip slices policies
   let result = edge topo combined
   assertEqual "inputs unchanged" combined (map snd result)
