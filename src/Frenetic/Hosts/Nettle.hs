@@ -17,6 +17,10 @@ import Frenetic.Compat
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
 
+useInPort (Just pt) (SendOutPort (PhysicalPort pt'))
+  | pt == pt' = SendOutPort InPort
+  | otherwise = SendOutPort (PhysicalPort pt')
+useInPort _ act = act
 
 mkFlowMod :: (Match, ActionSequence)
           -> Priority
@@ -24,7 +28,7 @@ mkFlowMod :: (Match, ActionSequence)
 mkFlowMod (pat, acts) pri = FlowMod AddFlow {
   match=pat,
   priority=pri,
-  actions=acts,
+  actions=map (useInPort (inPort pat)) acts,
   cookie=0,
   notifyWhenRemoved=False,
   idleTimeOut=Permanent,
