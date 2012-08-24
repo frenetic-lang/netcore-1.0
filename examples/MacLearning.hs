@@ -4,11 +4,13 @@
 module MacLearning where
 
 import Control.Concurrent
+import Control.Concurrent.SampleVar
 import Data.IORef
 import Control.Monad (forever)
 import Frenetic.NetCore
 import qualified Data.Map as Map
 import Frenetic.NetCore.Types (poDom)
+
 
 isFlood = DlDst broadcastAddress
 
@@ -93,15 +95,29 @@ placeRoutes pktChan = do
     writeIORef locsRef locs'
   return polChan
 
+calmChan :: Int -> Chan a -> IO (Chan a)
+calmChan msDelay inChan = do
+  outChan <- newChan
+  sample <- newEmptySampleVar
+  forkIO $ forever $ do
+    v <- readChan inChan
+    writeSampleVar sample v
+  forkIO $ forever $ do
+    v <- readSampleVar sample
+    writeChan outChan v
+    threadDelay (msDelay * 1000)
+  return outChan
+
 learningSwitch = do
   (uniqPktsChan, queryPolChan) <- pktsByLocation
   fwdPolChan <- placeRoutes uniqPktsChan
   bothPolsChan <- both queryPolChan fwdPolChan
   polChan <- newChan
   forkIO $ forever $ do
-    (queryPol, fwdPol) <- readChan bothPolsChan
+    (queryPol, fwdPol) <- readChan bothPolsChan 
     writeChan polChan (fwdPol <+> queryPol)
-  return polChan
+  delayedPolChan <- calmChan 1000 polChan
+  return delayedPolChan
 
 main = do
   polChan <- learningSwitch
