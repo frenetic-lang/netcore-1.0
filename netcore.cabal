@@ -70,7 +70,6 @@ Library
     Nettle.OpenFlow.Packet,
     Nettle.OpenFlow.Port,
     Nettle.OpenFlow.Statistics,
-    Nettle.OpenFlow.StrictPut,
     Nettle.OpenFlow.Switch,
     Nettle.Servers.Server
   Extensions:
