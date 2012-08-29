@@ -37,10 +37,10 @@ mkFlowMod (pat, acts) pri = FlowMod AddFlow {
   overlapAllowed=True
 }
 
-rawClassifier :: [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
+rawClassifier :: [(Match, ActionImpl)]
               -> [(Match, ActionSequence)]
 rawClassifier classifier =
-  map (\(p, a) -> (fromOFPat p, fromOFAct a)) classifier
+  map (\(p, a) -> (p, fromOFAct a)) classifier
 
 prettyClassifier :: (Match, ActionSequence) -> String
 prettyClassifier (match, as) = "(" ++ show match ++ ", " ++ show as ++ ")"
@@ -85,30 +85,32 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                                    reasonSent=ExplicitSend,
                                    enclosedFrame=Right frame})) -> do
-          let t = Transmission (toOFPat (frameToExactMatch inPort frame))
-                               switchID
-                               (toOFPkt pkt)
-          let actions = interpretPolicy policy t
-          actnControllerPart (actnTranslate actions) switchID (toOFPkt pkt)
+          case toPacket pkt of
+            Nothing -> return ()
+            Just pk -> do
+              let t = Transmission (frameToExactMatch inPort frame) switchID pk
+              let actions = interpretPolicy policy t
+              actnControllerPart (actnTranslate actions) switchID (pkt)
           nextMsg <- readChan policiesAndMessages
           loop policy threads nextMsg
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                                    reasonSent=NotMatched,
                                    enclosedFrame=Right frame})) -> do
-          let t = Transmission (toOFPat (frameToExactMatch inPort frame))
-                               switchID
-                               (toOFPkt pkt)
-          let actions = interpretPolicy policy t
-          actnControllerPart (actnTranslate actions) switchID (toOFPkt pkt)
-          case bufferID pkt of
+          case toPacket pkt of
             Nothing -> return ()
-            Just buf -> do
-              let unCtrl (SendOutPort (ToController _)) = False
-                  unCtrl _ = True
-              let msg = PacketOut $
-                          PacketOutRecord (Left buf) (Just inPort)
-                            (filter unCtrl (fromOFAct $ actnTranslate actions))
-              sendToSwitch switch (2, msg)
+            Just pk -> do
+              let t = Transmission (frameToExactMatch inPort frame) switchID pk
+              let actions = interpretPolicy policy t
+              actnControllerPart (actnTranslate actions) switchID (pkt)
+              case bufferID pkt of
+                Nothing -> return ()
+                Just buf -> do
+                  let unCtrl (SendOutPort (ToController _)) = False
+                      unCtrl _ = True
+                  let msg = PacketOut $
+                              PacketOutRecord (Left buf) (Just inPort)
+                                (filter unCtrl (fromOFAct $ actnTranslate actions))
+                  sendToSwitch switch (2, msg)
           nextMsg <- readChan policiesAndMessages
           loop policy threads nextMsg
         otherwise -> do
@@ -143,16 +145,16 @@ nettleServer policyChan pktChan = do
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
 -- The actions include queries that are not realizable on switches.
 -- We assume the classifier does not have any fully-shadowed patterns.
-classifierQueries :: [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
+classifierQueries :: [(Match, ActionImpl)]
                   -> [(Query, [Match])]
 classifierQueries classifier = map sel queries where
   queries = nub (concatMap (actQueries.snd) classifier)
-  sel query = (query, map (fromOFPat.fst) (filter (hasQuery query) classifier))
+  sel query = (query, map fst (filter (hasQuery query) classifier))
   hasQuery query (_, action) = query `elem` actQueries action
 
 runQueryOnSwitch :: Nettle
                  -> SwitchHandle
-                 -> [(PatternImpl OpenFlow, ActionImpl OpenFlow)]
+                 -> [(Match, ActionImpl)]
                  -> IO (IO ())
 runQueryOnSwitch nettle switch classifier = do
   killFlag <- newIORef False

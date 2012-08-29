@@ -1,15 +1,12 @@
 module Frenetic.Switches.OpenFlow
-  ( prefixToIPAddressPrefix
-  , ipAddressPrefixToPrefix
-  , OpenFlow (..)
-  , toOFPkt
-  , fromOFPkt
-  , toOFPat
-  , fromOFPat
+  ( OpenFlow (..)
   , toOFAct
-  , fromOFAct
   , Nettle (..)
-  , actQueries
+  , ActionImpl (..)
+  , toPacket
+  , actnTranslate
+  , ptrnMatchPkt
+  , actnControllerPart
   ) where
 
 import Data.Map (Map)
@@ -26,30 +23,10 @@ import Data.List (nub, find)
 import qualified Nettle.IPv4.IPAddress as IPAddr
 import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
-import Frenetic.Compat
 import Frenetic.NetCore.Types
 import Control.Concurrent
 import Frenetic.NettleEx hiding (AllPorts, ethernetAddress64)
 import qualified Frenetic.NettleEx as NettleEx
-
-{-| Convert an EthernetAddress to a EthernetAddress. -}
-ethToEthernetAddress :: NettleEx.EthernetAddress
-            -> Frenetic.NetCore.Types.EthernetAddress
-ethToEthernetAddress = ethernetAddress64.unpack64
-
-{-| Convert a EthernetAddress to an EthernetAddress. -}
-word48ToEth :: Frenetic.NetCore.Types.EthernetAddress
-            -> NettleEx.EthernetAddress
-word48ToEth = NettleEx.ethernetAddress64 . unpackEth64
-
-
-{-| Convert a pattern Prefix to an IPAddressPrefix. -}
-prefixToIPAddressPrefix :: Prefix Word32 -> IPAddressPrefix
-prefixToIPAddressPrefix (Prefix x len) = (IPAddress x, fromIntegral len)
-
-{-| Convert an IPAddressPrefix to a pattern Prefix. -}
-ipAddressPrefixToPrefix :: IPAddressPrefix -> Prefix Word32
-ipAddressPrefixToPrefix (IPAddress x, len) = Prefix x (fromIntegral len)
 
 instance Matchable IPAddressPrefix where
   top = defaultIPPrefix
@@ -67,12 +44,6 @@ instance Eq a => Matchable (Maybe a) where
   intersect (Just a) Nothing = Just (Just a)
   intersect Nothing (Just b) = Just (Just b)
   intersect Nothing Nothing  = Just Nothing
-
-wildcardToMaybe (Exact a) = Just a
-wildcardToMaybe Wildcard  = Nothing
-
-maybeToWildcard (Just a) = Exact a
-maybeToWildcard Nothing  = Wildcard
 
 instance Matchable Match where
   top = Match {
@@ -129,32 +100,12 @@ nettleEthernetBody pkt = case enclosedFrame pkt of
   Right (HCons _ (HCons body _)) -> Just body
   Left _ -> Nothing
 
-
-
 data OpenFlow = OpenFlow Nettle
 
-instance Matchable (PatternImpl OpenFlow) where
-  top = OFPat top
-  intersect (OFPat p1) (OFPat p2) = case Frenetic.Pattern.intersect p1 p2 of
-    Just p3 -> Just (OFPat p3)
-    Nothing -> Nothing
-
-toOFPkt :: PacketInfo -> PacketImpl OpenFlow
-toOFPkt p = OFPkt p
-
-fromOFPkt :: PacketImpl OpenFlow -> PacketInfo
-fromOFPkt (OFPkt p) = p
-
-toOFPat :: Match -> PatternImpl OpenFlow
-toOFPat p = OFPat p
-
-fromOFPat :: PatternImpl OpenFlow -> Match
-fromOFPat (OFPat p) = p
-
-toOFAct :: ActionSequence -> ActionImpl OpenFlow
+toOFAct :: ActionSequence -> ActionImpl
 toOFAct p = OFAct p []
 
-instance Show (ActionImpl OpenFlow) where
+instance Show ActionImpl where
   show (OFAct acts ls) = show acts ++ " and " ++ show (length ls) ++ " queries"
 
 ifNothing :: Maybe a -> a -> a
@@ -166,10 +117,10 @@ modTranslate (Modification{..}) =
   catMaybes [f1, f2, f3, f4, f5, f6, f7, f8, f9]
     where f1 = case modifyDlSrc of
                  Nothing -> Nothing
-                 Just v -> Just $ SetEthSrcAddr $ word48ToEth v
+                 Just v -> Just $ SetEthSrcAddr  v
           f2 = case modifyDlDst of
                  Nothing -> Nothing
-                 Just v -> Just $ SetEthDstAddr $ word48ToEth v
+                 Just v -> Just $ SetEthDstAddr v
           f3 = case modifyDlVlan of
                  Nothing -> Nothing
                  Just (Just v) -> Just $ SetVlanVID v
@@ -179,10 +130,10 @@ modTranslate (Modification{..}) =
                  Just v -> Just $ SetVlanPriority v
           f5 = case modifyNwSrc of
                 Nothing -> Nothing
-                Just ip -> Just $ SetIPSrcAddr $ IPAddress ip
+                Just ip -> Just $ SetIPSrcAddr ip
           f6 = case modifyNwDst of
                  Nothing -> Nothing
-                 Just ip -> Just $ SetIPDstAddr $ IPAddress ip
+                 Just ip -> Just $ SetIPDstAddr ip
           f7 = case modifyNwTos of
                  Nothing -> Nothing
                  Just v -> Just $ SetIPToS v
@@ -193,93 +144,74 @@ modTranslate (Modification{..}) =
                   Nothing -> Nothing
                   Just v  -> Just $ SetTransportDstPort v
 
-instance FreneticImpl OpenFlow where
-  data PacketImpl OpenFlow = OFPkt PacketInfo deriving (Show, Eq)
-  data PatternImpl OpenFlow = OFPat Match deriving (Show, Eq)
-  data ActionImpl OpenFlow = OFAct { fromOFAct :: ActionSequence,
-                                     actQueries :: [Query] }
-    deriving (Eq)
+data ActionImpl  = OFAct { fromOFAct :: ActionSequence,
+                         actQueries :: [Query] }
+                         deriving (Eq)
 
-  ptrnMatchPkt (OFPkt pkt) (OFPat ptrn) = case nettleEthernetFrame pkt of
-    Just frame -> matches (receivedOnPort pkt, frame) ptrn
-    Nothing -> False
+ptrnMatchPkt pkt ptrn = case nettleEthernetFrame pkt of
+  Just frame -> matches (receivedOnPort pkt, frame) ptrn
+  Nothing -> False
 
-  toPacket (OFPkt pkt) = do
-    hdrs <- nettleEthernetHeaders pkt
-    body <- nettleEthernetBody pkt
-    proto <- ethProto body
-    tos <- ethTOS body
-    return $ Packet (ethToEthernetAddress (sourceMACAddress hdrs))
-                    (ethToEthernetAddress (destMACAddress hdrs))
-                    (typeCode hdrs)
-                    (ethVLANId hdrs)
-                    (ethVLANPcp hdrs)
-                    (ethSrcIP body)
-                    (ethDstIP body)
-                    proto
-                    tos
-                    (srcPort body)
-                    (dstPort body)
-                    (receivedOnPort pkt)
+toPacket pkt = do
+  hdrs <- nettleEthernetHeaders pkt
+  body <- nettleEthernetBody pkt
+  proto <- ethProto body
+  tos <- ethTOS body
+  return $ Packet (sourceMACAddress hdrs)
+                  (destMACAddress hdrs)
+                  (typeCode hdrs)
+                  (ethVLANId hdrs)
+                  (ethVLANPcp hdrs)
+                  (fmap IPAddress (ethSrcIP body))
+                  (fmap IPAddress (ethDstIP body))
+                  proto
+                  tos
+                  (srcPort body)
+                  (dstPort body)
+                  (receivedOnPort pkt)
 
-  fromPattern ptrn = OFPat Match {
-    srcEthAddress = wildcardToMaybe $ fmap word48ToEth (ptrnDlSrc ptrn),
-    dstEthAddress = wildcardToMaybe $ fmap word48ToEth (ptrnDlDst ptrn),
-    ethFrameType = wildcardToMaybe $ ptrnDlTyp ptrn,
-    vLANID = case ptrnDlVlan ptrn of
-               Exact (Just vl) -> Just vl
-               Exact Nothing -> Just $ fromInteger ofpVlanNone
-               Wildcard -> Nothing,
-    vLANPriority = wildcardToMaybe $ ptrnDlVlanPcp ptrn,
-    srcIPAddress = prefixToIPAddressPrefix (ptrnNwSrc ptrn),
-    dstIPAddress = prefixToIPAddressPrefix (ptrnNwDst ptrn),
-    matchIPProtocol = wildcardToMaybe $ ptrnNwProto ptrn,
-    ipTypeOfService = wildcardToMaybe $ ptrnNwTos ptrn,
-    srcTransportPort = wildcardToMaybe $ ptrnTpSrc ptrn,
-    dstTransportPort = wildcardToMaybe $ ptrnTpDst ptrn,
-    inPort = wildcardToMaybe $ ptrnInPort ptrn
-  }
-  actnController = OFAct toController []
-  actnDefault = OFAct toController []
 
-  -- Not all multisets of actions can be translated to lists of OpenFlow
-  -- actions.  For example, consider the set
-  --
-  --    {(SrcIP = 0, Fwd 1), (DstIP = 1, Fwd 2)}.
-  --
-  -- In general, it is not possible to set SrcIP to 0, forward out port 1,
-  -- and then revert the SrcIP to its original value before setting DstIP to 1
-  -- and forwarding out port 2.  In such situations, the action is changed to
-  -- "send to controller."
-  -- TODO: implement optimizations to handle special cases on the switch.
-  -- TODO: deploying these kinds of actions relies on the controller to forward
-  --       them.  will this corrupt/drop packets larger than maxBound?
+actnController = OFAct toController []
+actnDefault = OFAct toController []
 
-  -- The ToController action needs to come last. If you reorder, it will not
-  -- work. Observed with the usermode switch.
-  actnTranslate act@(Action fwd queries) = OFAct (ofFwd ++ toCtrl) (MS.toList queries)
-    where acts  = if hasUnimplementableMods $ map snd $ MS.toList fwd
-                  then [SendOutPort (ToController maxBound)]
-                  else ofFwd ++ toCtrl
-          ofFwd = concatMap (\(pp, md) -> modTranslate md
-                                 ++ [SendOutPort (physicalPortOfPseudoPort pp)])
-                      $ MS.toList fwd
-          toCtrl = case find isPktQuery (MS.toList queries) of
-            -- sends as much of the packet as possible to the controller
-            Just _  -> [SendOutPort (ToController maxBound)]
-            Nothing -> []
-          hasUnimplementableMods as
-            | length as <= 1 = False
-            | otherwise =
-                let minFields = foldl (\m p -> if Set.size p < Set.size m then p else m)
-                                      (modifiedFields $ head as)
-                                      (map modifiedFields $ tail as)
-                in not $ all (\pat -> Set.isSubsetOf (modifiedFields pat) minFields) as
+-- Not all multisets of actions can be translated to lists of OpenFlow
+-- actions.  For example, consider the set
+--
+--    {(SrcIP = 0, Fwd 1), (DstIP = 1, Fwd 2)}.
+--
+-- In general, it is not possible to set SrcIP to 0, forward out port 1,
+-- and then revert the SrcIP to its original value before setting DstIP to 1
+-- and forwarding out port 2.  In such situations, the action is changed to
+-- "send to controller."
+-- TODO: implement optimizations to handle special cases on the switch.
+-- TODO: deploying these kinds of actions relies on the controller to forward
+--       them.  will this corrupt/drop packets larger than maxBound?
 
-  actnControllerPart (OFAct _ queries) switchID ofPkt  = do
-    let pktChans = map pktQueryChan . filter isPktQuery $ queries
-    let sendParsablePkt chan = case toPacket ofPkt of
-          Nothing -> return ()
-          Just pk -> writeChan chan (switchID, pk)
-    mapM_ sendParsablePkt pktChans
+-- The ToController action needs to come last. If you reorder, it will not
+-- work. Observed with the usermode switch.
+actnTranslate act@(Action fwd queries) = OFAct (ofFwd ++ toCtrl) (MS.toList queries)
+  where acts  = if hasUnimplementableMods $ map snd $ MS.toList fwd
+                then [SendOutPort (ToController maxBound)]
+                else ofFwd ++ toCtrl
+        ofFwd = concatMap (\(pp, md) -> modTranslate md
+                               ++ [SendOutPort (physicalPortOfPseudoPort pp)])
+                    $ MS.toList fwd
+        toCtrl = case find isPktQuery (MS.toList queries) of
+          -- sends as much of the packet as possible to the controller
+          Just _  -> [SendOutPort (ToController maxBound)]
+          Nothing -> []
+        hasUnimplementableMods as
+          | length as <= 1 = False
+          | otherwise =
+              let minFields = foldl (\m p -> if Set.size p < Set.size m then p else m)
+                                    (modifiedFields $ head as)
+                                    (map modifiedFields $ tail as)
+              in not $ all (\pat -> Set.isSubsetOf (modifiedFields pat) minFields) as
+
+actnControllerPart (OFAct _ queries) switchID ofPkt  = do
+  let pktChans = map pktQueryChan . filter isPktQuery $ queries
+  let sendParsablePkt chan = case toPacket ofPkt of
+        Nothing -> return ()
+        Just pk -> writeChan chan (switchID, pk)
+  mapM_ sendParsablePkt pktChans
 

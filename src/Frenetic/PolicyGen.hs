@@ -76,8 +76,8 @@ shortestPath topo = mconcat policies where
   pathPolicy h1 = mconcat policies where
     otherHosts = Set.delete h1 hostsSet
     paths = spTree h1 routingTopo
-    policies = [ buildPath (ethernetAddress64 (fromIntegral h1))
-                           (ethernetAddress64 (fromIntegral h2)) $
+    policies = [ buildPath (EthernetAddress (fromIntegral h1))
+                           (EthernetAddress (fromIntegral h2)) $
                  getLPathNodes h2 paths
                | h2 <- Set.toList otherHosts ]
   buildPath _ _ [] = PoBottom

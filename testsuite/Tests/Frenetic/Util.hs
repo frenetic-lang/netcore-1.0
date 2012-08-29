@@ -20,7 +20,7 @@ import Frenetic.PolicyGen
 import Frenetic.Slices.Slice
 import Frenetic.Topo
 import qualified Frenetic.TopoGen as TG
-
+import Nettle.IPv4.IPAddress
 import Data.Graph.Inductive.Graph
 
 linear :: Integral n => [[n]] -> (Topo, [Policy])
@@ -147,7 +147,7 @@ kCompleteQHosts k queries = (topo, map mkCombined $ zip sliceNodes queries) wher
             map fromIntegral $
             nodes
     min = fromIntegral $ minimum nodes
-    inbound  = Map.fromList . map (\l -> (l, NwDst (Prefix min 32))) $ edges
-    outbound = Map.fromList . map (\l -> (l, NwSrc (Prefix min 32))) $ edges
+    inbound  = Map.fromList . map (\l -> (l, NwDst (IPAddressPrefix (IPAddress min) 32))) $ edges
+    outbound = Map.fromList . map (\l -> (l, NwSrc (IPAddressPrefix (IPAddress min) 32))) $ edges
     slice = (internalSlice topo') {ingress = inbound, egress = outbound}
     policy = simuFloodQuery topo' q

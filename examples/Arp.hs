@@ -9,7 +9,7 @@ import Frenetic.NetworkFrames (arpReply)
 import MacLearning (learningSwitch)
 import System.Log.Logger
 
-type IpMap = Map.Map Word32 EthernetAddress
+type IpMap = Map.Map IPAddress EthernetAddress
 
 -- See RFC 826 for ARP specification
 -- Note that the OpenFlow spec uses the Nw* fields for both IP packets and ARP
@@ -20,7 +20,7 @@ isArp = DlTyp 0x0806
 isQuery = isArp <&&> NwProto 1
 isReply = isArp <&&> NwProto 2
 
-known ips = prOr . map (\ip -> NwDst (Prefix ip 32)) $ Map.keys ips
+known ips = prOr . map (\ip -> NwDst (IPAddressPrefix ip 32)) $ Map.keys ips
 
 -- |Maybe produce a reply packet from an ARP request.
 -- Try to look up the IP address in the lookup table.  If there's an associated
@@ -38,7 +38,10 @@ handleQuery (switch, Packet {..}) ips =
           case pktNwSrc of
             Nothing -> Nothing
             Just fromIp -> Just (Loc switch pktInPort,
-                                 arpReply toMac toIp pktDlSrc fromIp)
+                                 arpReply toMac 
+                                   (ipAddressToWord32 toIp) 
+                                   pktDlSrc 
+                                   (ipAddressToWord32 fromIp))
 
 -- |Maybe produce a new IP address map from an ARP reply.
 -- Try to parse the packet, and if you can, and it's a new mapping, return the

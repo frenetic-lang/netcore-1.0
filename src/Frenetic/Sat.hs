@@ -19,6 +19,7 @@ module Frenetic.Sat
   , queriesWith
   ) where
 
+import Nettle.IPv4.IPAddress
 import Frenetic.Z3
 import Frenetic.NetCore.Types
 import Frenetic.Pattern hiding (match)
@@ -155,12 +156,12 @@ matchWith pred p@(pk, _) = case pred of
   DlVlan Nothing -> Equals (vlanOfPacket p) (Primitive ofpVlanNone)
   DlVlan (Just vlan) -> Equals (vlanOfPacket p) (Primitive (fromIntegral vlan))
   DlVlanPcp v -> Equals (PktHeader "DlVlanPcp" pk) (Primitive (fromIntegral v))
-  NwSrc (Prefix v 32) -> Equals (PktHeader "NwSrc" pk)
-                                (Primitive (fromIntegral v))
-  NwSrc (Prefix _ _) -> error "cannot use SMT on non-exact prefixes."
-  NwDst (Prefix v 32) -> Equals (PktHeader "NwDst" pk)
-                                (Primitive (fromIntegral v))
-  NwDst (Prefix _ _) -> error "cannot use SMT on non-exact prefixes."
+  NwSrc (IPAddressPrefix (IPAddress v) 32) -> 
+    Equals (PktHeader "NwSrc" pk) (Primitive (fromIntegral v))
+  NwSrc _ -> error "cannot use SMT on non-exact prefixes."
+  NwDst (IPAddressPrefix (IPAddress v) 32) -> 
+    Equals (PktHeader "NwDst" pk) (Primitive (fromIntegral v))
+  NwDst _ -> error "cannot use SMT on non-exact prefixes."
   NwProto v -> Equals (PktHeader "NwProto" pk) (Primitive (fromIntegral v))
   NwTos v -> Equals (PktHeader "NwTos" pk) (Primitive (fromIntegral v))
   TpSrcPort v -> Equals (PktHeader "TpSrc" pk) (Primitive (fromIntegral v))
@@ -195,8 +196,8 @@ produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
                                          Just Nothing -> Just ofpVlanNone
                                          Nothing -> Nothing)
         , updateField p q "DlVlanPcp" (fmap fint (modifyDlVlanPcp m))
-        , updateField p q "NwSrc"     (fmap fint (modifyNwSrc m))
-        , updateField p q "NwDst"     (fmap fint (modifyNwDst m))
+        , updateField p q "NwSrc"     (fmap (fint.ipAddressToWord32) (modifyNwSrc m))
+        , updateField p q "NwDst"     (fmap (fint.ipAddressToWord32) (modifyNwDst m))
         , updateField p q "NwProto"   Nothing
         , updateField p q "NwTos"     (fmap fint (modifyNwTos m))
         , updateField p q "TpSrc"     (fmap fint (modifyTpSrc m))

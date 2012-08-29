@@ -18,9 +18,6 @@ module Frenetic.NetCore.Types
   , getPkts
   -- ** Inspecting actions
   , actionForwardsTo
-  -- * Patterns
-  , Pattern (..)
-  , matchedFields
   -- * Predicates
   , Predicate (..)
   , exactMatch
@@ -29,14 +26,17 @@ module Frenetic.NetCore.Types
   -- * Policies
   , Policy (..)
   -- * Tools
-  , interesting
   , modifiedFields
   , prUnIntersect
   , prUnUnion
   , poUnUnion
   , poDom
-  , module Frenetic.EthernetAddress
-  , module Frenetic.IPAddress
+  , EthernetAddress (..)
+  , IPAddress (..)
+  , IPAddressPrefix (..)
+  , broadcastAddress
+  , ethernetAddress
+  , ipAddress
   , size
   ) where
 
@@ -50,8 +50,8 @@ import Data.Word
 import Frenetic.Pattern
 import System.IO.Unsafe
 import Data.Maybe (catMaybes)
-import Frenetic.EthernetAddress
-import Frenetic.IPAddress
+import Nettle.Ethernet.EthernetAddress
+import Nettle.IPv4.IPAddress
 
 -- |A switch's unique identifier.
 type Switch = Word64
@@ -79,8 +79,8 @@ data Packet = Packet {
   pktDlTyp :: Word16, -- ^ethernet type code (e.g., 0x800 for IP packets)
   pktDlVlan :: Maybe Vlan,  -- ^VLAN tag
   pktDlVlanPcp :: Word8, -- ^VLAN priority code
-  pktNwSrc :: Maybe Word32, -- ^source IP address for IP packets
-  pktNwDst :: Maybe Word32, -- ^destination IP address for IP packets
+  pktNwSrc :: Maybe IPAddress, -- ^source IP address for IP packets
+  pktNwDst :: Maybe IPAddress, -- ^destination IP address for IP packets
   pktNwProto :: Word8, -- ^IP protocol number (e.g., 6 for TCP segments)
   pktNwTos :: Word8, -- ^IP TOS field
   pktTpSrc :: Maybe Word16, -- ^source port for IP packets
@@ -89,41 +89,6 @@ data Packet = Packet {
                     -- received
 } deriving (Show, Eq, Ord)
 
--- |Patterns to match packets. Patterns translate directly to a single OpenFlow
--- match rule.
-data Pattern = Pattern {
-    ptrnDlSrc :: Wildcard EthernetAddress
-  , ptrnDlDst :: Wildcard EthernetAddress
-  , ptrnDlTyp :: Wildcard Word16
-  , ptrnDlVlan :: Wildcard (Maybe Vlan)
-  , ptrnDlVlanPcp :: Wildcard Word8
-  , ptrnNwSrc :: Prefix Word32
-  , ptrnNwDst :: Prefix Word32
-  , ptrnNwProto :: Wildcard Word8
-  , ptrnNwTos :: Wildcard Word8
-  , ptrnTpSrc :: Wildcard Word16
-  , ptrnTpDst :: Wildcard Word16
-  , ptrnInPort :: Wildcard Port
- } deriving (Ord, Eq)
-
-matchedFields :: Pattern -> [Field]
-matchedFields (Pattern{..}) = catMaybes fields where
-  fields = [ case ptrnDlSrc of { Exact _ -> Just FDlSrc; Wildcard -> Nothing }
-           , case ptrnDlDst of { Exact _ -> Just FDlDst; Wildcard -> Nothing }
-           , case ptrnDlVlan of { Exact _ -> Just FDlVlan; Wildcard -> Nothing }
-           , case ptrnDlVlanPcp of { Exact _ -> Just FDlVlanPcp;
-                                     Wildcard -> Nothing }
-           , case ptrnNwSrc of { Prefix _ 32 -> Just FNwSrc; 
-                                 otherwise -> Nothing }
-           , case ptrnNwDst of { Prefix _ 32 -> Just FNwDst; 
-                                 otherwise -> Nothing }
-           , case ptrnNwProto of { Exact _ -> Just FNwProto; Wildcard -> Nothing }
-           , case ptrnNwTos of { Exact _ -> Just FNwTos; Wildcard -> Nothing }
-           , case ptrnTpSrc of { Exact _ -> Just FTpSrc; Wildcard -> Nothing }
-           , case ptrnTpDst of { Exact _ -> Just FTpDst; Wildcard -> Nothing }
-           , case ptrnInPort of { Exact _ -> Just FInPort; Wildcard -> Nothing }
-           ]
-
 -- |Predicates to match packets.
 data Predicate
   = DlSrc EthernetAddress -- ^Match ethernet source address
@@ -131,8 +96,8 @@ data Predicate
   | DlTyp Word16 -- ^Match ethernet type code (e.g., 0x0800 for IP packets)
   | DlVlan (Maybe Word16) -- ^Match VLAN tag
   | DlVlanPcp Word8 -- ^Match VLAN priority
-  | NwSrc (Prefix Word32) -- ^Match source IP address
-  | NwDst (Prefix Word32) -- ^Match destination IP address
+  | NwSrc IPAddressPrefix -- ^Match source IP address
+  | NwDst IPAddressPrefix -- ^Match destination IP address
   | NwProto Word8 -- ^Match IP protocol code (e.g., 0x6 indicates TCP segments)
   | NwTos Word8 -- ^Match IP TOS field
   | TpSrcPort Word16 -- ^Match IP source port
@@ -159,8 +124,8 @@ data Modification = Modification {
   modifyDlDst :: Maybe EthernetAddress,
   modifyDlVlan :: Maybe (Maybe Vlan),
   modifyDlVlanPcp :: Maybe Word8,
-  modifyNwSrc :: Maybe Word32,
-  modifyNwDst :: Maybe Word32,
+  modifyNwSrc :: Maybe IPAddress,
+  modifyNwDst :: Maybe IPAddress,
   modifyNwTos :: Maybe Word8,
   modifyTpSrc :: Maybe Word16,
   modifyTpDst :: Maybe Word16
@@ -176,8 +141,12 @@ exactMatch (Packet{..}) = foldl f None lst
                 Just (DlTyp pktDlTyp),
                 Just (DlVlan pktDlVlan),
                 Just (DlVlanPcp pktDlVlanPcp),
-                fmap (\v -> NwSrc (Prefix v 32)) pktNwSrc, 
-                fmap (\v -> NwDst (Prefix v 32)) pktNwDst,
+                case pktNwSrc of
+                  Nothing -> Nothing
+                  Just v -> Just (NwSrc (IPAddressPrefix v 32)),
+                case pktNwDst of
+                  Nothing -> Nothing
+                  Just v -> Just (NwDst (IPAddressPrefix v 32)),
                 Just (NwProto pktNwProto), 
                 Just (NwTos pktNwTos), 
                 fmap TpSrcPort pktTpSrc,
@@ -202,71 +171,6 @@ modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
            , case modifyTpSrc of { Just _ -> Just FTpSrc; Nothing -> Nothing }
            , case modifyTpDst of { Just _ -> Just FTpDst; Nothing -> Nothing }
            ]
-
-
-instance Matchable Pattern where
-  top = Pattern {
-    ptrnDlSrc = top
-    , ptrnDlDst = top
-    , ptrnDlTyp = top
-    , ptrnDlVlan = top
-    , ptrnDlVlanPcp = top
-    , ptrnNwSrc = top
-    , ptrnNwDst = top
-    , ptrnNwProto = top
-    , ptrnNwTos = top
-    , ptrnTpSrc = top
-    , ptrnTpDst = top
-    , ptrnInPort = top
-    }
-
-  intersect p1 p2 = do ptrnDlSrc' <- intersect (ptrnDlSrc p1) (ptrnDlSrc p2)
-                       ptrnDlDst' <- intersect (ptrnDlDst p1) (ptrnDlDst p2)
-                       ptrnDlTyp' <- intersect (ptrnDlTyp p1) (ptrnDlTyp p2)
-                       ptrnDlVlan' <- intersect (ptrnDlVlan p1) (ptrnDlVlan p2)
-                       ptrnDlVlanPcp' <- intersect (ptrnDlVlanPcp p1) (ptrnDlVlanPcp p2)
-                       ptrnNwSrc' <- intersect (ptrnNwSrc p1) (ptrnNwSrc p2)
-                       ptrnNwDst' <- intersect (ptrnNwDst p1) (ptrnNwDst p2)
-                       ptrnNwProto' <- intersect (ptrnNwProto p1) (ptrnNwProto p2)
-                       ptrnNwTos' <- intersect (ptrnNwTos p1) (ptrnNwTos p2)
-                       ptrnTpSrc' <- intersect (ptrnTpSrc p1) (ptrnTpSrc p2)
-                       ptrnTpDst' <- intersect (ptrnTpDst p1) (ptrnTpDst p2)
-                       ptrnInPort' <- intersect (ptrnInPort p1) (ptrnInPort p2)
-                       return Pattern {
-                         ptrnDlSrc = ptrnDlSrc'
-                         , ptrnDlDst = ptrnDlDst'
-                         , ptrnDlTyp = ptrnDlTyp'
-                         , ptrnDlVlan = ptrnDlVlan'
-                         , ptrnDlVlanPcp = ptrnDlVlanPcp'
-                         , ptrnNwSrc = ptrnNwSrc'
-                         , ptrnNwDst = ptrnNwDst'
-                         , ptrnNwProto = ptrnNwProto'
-                         , ptrnNwTos = ptrnNwTos'
-                         , ptrnTpSrc = ptrnTpSrc'
-                         , ptrnTpDst = ptrnTpDst'
-                         , ptrnInPort = ptrnInPort'
-                         }
-
-instance Show Pattern where
-  show p = "{" ++ contents ++ "}"  where
-    contents = concat (List.intersperse ", " (interesting " = " p))
-
--- |Build a list of the non-wildcarded patterns with sep between field and value
-interesting :: String -> Pattern -> [String]
-interesting sep (Pattern {..}) = filter (/= "") lines where
-  lines = [ case ptrnDlSrc     of {Exact v -> "DlSrc"     ++ sep ++ show v; Wildcard -> ""}
-          , case ptrnDlDst     of {Exact v -> "DlDst"     ++ sep ++ show v; Wildcard -> ""}
-          , case ptrnDlTyp     of {Exact v -> "DlTyp"     ++ sep ++ show v; Wildcard -> ""}
-          , case ptrnDlVlan    of {Exact v -> "DlVlan"    ++ sep ++ show v; Wildcard -> ""}
-          , case ptrnDlVlanPcp of {Exact v -> "DlVlanPcp" ++ sep ++ show v; Wildcard -> ""}
-          , case ptrnNwSrc     of {Prefix _ 0 -> ""; p -> "NwSrc" ++ sep ++ show p}
-          , case ptrnNwDst     of {Prefix _ 0 -> ""; p -> "NwDst" ++ sep ++ show p}
-          , case ptrnNwProto   of {Exact v -> "NwProto"   ++ sep ++ show v; Wildcard -> ""}
-          , case ptrnNwTos     of {Exact v -> "NwTos"     ++ sep ++ show v; Wildcard -> ""}
-          , case ptrnTpSrc     of {Exact v -> "TpSrc"     ++ sep ++ show v; Wildcard -> ""}
-          , case ptrnTpDst     of {Exact v -> "TpDst"     ++ sep ++ show v; Wildcard -> ""}
-          , case ptrnInPort    of {Exact v -> "InPort"    ++ sep ++ show v; Wildcard -> ""}
-          ]
 
 type QueryID = Int
 

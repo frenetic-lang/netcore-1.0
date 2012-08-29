@@ -9,13 +9,8 @@ import Control.Monad
 import Frenetic.NetCore.Types
 import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
-
+import Tests.Frenetic.Switches.ArbitraryOpenFlow
 import Test.QuickCheck
-
-instance Arbitrary IPAddr where
-  arbitrary = do
-    w <- arbitrary
-    return (IPAddr w)
 
 instance Arbitrary Predicate where
   arbitrary = sized $ \s -> 

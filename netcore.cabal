@@ -37,8 +37,6 @@ Library
   exposed-modules:
     Frenetic.Common,
     Frenetic.Compat,
-    Frenetic.EthernetAddress,
-    Frenetic.IPAddress,
     Frenetic.NetCore,
     Frenetic.NetCore.Semantics,
     Frenetic.NetCore.Short,
@@ -77,7 +75,7 @@ Library
     Nettle.Servers.Client,
     Nettle.Servers.Server
   Extensions:
-    ScopedTypeVariables, TypeFamilies, FlexibleInstances,
+    ScopedTypeVariables, FlexibleInstances,
     FlexibleContexts, DoAndIfThenElse, RecordWildCards
   ghc-options:
     -fwarn-incomplete-patterns

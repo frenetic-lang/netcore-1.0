@@ -1,4 +1,6 @@
 module Tests.Frenetic.Switches.ArbitraryOpenFlow where
+
+import Nettle.IPv4.IPAddress
 import Test.QuickCheck
 import Nettle.OpenFlow
 import Frenetic.NetCore.Compiler
@@ -16,8 +18,8 @@ instance Arbitrary Match where
     ethFrameType_v <- arbitrary
     ipTypeOfService_v <- arbitrary
     ipProtocol_v <- arbitrary
-    srcIPAddress_v <- srcIP
-    dstIPAddress_v <- dstIP
+    srcIPAddress_v <- arbitrary
+    dstIPAddress_v <- arbitrary
     srcTransportPort_v <- arbitrary
     dstTransportPort_v <- arbitrary
     return $ Match {
@@ -34,9 +36,12 @@ instance Arbitrary Match where
       , srcTransportPort = srcTransportPort_v
       , dstTransportPort = dstTransportPort_v
       }
-      where srcIP = suchThat arbitrary f
-            dstIP = suchThat arbitrary f
-            f (addr, prefixLength) = prefixLength <= 32
+
+instance Arbitrary IPAddressPrefix where
+  arbitrary = do
+    addr <- arbitrary
+    len <- oneof $ map return [0 .. 32 ]
+    return (IPAddressPrefix addr len)
 
 instance Arbitrary EthernetAddress where
   arbitrary = do
@@ -72,13 +77,3 @@ instance Arbitrary PseudoPort where
 --           , return NormalSwitching
 --           , return WithTable
           ]
-
-instance Arbitrary (PatternImpl OpenFlow) where
-  arbitrary = do
-    v <- arbitrary
-    return (toOFPat v)
-
-instance Arbitrary (ActionImpl OpenFlow) where
-  arbitrary = do
-    v <- arbitrary
-    return (toOFAct v)

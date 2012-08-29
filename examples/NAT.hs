@@ -7,7 +7,7 @@ import Control.Concurrent
 import Control.Monad (forever)
 import Frenetic.NetCore
 import Frenetic.NetCore.Types
-import Frenetic.EthernetAddress
+-- import Frenetic.EthernetAddress
 import qualified Data.Map as Map
 import Data.Word
 import Data.Bits
@@ -26,10 +26,10 @@ addr (a, b, c, d) =
 gateMAC = ethernetAddress 0x00 0x00 0x00 0x00 0x00 0x11
 
 -- Fake "NAT" IP address
-fakeIP = addr (10,0,0,101)
+fakeIP = ipAddress 10 0 0 101
 
 -- Internal IP traffic
-private = NwDst (Prefix 0x0a000000 24)
+private = NwDst (IPAddressPrefix (IPAddress 0x0a000000) 24)
 
 -- ARP traffic
 arp = DlTyp 0x0806
@@ -53,7 +53,7 @@ pktsByLocation = do
   uniqPktChan <- newChan
   polChan <- newChan
   (pktChan, act) <- getPkts
-  let loop :: Map.Map (Word32, Port) (EthernetAddress, Predicate) -> IO ()
+  let loop :: Map.Map (IPAddress, Port) (EthernetAddress, Predicate) -> IO ()
       loop locs = do
         (sw, pkt) <- readChan pktChan
         let srcMac = pktDlSrc pkt
@@ -68,7 +68,7 @@ pktsByLocation = do
               otherwise -> do
                 -- Either a new outgoing stream or a new MAC address associated
                 -- with an existing IP (we're kind of simulating ARP here...)
-                let pred = DlSrc srcMac <&&> NwSrc (Prefix srcIp 32) 
+                let pred = DlSrc srcMac <&&> NwSrc (IPAddressPrefix srcIp 32) 
                            <&&> TpSrcPort srcTp
                 let locs' = Map.insert (srcIp, srcTp) (srcMac, pred) locs
                 writeChan uniqPktChan pkt
@@ -100,7 +100,7 @@ installHosts pktChan = do
   polChan <- newChan
   -- Map (SrcIP, SrcPort) to an external port coupled with two policies;
   -- for outgoing and incoming packets, respectively.
-  let loop :: Map.Map (Word32, Port) (Port, Policy) -> Port -> IO ()
+  let loop :: Map.Map (IPAddress, Port) (Port, Policy) -> Port -> IO ()
       loop locs pNum = do
         pkt <- readChan pktChan
         -- Extract the internal source information from the packet.
@@ -120,13 +120,13 @@ installHosts pktChan = do
               let outMod = (modNwSrc fakeIP) {modifyTpSrc = Just extPort}
               let outPol = DlSrc srcMac
                       <&&> DlDst gateMAC
-                      <&&> NwSrc (Prefix srcIp 32)
+                      <&&> NwSrc (IPAddressPrefix srcIp 32)
                       <&&> TpSrcPort srcTp
                        ==> modify [(gatePort, outMod)]
               let outPol = DlDst gateMAC ==> forward [gatePort]
               -- Create the policy that replaces the internal source on incoming packets.
               let inMod  = (modNwDst srcIp) {modifyTpDst = Just srcTp, modifyDlSrc = Just srcMac}
-              let inPol  = NwDst (Prefix srcIp 32)
+              let inPol  = NwDst (IPAddressPrefix srcIp 32)
                       <&&> TpDstPort extPort
                        ==> modify [(inSwitchPort, inMod)]
               -- Update the map.
@@ -136,7 +136,7 @@ installHosts pktChan = do
               writeChan polChan newPol
               loop locs' pNum
             otherwise -> loop locs pNum
-  writeChan polChan $ (DlDst gateMAC ==> forward [gatePort]) <+> (NwDst (Prefix fakeIP 32) ==> dropPkt)
+  writeChan polChan $ (DlDst gateMAC ==> forward [gatePort]) <+> (NwDst (IPAddressPrefix fakeIP 32) ==> dropPkt)
   forkIO (loop Map.empty 1)
   return polChan
 

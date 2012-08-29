@@ -38,8 +38,8 @@ nextState score score' =
 -- single host. Monitor writes commands to 'chan' that direct
 -- 'monitoringProcess' to either block, unblock, or stop monitoring the host.
 monitorHost :: EthernetAddress -- ^ethernet address to monitor
-            -> Word32 -- ^IP address to monitor
-            -> Chan (Msg, Word32) -- ^'monitor' will write to this channel
+            -> IPAddress -- ^IP address to monitor
+            -> Chan (Msg, IPAddress) -- ^'monitor' will write to this channel
             -> IO Policy -- ^the monitoring policy
 monitorHost eth ip actionChan = do
   (countChan, countAction) <- countBytes 1000
@@ -65,7 +65,7 @@ monitorHost eth ip actionChan = do
             loop traffic'
   forkIO (loop Map.empty)
   -- TODO(arjun): do not bake this optimization in here
-  return (DlSrc eth <&&> DlTyp 0x0800 <&&> NwSrc (Prefix ip 32) ==> countAction)
+  return (DlSrc eth <&&> DlTyp 0x0800 <&&> NwSrc (IPAddressPrefix ip 32) ==> countAction)
 
 monitoringProcess :: IO (Chan (Policy, Predicate))
 monitoringProcess = do
@@ -73,8 +73,8 @@ monitoringProcess = do
   cmdChan <- newChan
   resultChan <- newChan
   chan <- select pktChan cmdChan
-  let loop :: Map.Map Word32 Policy
-           -> Set.Set Word32
+  let loop :: Map.Map IPAddress Policy
+           -> Set.Set IPAddress
            -> IO ()
       loop monitors blocked = do
         msg <- readChan chan
@@ -100,7 +100,7 @@ monitoringProcess = do
         -- run all monitors'
         let monitoringPol = foldr (<+>) PoBottom (Map.elems monitors)
         -- block all blocked' hosts IP traffic
-        let mkBlock srcIP = NwSrc (Prefix srcIP 32) <&&> DlTyp 0x0800
+        let mkBlock srcIP = NwSrc (IPAddressPrefix srcIP 32) <&&> DlTyp 0x0800
         let blockingPred =
               Not $ foldr (<||>) None (map mkBlock (Set.elems blocked'))
         -- run monitoringPol, and send all other packets to the controller,

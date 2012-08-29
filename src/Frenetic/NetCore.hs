@@ -36,13 +36,11 @@ module Frenetic.NetCore
   , Port
   , Vlan
   , Loc (..)
-  , EthernetAddress
+  , EthernetAddress (..)
+  , IPAddress (..)
+  , IPAddressPrefix (..)
   , broadcastAddress
   , ethernetAddress
-  , IPAddr
-  , ipAddr
-  , unpackIPAddr
-  , Prefix (..)
   -- * Packets
   , Packet (..)
   -- * Packet modifications

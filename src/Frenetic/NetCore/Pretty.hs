@@ -51,9 +51,6 @@ prettyPo PoBottom = text "Bottom"
 prettyPo (PoBasic pr ac) = prettyPr pr </> text " ==> " <> align (prettyAc ac)
 prettyPo p = list (map prettyPo (poUnUnion p)) -- safe because poUnUnion
 
--- |Render patterns as "{field<sep>value; field<sep>value}"
-prettyPattern sep p = semiBraces . map text . interesting sep $ p
-
 -- |Render a forwarding option as "port with {field := value; field := value}"
 prettyForward (port, mods) = prettyPseudoPort port <> mods' where
   mods' = if mods == unmodified then empty

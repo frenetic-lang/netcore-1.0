@@ -22,20 +22,20 @@ sliceTests = $(testGroupGenerator)
 
 -- Construct a bunch of basically meaningless objects for testing
 
-a1 = modify [ (1, modDlSrc (ethernetAddress64 10))
-            , (2, modDlSrc (ethernetAddress64 10))
-            , (3, modDlSrc (ethernetAddress64 10))]
-a2 = modify [ (2, modDlDst (ethernetAddress64 20))
-            , (3, modDlDst (ethernetAddress64 20))]
-a3 = modify [ (2, modNwDst 30)]
-a4 = modify [ (4, modNwSrc 40)
-            , (5, modNwSrc 40)
-            , (6, modNwSrc 40)]
+a1 = modify [ (1, modDlSrc (EthernetAddress 10))
+            , (2, modDlSrc (EthernetAddress 10))
+            , (3, modDlSrc (EthernetAddress 10))]
+a2 = modify [ (2, modDlDst (EthernetAddress 20))
+            , (3, modDlDst (EthernetAddress 20))]
+a3 = modify [ (2, modNwDst (IPAddress 30))]
+a4 = modify [ (4, modNwSrc (IPAddress 40))
+            , (5, modNwSrc (IPAddress 40))
+            , (6, modNwSrc (IPAddress 40))]
 
 pr1 = inport 1 0
 pr2 = inport 1 0 <||> inport 2 3
-pr3 = inport 3 3 <&&> DlSrc (ethernetAddress64 10)
-pr4 = pr3 <&&> Not (DlDst (ethernetAddress64 20))
+pr3 = inport 3 3 <&&> DlSrc (EthernetAddress 10)
+pr4 = pr3 <&&> Not (DlDst (EthernetAddress 20))
 
 po1 = pr1 ==> a1
 po2 = pr2 ==> a2

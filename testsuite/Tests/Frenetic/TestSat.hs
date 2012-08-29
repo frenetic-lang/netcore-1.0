@@ -26,7 +26,7 @@ satTests = $(testGroupGenerator)
 
 dlVlan v = DlVlan (Just v)
 
-nwDst x = NwDst (Prefix x 32)
+nwDst x = NwDst (IPAddressPrefix (IPAddress x) 32)
 
 case_testBasic = do
   let t = Input [] [] [ZTrue]
@@ -116,12 +116,12 @@ case_testBreaksForwards = do
   assertBool "match vlans rev" (not result)
 
   let o = Switch 2 <&&> IngressPort 1
-                   <&&> DlSrc (ethernetAddress64 32432)
-                   <&&> DlDst (ethernetAddress64 324322)
+                   <&&> DlSrc (EthernetAddress 32432)
+                   <&&> DlDst (EthernetAddress 324322)
           ==> forward [1]
   let r = Switch 2 <&&> IngressPort 1
-                     <&&> DlSrc (ethernetAddress64 32432)
-                     <&&> DlDst (ethernetAddress64 324322)
+                     <&&> DlSrc (EthernetAddress 32432)
+                     <&&> DlDst (EthernetAddress 324322)
           ==> modify [(1, modDlVlan (Just 2))]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "set vlans" (not result)
