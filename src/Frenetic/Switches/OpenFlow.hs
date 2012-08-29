@@ -25,7 +25,7 @@ import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
 import Frenetic.NetCore.Types
 import Control.Concurrent
-import Frenetic.NettleEx hiding (AllPorts, ethernetAddress64)
+import Frenetic.NettleEx hiding (AllPorts)
 import qualified Frenetic.NettleEx as NettleEx
 
 instance Matchable IPAddressPrefix where
