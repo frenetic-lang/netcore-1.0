@@ -1,8 +1,7 @@
 module Frenetic.Hosts.Nettle where
 
 import Frenetic.Common
-import qualified Data.ByteString as BS
-import Data.ByteString.Lazy (toChunks)
+import qualified Data.ByteString.Lazy as BS
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Exception.Base
@@ -127,7 +126,7 @@ nettleServer policyChan pktChan = do
     writeIORef currentPolicy pol
   forkIO $ forever $ do
     (Loc swID pt, pkt) <- readChan pktChan
-    let msg = PacketOut $ PacketOutRecord (Right (BS.concat . toChunks $ pkt))
+    let msg = PacketOut $ PacketOutRecord (Right pkt)
                                           Nothing (sendOnPort pt)
     sendToSwitchWithID server swID (0,msg)
   forever $ do

@@ -72,7 +72,6 @@ Library
     Nettle.OpenFlow.Statistics,
     Nettle.OpenFlow.StrictPut,
     Nettle.OpenFlow.Switch,
-    Nettle.Servers.Client,
     Nettle.Servers.Server
   Extensions:
     ScopedTypeVariables, FlexibleInstances,
