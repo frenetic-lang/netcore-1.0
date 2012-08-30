@@ -4,41 +4,73 @@ NetCore
 NetCore is a high-level network programming language. This package provides
 a NetCore compiler and runtime system for OpenFlow networks.
 
-System Requirements
--------------------
+Requirements
+------------
 
 - Haskell Platform 2012.2.0.0 (uses GHC 7.4.1)
 
     http://hackage.haskell.org/platform/
 
+  This is necessary to build NetCore and the example programs.
+
 - A real OpenFlow network, or the Mininet network simulator:
 
     http://yuba.stanford.edu/foswiki/bin/view/OpenFlow/Mininet
 
-Installation
-------------
+  NetCore programs run on OpenFlow networks. We've tested NetCore using the
+  OpenFlow reference switch (user-mode) and a Pronto 3290.
 
-Install Frenetic from Hackage:
+NetCore 1.0 (stable release)
+----------------------------
+
+### Installation
+
+NetCore is available on Hackage:
 
     cabal update
     cabal install netcore
 
 This installs a Haskell library that you can use to write Frenetic applications.
 
-Demo Applications
-------------------
+### Demos
 
 We have several demos that use Frenetic and scripts that run them on Mininet
-networks:
+networks. Download and expand the following tarball:
 
-    git clone https://github.com/frenetic-lang/netcore.git
-    cd netcore/examples
+    https://github.com/downloads/frenetic-lang/netcore/netcore-1.0.0-examples.tar.gz
+
+To build:
+
+    cd examples
     cabal configure
     cabal build
     sudo ./demo.py <your username> # Mininet requires sudo
 
-Slice Verification
-------------------
+NetCore development version
+---------------------------
+
+### Installation
+
+NetCore is open-source, with code available on Github:
+
+    git clone git://github.com/frenetic-lang/netcore.git
+    cd netcore
+    git submodule init
+    git submodule update
+    cabal configure --enable-tests
+    cabal build
+    cabal install
+
+### Demos
+
+Within the NetCore source directory (netcore in the script above):
+
+    cd examples
+    cabal configure
+    cabal build
+    sudo ./demo.py <your username> # Mininet requires sudo
+
+### Slice Verification
 
 We use translation validation to verify that Frenetic slices are correctly
 compiled. Verification requires the Microsoft Z3 SMT Solver:
@@ -46,3 +78,4 @@ compiled. Verification requires the Microsoft Z3 SMT Solver:
   http://research.microsoft.com/en-us/um/redmond/projects/z3/download.html
 
 Our scripts expect the z3 executable to be in the PATH.
+
