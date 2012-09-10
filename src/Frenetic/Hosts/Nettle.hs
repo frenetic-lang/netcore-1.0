@@ -166,7 +166,7 @@ classifierQueries classifier = map sel queries where
 
 data Counter = PktCounter | ByteCounter
 
-runCounterQuery killFlag nettle switch outChan msDelay pats counter = do
+runCounterQuery killFlag nettle switch ctrlAction msDelay pats counter = do
   (Counters totalRef lastRef) <- newCounters
   let mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
   let statReqs = map mkReq pats
@@ -186,7 +186,7 @@ runCounterQuery killFlag nettle switch outChan msDelay pats counter = do
       else do
         writeIORef lastRef count'
         writeIORef totalRef total'
-        writeChan outChan (switchID, total')
+        ctrlAction (switchID, total')
   return ()
 
 
@@ -199,11 +199,11 @@ runQueryOnSwitch nettle switch classifier = do
   let runQuery (GetPacket _ _, pats) = do
         -- nothing to do on the controller until a PacketIn
         return ()
-      runQuery (CountPackets _ outChan msDelay, pats) =
-        runCounterQuery killFlag nettle switch outChan msDelay pats
+      runQuery (CountPackets _ msDelay ctrlAction, pats) =
+        runCounterQuery killFlag nettle switch ctrlAction msDelay pats
                         PktCounter
-      runQuery (CountBytes _ outChan msDelay, pats) =
-        runCounterQuery killFlag nettle switch outChan msDelay pats 
+      runQuery (CountBytes _ msDelay ctrlAction, pats) =
+        runCounterQuery killFlag nettle switch ctrlAction msDelay pats 
                         ByteCounter
 
   mapM_ runQuery (classifierQueries classifier)

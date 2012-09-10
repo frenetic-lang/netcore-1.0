@@ -11,10 +11,6 @@ module Frenetic.NetCore.Types
   , unmodified
   , isGetPacket
   , isForward
-  -- ** Basic actions
-  , countPkts
-  , countBytes
-  , getPkts
   -- * Predicates
   , Predicate (..)
   , exactMatch
@@ -22,6 +18,10 @@ module Frenetic.NetCore.Types
   , Packet (..)
   -- * Policies
   , Policy (..)
+  -- ** Channel Interface
+  , countPkts
+  , countBytes
+  , getPkts
   -- * Tools
   , modifiedFields
   , prUnIntersect
@@ -189,19 +189,22 @@ data Action
   = Forward PseudoPort Modification
   | CountPackets {
       idOfQuery :: QueryID,
-      counterChan :: Chan (Switch, Integer),
-      queryInterval :: Int
+      queryInterval :: Int,
+      counterAction :: (Switch, Integer) -> IO ()
     }
   | CountBytes {
       idOfQuery :: QueryID,
-      counterChan :: Chan (Switch, Integer),
-      queryInterval :: Int
+      queryInterval :: Int,
+      counterAction :: (Switch, Integer) -> IO ()
     }
   | GetPacket {
-      pktQueryChan :: Chan (Switch, Packet),
-      idOfQuery :: QueryID
+      idOfQuery :: QueryID,
+      getPacketAction :: (Switch, Packet) -> IO ()
     }
-  deriving (Eq)
+
+instance Eq Action where
+  (Forward p m) == (Forward p' m') = (p,m) == (p',m')
+  q1 == q2 = idOfQuery q1 == idOfQuery q2
 
 instance Ord Action where
   compare (Forward p m) (Forward p' m') = compare (p,m) (p',m')
@@ -237,7 +240,7 @@ countPkts :: Int -- ^polling interval, in milliseconds
 countPkts millisecondInterval = do
   ch <- newChan
   queryID <- getNextQueryID
-  let q = CountPackets queryID ch millisecondInterval
+  let q = CountPackets queryID millisecondInterval (writeChan ch)
   return (ch, MS.singleton q)
 
 -- ^Periodically polls the network to counts the number of bytes received.
@@ -251,7 +254,7 @@ countBytes :: Int -- ^polling interval, in milliseconds
 countBytes millisecondInterval = do
   ch <- newChan
   queryID <- getNextQueryID
-  let q = CountBytes queryID ch millisecondInterval
+  let q = CountBytes queryID millisecondInterval (writeChan ch)
   return (ch, MS.singleton q)
 
 -- ^Sends packets to the controller.
@@ -263,7 +266,7 @@ getPkts :: IO (Chan (Switch, Packet), MultiSet Action)
 getPkts = do
   ch <- newChan
   queryID <- getNextQueryID
-  let q = GetPacket ch queryID
+  let q = GetPacket queryID (writeChan ch)
   return (ch, MS.singleton q)
 
 -- |Get back all predicates in the intersection.  Does not return any naked

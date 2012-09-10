@@ -211,9 +211,9 @@ actnTranslate act = OFAct (ofFwd ++ toCtrl) (MS.toList queries)
               in not $ all (\pat -> Set.isSubsetOf (modifiedFields pat) minFields) as
 
 actnControllerPart (OFAct _ queries) switchID ofPkt  = do
-  let pktChans = map pktQueryChan . filter isGetPacket $ queries
-  let sendParsablePkt chan = case toPacket ofPkt of
+  let pktActions = map getPacketAction . filter isGetPacket $ queries
+  let sendParsablePkt act = case toPacket ofPkt of
         Nothing -> return ()
-        Just pk -> writeChan chan (switchID, pk)
-  mapM_ sendParsablePkt pktChans
+        Just pk -> act (switchID, pk)
+  mapM_ sendParsablePkt pktActions
 
