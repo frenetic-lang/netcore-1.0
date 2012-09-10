@@ -79,3 +79,4 @@ import Frenetic.Server
 import Frenetic.Slices.Compile
 import Frenetic.Slices.Slice
 import Frenetic.Topo
+import Frenetic.NetCore.Util

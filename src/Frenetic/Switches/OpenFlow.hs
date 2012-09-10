@@ -14,6 +14,7 @@ import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import qualified Frenetic.NetCore.Types as NetCore
 import Data.HList
+import Frenetic.NetCore.Util
 import Control.Concurrent.Chan
 import           Data.Bits
 import qualified Data.Set                        as Set
