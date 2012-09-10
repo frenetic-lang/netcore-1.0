@@ -47,7 +47,7 @@ interpretPredicate pred tr@(Transmission _ sw Packet{..}) = case pred of
 -- |Implements the denotation function for policies.
 interpretPolicy :: Policy
                 -> Transmission Match Packet
-                -> Action
+                -> MultiSet Action
 interpretPolicy PoBottom tr = dropPkt
 interpretPolicy (PoBasic pred acts) tr =
   if interpretPredicate pred tr then acts else dropPkt

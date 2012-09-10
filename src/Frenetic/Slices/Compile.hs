@@ -118,7 +118,7 @@ queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
 -- |Remove forwarding actions from policy leaving only queries
 removeForwards :: Policy -> Policy
 removeForwards PoBottom = PoBottom
-removeForwards (PoBasic pred (Action _ qs)) = PoBasic pred (Action MS.empty qs)
+removeForwards (PoBasic pred acts) = pred ==> (MS.filter (not.isForward) acts)
 removeForwards (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeForwards p1
   p2' = removeForwards p2
@@ -126,7 +126,7 @@ removeForwards (PoUnion p1 p2) = PoUnion p1' p2' where
 -- |Remove queries from policy leaving only forwarding actions
 removeQueries :: Policy -> Policy
 removeQueries PoBottom = PoBottom
-removeQueries (PoBasic pred (Action fs _)) = PoBasic pred (Action fs MS.empty)
+removeQueries (PoBasic pred acts) = pred ==> (MS.filter isForward acts)
 removeQueries (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeQueries p1
   p2' = removeQueries p2
@@ -134,10 +134,10 @@ removeQueries (PoUnion p1 p2) = PoUnion p1' p2' where
 -- |Remove forwarding actions to ports other than p
 justTo :: Port -> Policy -> Policy
 justTo _ PoBottom = PoBottom
-justTo p (PoBasic pred (Action fs qs)) = PoBasic pred (Action fs' qs) where
-  fs' = MS.filter matches fs
-  matches (Physical p', _) = p == p'
-  matches (AllPorts, _) = error "AllPorts found while compiling."
+justTo p (PoBasic pred acts) = pred ==> (MS.filter pr acts) where
+  pr (Forward (Physical p') _) = p == p'
+  pr (Forward AllPorts _) = error "AllPorts found while compiling."
+  pr _ = True
 justTo p (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = justTo p p1
   p2' = justTo p p2
@@ -225,10 +225,9 @@ ingressSpecToPred (loc, pred) = And pred (locToPred loc)
 -- action
 modifyVlan :: Maybe Vlan -> Policy -> Policy
 modifyVlan _ PoBottom = PoBottom
-modifyVlan vlan (PoBasic pred (Action m obs)) = PoBasic pred (Action m' obs)
-  where
-    m' = MS.map setVlans m
-    setVlans (p, mod) = (p, mod {modifyDlVlan = Just vlan})
+modifyVlan vlan (PoBasic pred acts) = pred ==> (MS.map f acts)
+  where f (Forward p m) = Forward p (m { modifyDlVlan = Just vlan })
+        f act = act
 modifyVlan vlan (PoUnion p1 p2) = PoUnion (modifyVlan vlan p1)
                                           (modifyVlan vlan p2)
 
@@ -245,16 +244,17 @@ setVlan :: Maybe Vlan -> Loc -> Policy -> Policy
 setVlan _ _ PoBottom = PoBottom
 setVlan vlan loc (PoUnion p1 p2) = PoUnion (setVlan vlan loc p1)
                                            (setVlan vlan loc p2)
-setVlan vlan (Loc switch port) pol@(PoBasic pred (Action m obs)) =
-  if matchesSwitch switch pred then PoBasic pred (Action m' obs)
+setVlan vlan (Loc switch port) pol@(PoBasic pred acts) =
+  if matchesSwitch switch pred then PoBasic pred m'
                                else pol
   where
-    m' = MS.map setVlanOnPort m
-    setVlanOnPort (Physical p, mod) =
-      if p == port then (Physical p, mod {modifyDlVlan = Just vlan})
-                   else (Physical p, mod)
-    setVlanOnPort (AllPorts, mod) =
-      error "AllPorts encountered in slice compilation.  Did you first localize?"
+    m' = MS.map setVlanOnPort acts
+    setVlanOnPort (Forward (Physical p) mod) =
+      if p == port then (Forward (Physical p) mod {modifyDlVlan = Just vlan})
+                   else (Forward (Physical p) mod)
+    setVlanOnPort (Forward AllPorts mod) =
+      error "AllPorts encountered in slice compilation.  Did you localize?"
+    setVlanOnPort act = act
 
 -- |Determine if a predicate can match any packets on a switch (overapproximate)
 matchesSwitch :: Switch -> Predicate -> Bool

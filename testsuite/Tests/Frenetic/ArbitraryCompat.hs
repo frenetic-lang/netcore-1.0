@@ -16,6 +16,7 @@ import Data.Bits
 import Frenetic.Compat
 import Frenetic.Pattern
 import Test.QuickCheck
+import qualified Data.MultiSet as MS
 import Frenetic.Switches.OpenFlow
 import Frenetic.NetCore
 
@@ -45,13 +46,20 @@ instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) wh
     [t {trSwitch = s} | s <- shrink (trSwitch t)] ++
     [t {trPkt = s} | s <- shrink (trPkt t)]
 
-instance Arbitrary Action where
+instance Arbitrary PseudoPort where
   arbitrary = do
-    -- TODO(arjun): queries
-    oneof [ return $ allPorts unmodified,
-            do ports <- listOf arbitrary
-               return $ foldr (<+>) dropPkt (map forward ports)
+    oneof [ return AllPorts
+          ,  do port <- arbitrary
+                return (Physical port)
           ]
 
+instance Arbitrary Action where
+  arbitrary = do
+    -- TODO(arjun): queries and modifications
+    p <- arbitrary
+    return (Forward p unmodified)
+
 instance Arbitrary ActionImpl where
-  arbitrary = liftM actnTranslate arbitrary
+  arbitrary = do
+    acts <- arbitrary
+    return (actnTranslate (MS.fromList acts))

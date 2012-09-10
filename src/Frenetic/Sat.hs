@@ -31,6 +31,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
+import Frenetic.Common
 
 -- We use this a lot, so make a shortcut.  Need the type signature to get it to
 -- be properly polymorphic.
@@ -176,11 +177,15 @@ matchWith pred p@(pk, _) = case pred of
 
 -- |Build the constraint for a packet being produced from another packet by an
 -- action, maybe substituting a value for VLAN on either or both
-produceWith :: Action -> (Z3Packet, Maybe Z3Int) -> (Z3Packet, Maybe Z3Int)
-               -> BoolExp
-produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
+produceWith :: MultiSet Action
+            -> (Z3Packet, Maybe Z3Int) -> (Z3Packet, Maybe Z3Int)
+            -> BoolExp
+produceWith acts p@(p', vlp) q@(q', vlq) =
   ZAnd (Equals (switch p') (switch q')) (nOr portConstraints)
   where
+    rewrite = MS.fromList (mapMaybe select (MS.toList acts))
+    select (Forward p m) = Just (p, m)
+    select _ = Nothing
     portConstraints = map fieldConstraint (MS.distinctElems rewrite)
     fieldConstraint (pp, m) = nAnd cs where
       cs = (case pp of Physical port' -> [Equals (port q')
@@ -205,15 +210,15 @@ produceWith (Action rewrite _) p@(p', vlp) q@(q', vlq) =
         ]
 
 -- |Determine if an action emits an observation
-observesAct :: Action -> Bool
-observesAct (Action _ qs) = not (MS.null qs)
+observesAct :: MultiSet Action -> Bool
+observesAct acts = not (MS.null (MS.filter (not.isForward) acts))
 
 -- |Determine if an action emits a particular observation
-queryAct :: Action -> Z3Int -> BoolExp
-queryAct (Action _ qs) qid = nOr queries where
+queryAct :: MultiSet Action -> Z3Int -> BoolExp
+queryAct acts qid = nOr queries where
   queries = map (\qid' -> Equals (Variable qid) (Primitive qid')) .
             map fromIntegral . map idOfQuery $
-            MS.toList qs
+            MS.toList (MS.filter (not.isForward) acts)
 
 vlanOfPacket :: (Z3Packet, Maybe Z3Int) -> IntExp
 vlanOfPacket (pkt, Just vl) = Variable vl

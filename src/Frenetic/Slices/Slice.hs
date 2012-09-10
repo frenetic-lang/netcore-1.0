@@ -101,21 +101,25 @@ onSlice (Slice int ing egr) = prOr .
 
 -- |Transform potentially non-local forwarding actions into explicitly local
 -- ones on the switch.
-localizeMods :: Predicate -> Action -> Set.Set Port -> Policy
-localizeMods pred (Action m obs) ports = mconcat (forwardPol : floodPols)
-  where
-  (forwards, floods) = MS.mapEither split m
-  -- partial match is safe because we split it
-  forwards' = MS.filter (\(Physical p, _) -> Set.member p ports) forwards
-  -- Put the observations with the forwards so we don't duplicate them
-  forwardPol = pred ==> Action forwards' obs
-  floodPols = [mkFlood p mods | p <- Set.toList ports, mods <- MS.toList floods]
-  mkFlood port mods = pred <&&> IngressPort port ==> Action mods' MS.empty where
-    mods' = MS.fromList [(Physical p, mods) | p <- otherPorts]
-    otherPorts = Set.toList $ Set.delete port ports
-
-split (Physical p, rewrite) = Left (Physical p, rewrite)
-split (AllPorts, rewrite) = Right rewrite
+localizeMods :: Predicate -> MultiSet Action -> Set.Set Port -> Policy
+localizeMods pred actions ports = 
+  mconcat $ pred ==> (forwardPol <+> obs) : floodPols where
+    (allFwds, obs) = MS.partition isForward actions
+    (forwards, floods) = MS.partition split allFwds
+    -- partial match is safe because we split it
+    forwards' = MS.filter (\(Forward (Physical p)  _) -> Set.member p ports)
+                 forwards
+    forwardPol = forwards'
+    floodPols = [mkFlood p mods | p <- Set.toList ports, 
+                                  mods <- map getMod (MS.toList floods)]
+    mkFlood port mods = 
+      pred <&&> IngressPort port ==> MS.fromList (map f otherPorts) where
+      f p = Forward (Physical p) mods
+      otherPorts = Set.toList $ Set.delete port ports
+    split (Forward (Physical _) _) = True
+    split _ = False
+    getMod (Forward _ m) = m
+    getMod _ = error "getMod expected Forward"
 
 -- |Starting with a set of switches, get the switches the predicate might match.
 switchesOfPredicate :: Set.Set Switch -> Predicate -> Set.Set Switch
@@ -143,6 +147,7 @@ prUsesVlans (And p1 p2) = prUsesVlans p1 || prUsesVlans p2
 prUsesVlans (Not p) = prUsesVlans p
 prUsesVlans _ = False
 
-actUsesVlans :: Action -> Bool
-actUsesVlans (Action ms _) =
-  any (\(_, m) -> isJust $ modifyDlVlan m) $ MS.toList ms
+actUsesVlans :: MultiSet Action -> Bool
+actUsesVlans actions = any f (MS.toList actions)
+  where f (Forward _ m) = isJust (modifyDlVlan m)
+        f _ = False

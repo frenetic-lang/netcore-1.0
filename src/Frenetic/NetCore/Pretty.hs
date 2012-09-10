@@ -42,13 +42,8 @@ prettyPr p@(And _ _) = text "And " <>
 prettyPr (Not p) = text "Not " <> align (tupled [prettyPr p])
 prettyPr x = text (show x)
 
-prettyAc (Action fwds qs) =
-  (semiBraces . map prettyForward . MS.toAscList $ fwds) </>
-  text "emit " <>
-  (semiBraces . map (integer . fromIntegral . idOfQuery) . MS.toAscList $ qs)
-
 prettyPo PoBottom = text "Bottom"
-prettyPo (PoBasic pr ac) = prettyPr pr </> text " ==> " <> align (prettyAc ac)
+prettyPo (PoBasic pr ac) = prettyPr pr </> text " ==> " <> align (text $ show ac)
 prettyPo p = list (map prettyPo (poUnUnion p)) -- safe because poUnUnion
 
 -- |Render a forwarding option as "port with {field := value; field := value}"

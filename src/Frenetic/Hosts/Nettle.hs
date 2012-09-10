@@ -15,6 +15,7 @@ import Frenetic.Switches.OpenFlow
 import Frenetic.Compat
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
+import qualified Frenetic.NetCore.Types as NetCore
 
 useInPort (Just pt) (SendOutPort (PhysicalPort pt'))
   | pt == pt' = SendOutPort InPort
@@ -145,7 +146,7 @@ nettleServer policyChan pktChan = do
 -- The actions include queries that are not realizable on switches.
 -- We assume the classifier does not have any fully-shadowed patterns.
 classifierQueries :: [(Match, ActionImpl)]
-                  -> [(Query, [Match])]
+                  -> [(NetCore.Action, [Match])]
 classifierQueries classifier = map sel queries where
   queries = nub (concatMap (actQueries.snd) classifier)
   sel query = (query, map fst (filter (hasQuery query) classifier))

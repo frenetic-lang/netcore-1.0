@@ -7,17 +7,15 @@ module Frenetic.NetCore.Types
   , PseudoPort (..)
   -- * Actions
   , Action (..)
-  , Query (..)
   , Counter (..)
   , Modification (..)
   , unmodified
   , isPktQuery
+  , isForward
   -- ** Basic actions
   , countPkts
   , countBytes
   , getPkts
-  -- ** Inspecting actions
-  , actionForwardsTo
   -- * Predicates
   , Predicate (..)
   , exactMatch
@@ -111,6 +109,14 @@ data Predicate
   | None -- ^Matches no packets
   deriving (Eq, Ord, Show)
 
+{-| Policies denote functions from (switch, packet) to packets. -}
+data Policy
+  = PoBottom -- ^Performs no actions.
+  | PoBasic Predicate (MS.MultiSet Action)
+     -- ^Performs the given action on packets matching the given predicate.
+  | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
+  deriving (Eq, Ord, Show)
+
 -- |Names of common header fields.
 data Field
   = FDlSrc | FDlDst | FDlVlan | FDlVlanPcp | FNwSrc | FNwDst | FNwTos 
@@ -182,8 +188,9 @@ getNextQueryID = atomicModifyIORef nextQueryID (\i -> (i + 1, i))
 
 data Counter = CountPackets | CountBytes deriving (Eq, Ord)
 
-data Query
-  = NumPktQuery {
+data Action
+  = Forward PseudoPort Modification
+  | NumPktQuery {
       idOfQuery :: QueryID,
       numPktQueryChan :: Chan (Switch, Integer),
       queryInterval :: Int,
@@ -197,27 +204,35 @@ data Query
     }
   deriving (Eq)
 
--- |Actions to perform on packets.
-data Action = Action {
-  actionForwards :: MS.MultiSet (PseudoPort, Modification),
-  actionQueries :: MS.MultiSet Query
-} deriving (Eq, Ord, Show)
+instance Ord Action where
+  compare (Forward p m) (Forward p' m') = compare (p,m) (p',m')
+  compare (Forward _ _) _ = LT
+  compare _ (Forward _ _) = GT
+  compare q1 q2 = compare (idOfQuery q1) (idOfQuery q2)
+
+instance Show Action where
+  show (Forward p m) = show p ++ show m
+  show (NumPktQuery{..}) =
+    "countPkts(interval=" ++ show queryInterval ++ "ms, id=" ++
+    show idOfQuery ++ ")"
+  show (PktQuery{..}) = "getPkts(id=" ++ show idOfQuery ++  ")"
+
 
 isPktQuery (PktQuery _ _) = True
 isPktQuery _               = False
 
-actionForwardsTo :: Action -> MS.MultiSet PseudoPort
-actionForwardsTo (Action m _) =
-  MS.map fst m
+isForward :: Action -> Bool
+isForward (Forward _ _) = True
+isForward _ = False
 
-mkCountQuery :: Counter -> Int -> IO (Chan (Switch, Integer), Action)
+mkCountQuery :: Counter -> Int -> IO (Chan (Switch, Integer), MultiSet Action)
 mkCountQuery counter millisecondInterval = do
   ch <- newChan
   queryID <- getNextQueryID
   total <- newIORef 0
   last <- newIORef 0
   let q = NumPktQuery queryID ch millisecondInterval counter total last
-  return (ch, Action MS.empty (MS.singleton q))
+  return (ch, MS.singleton q)
 
 
 -- ^Periodically polls the network to counts the number of packets received.
@@ -227,7 +242,7 @@ mkCountQuery counter millisecondInterval = do
 -- on the network. The controller returns the number of matching packets
 -- on each switch.
 countPkts :: Int -- ^polling interval, in milliseconds
-          -> IO (Chan (Switch, Integer), Action)
+          -> IO (Chan (Switch, Integer), MultiSet Action)
 countPkts = mkCountQuery CountPackets
 
 -- ^Periodically polls the network to counts the number of bytes received.
@@ -237,7 +252,7 @@ countPkts = mkCountQuery CountPackets
 -- on the network. The controller returns the number of matching packets
 -- on each switch.
 countBytes :: Int -- ^polling interval, in milliseconds
-           -> IO (Chan (Switch, Integer), Action)
+           -> IO (Chan (Switch, Integer), MultiSet Action)
 countBytes = mkCountQuery CountBytes
 
 
@@ -246,12 +261,12 @@ countBytes = mkCountQuery CountBytes
 -- Returns an 'Action' and a channel. When the 'Action' is used in the active
 -- 'Policy', all matching packets are sent to the controller. These packets
 -- are written into the channel.
-getPkts :: IO (Chan (Switch, Packet), Action)
+getPkts :: IO (Chan (Switch, Packet), MultiSet Action)
 getPkts = do
   ch <- newChan
   queryID <- getNextQueryID
   let q = PktQuery ch queryID
-  return (ch, Action MS.empty (MS.singleton q))
+  return (ch, MS.singleton q)
 
 -- |Get back all predicates in the intersection.  Does not return any naked
 -- intersections.
@@ -270,23 +285,6 @@ prUnUnion po = List.unfoldr f [po] where
     (Or p1 p2) : rest -> f (p1 : (p2 : rest))
     p : rest -> Just (p, rest)
 
-{-| Policies denote functions from (switch, packet) to packets. -}
-data Policy
-  = PoBottom -- ^Performs no actions.
-  | PoBasic Predicate Action -- ^Performs the given action on packets matching the given predicate.
-  | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
-  deriving (Eq, Ord, Show)
-
-instance Ord Query where
-  compare q1 q2 = compare qid1 qid2 where
-    qid1 = idOfQuery q1
-    qid2 = idOfQuery q2
-
-instance Show Query where
-  show (NumPktQuery{..}) =
-    "countPkts(interval=" ++ show queryInterval ++ "ms, id=" ++
-    show idOfQuery ++ ")"
-  show (PktQuery{..}) = "getPkts(id=" ++ show idOfQuery ++  ")"
 
 -- |Get back all basic policies in the union.  Does not return any unions.
 poUnUnion :: Policy -> [Policy]

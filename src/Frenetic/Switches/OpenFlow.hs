@@ -12,7 +12,7 @@ module Frenetic.Switches.OpenFlow
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
-
+import qualified Frenetic.NetCore.Types as NetCore
 import Data.HList
 import Control.Concurrent.Chan
 import           Data.Bits
@@ -145,7 +145,7 @@ modTranslate (Modification{..}) =
                   Just v  -> Just $ SetTransportDstPort v
 
 data ActionImpl  = OFAct { fromOFAct :: ActionSequence,
-                         actQueries :: [Query] }
+                         actQueries :: [NetCore.Action] }
                          deriving (Eq)
 
 ptrnMatchPkt pkt ptrn = case nettleEthernetFrame pkt of
@@ -189,17 +189,19 @@ actnDefault = OFAct toController []
 
 -- The ToController action needs to come last. If you reorder, it will not
 -- work. Observed with the usermode switch.
-actnTranslate act@(Action fwd queries) = OFAct (ofFwd ++ toCtrl) (MS.toList queries)
-  where acts  = if hasUnimplementableMods $ map snd $ MS.toList fwd
+actnTranslate act = OFAct (ofFwd ++ toCtrl) (MS.toList queries)
+  where acts  = if hasUnimplementableMods $ map (\(Forward _ m) -> m) $ MS.toList fwd
                 then [SendOutPort (ToController maxBound)]
                 else ofFwd ++ toCtrl
-        ofFwd = concatMap (\(pp, md) -> modTranslate md
+        ofFwd = concatMap (\(Forward pp md) -> modTranslate md
                                ++ [SendOutPort (physicalPortOfPseudoPort pp)])
                     $ MS.toList fwd
         toCtrl = case find isPktQuery (MS.toList queries) of
           -- sends as much of the packet as possible to the controller
           Just _  -> [SendOutPort (ToController maxBound)]
           Nothing -> []
+        fwd = MS.filter isForward act
+        queries = MS.filter (not.isForward) act
         hasUnimplementableMods as
           | length as <= 1 = False
           | otherwise =
