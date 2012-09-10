@@ -194,9 +194,7 @@ data Action
       idOfQuery :: QueryID,
       numPktQueryChan :: Chan (Switch, Integer),
       queryInterval :: Int,
-      countField :: Counter,
-      totalVal :: IORef Integer,
-      lastVal :: IORef Integer
+      countField :: Counter
     }
   | PktQuery {
       pktQueryChan :: Chan (Switch, Packet),
@@ -229,11 +227,8 @@ mkCountQuery :: Counter -> Int -> IO (Chan (Switch, Integer), MultiSet Action)
 mkCountQuery counter millisecondInterval = do
   ch <- newChan
   queryID <- getNextQueryID
-  total <- newIORef 0
-  last <- newIORef 0
-  let q = NumPktQuery queryID ch millisecondInterval counter total last
+  let q = NumPktQuery queryID ch millisecondInterval counter
   return (ch, MS.singleton q)
-
 
 -- ^Periodically polls the network to counts the number of packets received.
 --

@@ -42,6 +42,7 @@ Library
     Frenetic.NetCore.Semantics,
     Frenetic.NetCore.Short,
     Frenetic.NetCore.Types,
+    Frenetic.NetCore.Util,
     Frenetic.NetworkFrames,
     Frenetic.Pattern,
     Frenetic.Server

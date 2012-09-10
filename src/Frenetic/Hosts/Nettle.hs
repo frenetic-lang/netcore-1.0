@@ -142,6 +142,17 @@ nettleServer policyChan pktChan = do
     forkIO (handleSwitch server switch initPolicy switchPolicyChan msgChan)
   closeServer server
 
+data Counters = Counters {
+  totalVal :: IORef Integer,
+  lastVal :: IORef Integer
+}
+
+newCounters :: IO Counters
+newCounters = do
+  total <- newIORef 0
+  last <- newIORef 0
+  return (Counters total last)
+
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
 -- The actions include queries that are not realizable on switches.
 -- We assume the classifier does not have any fully-shadowed patterns.
@@ -163,8 +174,8 @@ runQueryOnSwitch nettle switch classifier = do
       runQuery (PktQuery _ _, pats) = do
         -- nothing to do on the controller until a PacketIn
         return ()
-      runQuery (NumPktQuery qid outChan msDelay counter totalRef lastRef,
-                pats) = do
+      runQuery (NumPktQuery _ outChan msDelay counter, pats) = do
+        (Counters totalRef lastRef) <- newCounters
         let statReqs = map mkReq pats
         forkIO $ forever $ do
           tid <- myThreadId
