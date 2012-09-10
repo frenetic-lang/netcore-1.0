@@ -15,7 +15,8 @@ Executable frenetic-example-suite
     time == 1.4.*,
     netcore == 1.1.*,
     binary,
-    bimap
+    bimap,
+    multiset
   Extensions:
     ScopedTypeVariables,
     TypeFamilies,

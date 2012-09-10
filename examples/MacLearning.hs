@@ -9,7 +9,7 @@ import Data.IORef
 import Control.Monad (forever)
 import Frenetic.NetCore
 import qualified Data.Map as Map
-import Frenetic.NetCore.Types (poDom)
+import Frenetic.NetCore.Util (poDom)
 
 
 isFlood = DlDst broadcastAddress

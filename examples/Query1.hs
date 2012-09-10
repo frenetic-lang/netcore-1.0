@@ -1,15 +1,11 @@
 module Query1 where
 
-import Control.Concurrent
-import Control.Monad
 import Frenetic.NetCore
-import System.IO
+import qualified Data.MultiSet as MS
 
 main = do
-  (ch, queryAct) <- countPkts 1000
-  let pol = (Any ==> allPorts unmodified) `PoUnion` (Any ==> queryAct)
-  forkIO $ forever $ do
-    (sw, n) <- readChan ch
-    putStrLn ("Counter is: " ++ show n)
-    hFlush stdout
+  let f (sw, n) = do
+        putStrLn ("Counter is: " ++ show n)
+  let pol = (Any ==> (MS.singleton $ Forward AllPorts unmodified)) `PoUnion` 
+            (Any ==> (MS.singleton $ CountPackets 0 1000 f))
   controller pol

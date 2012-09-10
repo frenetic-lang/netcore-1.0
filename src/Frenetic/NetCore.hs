@@ -19,7 +19,7 @@ module Frenetic.NetCore
   , prOr
   , prAnd
   -- * Actions
-  , Action
+  , Action (..)
   -- ** Constructors
   , dropPkt
   , forward
@@ -34,11 +34,13 @@ module Frenetic.NetCore
   -- * Network Elements
   , Switch
   , Port
+  , PseudoPort (..)
   , Vlan
   , Loc (..)
   , EthernetAddress (..)
   , IPAddress (..)
   , IPAddressPrefix (..)
+  , ipAddress
   , broadcastAddress
   , ethernetAddress
   -- * Packets
