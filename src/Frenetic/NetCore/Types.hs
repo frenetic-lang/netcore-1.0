@@ -17,7 +17,7 @@ module Frenetic.NetCore.Types
   , Packet (..)
   -- * Policies
   , Policy (..)
-  -- ** Channel Interface
+  -- * Channel Interface
   , countPkts
   , countBytes
   , getPkts
@@ -172,7 +172,7 @@ isForward :: Action -> Bool
 isForward (Forward _ _) = True
 isForward _ = False
 
--- ^Periodically polls the network to counts the number of packets received.
+-- |Periodically polls the network to counts the number of packets received.
 --
 -- Returns an 'Action' and a channel. When the 'Action' is used in the
 -- active 'Policy', the controller periodically reads the packet counters
@@ -186,7 +186,7 @@ countPkts millisecondInterval = do
   let q = CountPackets queryID millisecondInterval (writeChan ch)
   return (ch, MS.singleton q)
 
--- ^Periodically polls the network to counts the number of bytes received.
+-- |Periodically polls the network to counts the number of bytes received.
 --
 -- Returns an 'Action' and a channel. When the 'Action' is used in the
 -- active 'Policy', the controller periodically reads the packet counters
@@ -200,7 +200,7 @@ countBytes millisecondInterval = do
   let q = CountBytes queryID millisecondInterval (writeChan ch)
   return (ch, MS.singleton q)
 
--- ^Sends packets to the controller.
+-- |Sends packets to the controller.
 --
 -- Returns an 'Action' and a channel. When the 'Action' is used in the active
 -- 'Policy', all matching packets are sent to the controller. These packets
