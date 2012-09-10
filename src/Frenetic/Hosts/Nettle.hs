@@ -163,37 +163,49 @@ classifierQueries classifier = map sel queries where
   sel query = (query, map fst (filter (hasQuery query) classifier))
   hasQuery query (_, action) = query `elem` actQueries action
 
+
+data Counter = PktCounter | ByteCounter
+
+runCounterQuery killFlag nettle switch outChan msDelay pats counter = do
+  (Counters totalRef lastRef) <- newCounters
+  let mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
+  let statReqs = map mkReq pats
+  let switchID = handle2SwitchID switch
+  forkIO $ forever $ do
+    tid <- myThreadId
+    threadDelay (msDelay * 1000)
+    sendTransaction nettle switch statReqs $ \replies -> do
+      count <- readIORef lastRef
+      let count' = sum (map (getCount counter) replies)
+      total <- readIORef totalRef
+      let total' = total + (count' - count)
+      kill <- readIORef killFlag
+      if kill then do
+        writeIORef lastRef 0 -- assumes all rules evicted
+        killThread tid
+      else do
+        writeIORef lastRef count'
+        writeIORef totalRef total'
+        writeChan outChan (switchID, total')
+  return ()
+
+
 runQueryOnSwitch :: Nettle
                  -> SwitchHandle
                  -> [(Match, ActionImpl)]
                  -> IO (IO ())
 runQueryOnSwitch nettle switch classifier = do
   killFlag <- newIORef False
-  let mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
-      switchID = handle2SwitchID switch
-      runQuery (PktQuery _ _, pats) = do
+  let runQuery (GetPacket _ _, pats) = do
         -- nothing to do on the controller until a PacketIn
         return ()
-      runQuery (NumPktQuery _ outChan msDelay counter, pats) = do
-        (Counters totalRef lastRef) <- newCounters
-        let statReqs = map mkReq pats
-        forkIO $ forever $ do
-          tid <- myThreadId
-          threadDelay (msDelay * 1000)
-          sendTransaction nettle switch statReqs $ \replies -> do
-            count <- readIORef lastRef
-            let count' = sum (map (getCount counter) replies)
-            total <- readIORef totalRef
-            let total' = total + (count' - count)
-            kill <- readIORef killFlag
-            if kill then do
-              writeIORef lastRef 0 -- assumes all rules evicted
-              killThread tid
-            else do
-              writeIORef lastRef count'
-              writeIORef totalRef total'
-              writeChan outChan (switchID, total')
-        return ()
+      runQuery (CountPackets _ outChan msDelay, pats) =
+        runCounterQuery killFlag nettle switch outChan msDelay pats
+                        PktCounter
+      runQuery (CountBytes _ outChan msDelay, pats) =
+        runCounterQuery killFlag nettle switch outChan msDelay pats 
+                        ByteCounter
+
   mapM_ runQuery (classifierQueries classifier)
   return $ do
     writeIORef killFlag True
@@ -202,7 +214,7 @@ runQueryOnSwitch nettle switch classifier = do
 getCount :: Counter -> SCMessage -> Integer
 getCount counter msg = case msg of
   StatsReply (FlowStatsReply _ stats) -> case counter of
-    CountPackets -> sum (map flowStatsPacketCount stats)
-    CountBytes -> sum (map flowStatsByteCount stats)
+    PktCounter -> sum (map flowStatsPacketCount stats)
+    ByteCounter -> sum (map flowStatsByteCount stats)
   otherwise -> 0
 

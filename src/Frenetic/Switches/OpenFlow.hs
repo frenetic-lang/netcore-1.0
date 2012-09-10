@@ -196,7 +196,7 @@ actnTranslate act = OFAct (ofFwd ++ toCtrl) (MS.toList queries)
         ofFwd = concatMap (\(Forward pp md) -> modTranslate md
                                ++ [SendOutPort (physicalPortOfPseudoPort pp)])
                     $ MS.toList fwd
-        toCtrl = case find isPktQuery (MS.toList queries) of
+        toCtrl = case find isGetPacket (MS.toList queries) of
           -- sends as much of the packet as possible to the controller
           Just _  -> [SendOutPort (ToController maxBound)]
           Nothing -> []
@@ -211,7 +211,7 @@ actnTranslate act = OFAct (ofFwd ++ toCtrl) (MS.toList queries)
               in not $ all (\pat -> Set.isSubsetOf (modifiedFields pat) minFields) as
 
 actnControllerPart (OFAct _ queries) switchID ofPkt  = do
-  let pktChans = map pktQueryChan . filter isPktQuery $ queries
+  let pktChans = map pktQueryChan . filter isGetPacket $ queries
   let sendParsablePkt chan = case toPacket ofPkt of
         Nothing -> return ()
         Just pk -> writeChan chan (switchID, pk)

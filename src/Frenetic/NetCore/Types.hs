@@ -7,10 +7,9 @@ module Frenetic.NetCore.Types
   , PseudoPort (..)
   -- * Actions
   , Action (..)
-  , Counter (..)
   , Modification (..)
   , unmodified
-  , isPktQuery
+  , isGetPacket
   , isForward
   -- ** Basic actions
   , countPkts
@@ -186,17 +185,19 @@ nextQueryID = unsafePerformIO $ newIORef 0
 getNextQueryID :: IO QueryID
 getNextQueryID = atomicModifyIORef nextQueryID (\i -> (i + 1, i))
 
-data Counter = CountPackets | CountBytes deriving (Eq, Ord)
-
 data Action
   = Forward PseudoPort Modification
-  | NumPktQuery {
+  | CountPackets {
       idOfQuery :: QueryID,
-      numPktQueryChan :: Chan (Switch, Integer),
-      queryInterval :: Int,
-      countField :: Counter
+      counterChan :: Chan (Switch, Integer),
+      queryInterval :: Int
     }
-  | PktQuery {
+  | CountBytes {
+      idOfQuery :: QueryID,
+      counterChan :: Chan (Switch, Integer),
+      queryInterval :: Int
+    }
+  | GetPacket {
       pktQueryChan :: Chan (Switch, Packet),
       idOfQuery :: QueryID
     }
@@ -210,25 +211,20 @@ instance Ord Action where
 
 instance Show Action where
   show (Forward p m) = show p ++ show m
-  show (NumPktQuery{..}) =
-    "countPkts(interval=" ++ show queryInterval ++ "ms, id=" ++
-    show idOfQuery ++ ")"
-  show (PktQuery{..}) = "getPkts(id=" ++ show idOfQuery ++  ")"
+  show (CountBytes{..}) = 
+    "CountBytes (interval=" ++ show queryInterval ++ "ms, id=" ++
+       show idOfQuery ++ ")"
+  show (CountPackets{..}) = 
+    "CountPackets (interval=" ++ show queryInterval ++ "ms, id=" ++
+       show idOfQuery ++ ")"
+  show (GetPacket{..}) = "GetPacket(id=" ++ show idOfQuery ++  ")"
 
-
-isPktQuery (PktQuery _ _) = True
-isPktQuery _               = False
+isGetPacket (GetPacket{}) = True
+isGetPacket _ = False
 
 isForward :: Action -> Bool
 isForward (Forward _ _) = True
 isForward _ = False
-
-mkCountQuery :: Counter -> Int -> IO (Chan (Switch, Integer), MultiSet Action)
-mkCountQuery counter millisecondInterval = do
-  ch <- newChan
-  queryID <- getNextQueryID
-  let q = NumPktQuery queryID ch millisecondInterval counter
-  return (ch, MS.singleton q)
 
 -- ^Periodically polls the network to counts the number of packets received.
 --
@@ -238,7 +234,11 @@ mkCountQuery counter millisecondInterval = do
 -- on each switch.
 countPkts :: Int -- ^polling interval, in milliseconds
           -> IO (Chan (Switch, Integer), MultiSet Action)
-countPkts = mkCountQuery CountPackets
+countPkts millisecondInterval = do
+  ch <- newChan
+  queryID <- getNextQueryID
+  let q = CountPackets queryID ch millisecondInterval
+  return (ch, MS.singleton q)
 
 -- ^Periodically polls the network to counts the number of bytes received.
 --
@@ -248,8 +248,11 @@ countPkts = mkCountQuery CountPackets
 -- on each switch.
 countBytes :: Int -- ^polling interval, in milliseconds
            -> IO (Chan (Switch, Integer), MultiSet Action)
-countBytes = mkCountQuery CountBytes
-
+countBytes millisecondInterval = do
+  ch <- newChan
+  queryID <- getNextQueryID
+  let q = CountBytes queryID ch millisecondInterval
+  return (ch, MS.singleton q)
 
 -- ^Sends packets to the controller.
 --
@@ -260,7 +263,7 @@ getPkts :: IO (Chan (Switch, Packet), MultiSet Action)
 getPkts = do
   ch <- newChan
   queryID <- getNextQueryID
-  let q = PktQuery ch queryID
+  let q = GetPacket ch queryID
   return (ch, MS.singleton q)
 
 -- |Get back all predicates in the intersection.  Does not return any naked
