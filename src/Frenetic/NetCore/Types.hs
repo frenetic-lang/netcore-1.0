@@ -277,36 +277,16 @@ data Policy
   | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
   deriving (Eq, Ord, Show)
 
-{-
-instance Show Predicate where
-  show (Switch s) = "switch(" ++ show s ++ ")"
-  show (Or pr1 pr2) = "(" ++ show pr1 ++ ") \\/ (" ++ show pr2 ++ ")"
-  show (And pr1 pr2) = "(" ++ show pr1 ++ ") /\\ (" ++ show pr2 ++ ")"
-  show (Not pr) = "~(" ++ show pr ++ ")"
--}
-
 instance Ord Query where
   compare q1 q2 = compare qid1 qid2 where
     qid1 = idOfQuery q1
     qid2 = idOfQuery q2
-
-{-
-instance Show Action where
-  show (Action fwd q) = "<fwd=" ++ show (MS.toAscList fwd) ++ " q=" ++ show q ++ ">"
--}
 
 instance Show Query where
   show (NumPktQuery{..}) =
     "countPkts(interval=" ++ show queryInterval ++ "ms, id=" ++
     show idOfQuery ++ ")"
   show (PktQuery{..}) = "getPkts(id=" ++ show idOfQuery ++  ")"
-
-{-
-instance Show Policy where
-  show PoBottom = "(PoBottom)"
-  show (PoBasic pr as) = "(" ++ show pr ++ ") -> " ++ show as
-  show (PoUnion po1 po2) = "(" ++ show po1 ++ ") \\/ (" ++ show po2 ++ ")"
--}
 
 -- |Get back all basic policies in the union.  Does not return any unions.
 poUnUnion :: Policy -> [Policy]
