@@ -32,6 +32,7 @@ import Data.Maybe
 import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.Common
+import Nettle.Ethernet.EthernetAddress (unpackEth64)
 
 -- We use this a lot, so make a shortcut.  Need the type signature to get it to
 -- be properly polymorphic.

@@ -80,3 +80,5 @@ import Frenetic.Slices.Compile
 import Frenetic.Slices.Slice
 import Frenetic.Topo
 import Frenetic.NetCore.Util
+import Nettle.Ethernet.EthernetAddress
+import Nettle.IPv4.IPAddress

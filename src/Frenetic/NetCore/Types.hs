@@ -21,13 +21,6 @@ module Frenetic.NetCore.Types
   , countPkts
   , countBytes
   , getPkts
-  -- * Tools
-  , EthernetAddress (..)
-  , IPAddress (..)
-  , IPAddressPrefix (..)
-  , broadcastAddress
-  , ethernetAddress
-  , ipAddress
   ) where
 
 import Frenetic.Common

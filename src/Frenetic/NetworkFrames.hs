@@ -9,6 +9,8 @@ import Data.Binary.Get
 import Data.Binary.Put
 import Frenetic.Common
 import Frenetic.NetCore.Types
+import Nettle.Ethernet.EthernetAddress
+import Nettle.IPv4.IPAddress
 
 arpReply :: EthernetAddress -> Word32 -> EthernetAddress -> Word32 -> ByteString
 arpReply srcEth srcIP dstEth dstIP =

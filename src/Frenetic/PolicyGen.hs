@@ -21,6 +21,7 @@ import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.Topo
 import System.IO.Unsafe
+import Nettle.Ethernet.EthernetAddress (EthernetAddress (..), broadcastAddress)
 
 -- |Convert a topology to a graph with weight 1 on each edge, for use with
 -- Data.Graph.Inductive.Query.SP's shortest path algorithms

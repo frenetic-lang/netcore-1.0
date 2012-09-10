@@ -18,7 +18,8 @@ import Frenetic.NetCore.Types
 import qualified Data.MultiSet as MS
 import qualified Data.List as List
 import qualified Data.Set as Set
-
+import Nettle.Ethernet.EthernetAddress
+import Nettle.IPv4.IPAddress
 
 -- |Names of common header fields.
 data Field
