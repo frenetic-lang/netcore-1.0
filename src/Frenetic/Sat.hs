@@ -33,6 +33,8 @@ import qualified Data.Set as Set
 import Frenetic.Common
 import Data.List (nub)
 import Nettle.Ethernet.EthernetAddress (unpackEth64)
+import Frenetic.NetCore.Util
+import Frenetic.NetCore.Short (synthRestrict)
 
 -- We use this a lot, so make a shortcut.  Need the type signature to get it to
 -- be properly polymorphic.
@@ -101,6 +103,7 @@ forwardsWith (PoUnion p1 p2) p q = ZOr (forwardsWith p1 p q)
                                        (forwardsWith p2 p q)
 forwardsWith (PoBasic pred action) p q = ZAnd (matchWith pred p)
                                               (produceWith action p q)
+forwardsWith (Restrict pol pred) p q = forwardsWith (synthRestrict pol pred) p q
 
 -- |Build the constraint that some query is fired by the policy.
 observes :: Policy -> Z3Packet -> BoolExp
@@ -120,6 +123,8 @@ observesWith (PoUnion p1 p2) p =
 observesWith (PoBasic pred action) p = if observesAct action
                                          then matchWith pred p
                                          else ZFalse
+observesWith (Restrict pol pred) p = observesWith (synthRestrict pol pred) p
+
 
 -- |Build the constraint that a particular query (as referenced by its serial
 -- ID) is triggered.
@@ -141,6 +146,8 @@ queriesWith (PoBasic pred action) p qid = if observesAct action
                                             then ZAnd (matchWith pred p)
                                                       (queryAct action qid)
                                             else ZFalse
+queriesWith (Restrict pol pred) p qid = 
+  queriesWith (synthRestrict pol pred) p qid
 
 -- |Build the constraint for pred matching packet.
 match :: Predicate -> Z3Packet -> BoolExp

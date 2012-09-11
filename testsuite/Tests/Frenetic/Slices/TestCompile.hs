@@ -11,6 +11,7 @@ import Frenetic.NetCore
 import Frenetic.NetCore.Short
 import Frenetic.Slices.Compile
 import Frenetic.Slices.Slice
+import Frenetic.NetCore.Util
 
 sliceCompileTests = $(testGroupGenerator)
 
@@ -48,6 +49,7 @@ forwardsOfPolicy PoBottom        = []
 forwardsOfPolicy (PoBasic _ acts) = filter isForward acts
 forwardsOfPolicy (PoUnion p1 p2) = forwardsOfPolicy p1 ++
                                    forwardsOfPolicy p2
+forwardsOfPolicy (Restrict pol _) = forwardsOfPolicy pol
 
 setVl v (Forward p m) = Forward p (m { modifyDlVlan = Just v })
 setVl v a = a

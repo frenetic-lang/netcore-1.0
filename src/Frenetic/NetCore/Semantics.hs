@@ -52,4 +52,9 @@ interpretPolicy (PoBasic pred acts) tr =
   if interpretPredicate pred tr then acts else dropPkt
 interpretPolicy (PoUnion p1 p2) tr =
   interpretPolicy p1 tr <+> interpretPolicy p2 tr
+interpretPolicy (Restrict pol pred) tr =
+  if interpretPredicate pred tr then
+    interpretPolicy pol tr
+  else
+    []
 

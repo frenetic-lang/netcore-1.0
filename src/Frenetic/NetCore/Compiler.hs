@@ -165,6 +165,8 @@ compilePolicy s (PoUnion po1 po2) =
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
             (skel12', skel1', skel2') = skelCart (<+>) skel1 skel2
+compilePolicy s (Restrict pol pred) =
+  compilePolicy s (synthRestrict pol pred)
 
 {-| Compile a policy to a classifier. -}
 compile :: Switch

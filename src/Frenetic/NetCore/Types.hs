@@ -97,6 +97,12 @@ data Policy
   | PoBasic Predicate [Action]
      -- ^Performs the given action on packets matching the given predicate.
   | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
+  | Restrict Policy Predicate
+{-
+  | SendPackets (Chan (Loc, ByteString))
+    -- ^If a program writes a located packet to this channel, the controller
+    -- will send the packet to its location.
+-}
   deriving (Eq)
 
 -- |For each fields with a value Just v, modify that field to be v.
@@ -167,7 +173,7 @@ instance Show Policy where
     PoBottom -> "PoBottom"
     PoBasic pred acts -> "PoBasic " ++ show pred ++ " " ++ show acts
     PoUnion pol1 pol2 -> "PoUnion (" ++ show pol1 ++ ") (" ++ show pol2 ++ ")"
-
+    Restrict pol' pred -> "Restrict (" ++ show pol' ++ ") (" ++ show pred ++ ")"
 
 -- |Periodically polls the network to counts the number of packets received.
 --

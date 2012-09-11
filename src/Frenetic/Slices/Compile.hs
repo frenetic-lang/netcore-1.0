@@ -122,6 +122,8 @@ removeForwards (PoBasic pred acts) = pred ==> (filter isQuery acts)
 removeForwards (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeForwards p1
   p2' = removeForwards p2
+removeForwards (Restrict pol pred) = Restrict pol' pred
+  where pol' = removeForwards pol
 
 -- |Remove queries from policy leaving only forwarding actions
 removeQueries :: Policy -> Policy
@@ -130,6 +132,8 @@ removeQueries (PoBasic pred acts) = pred ==> (filter isForward acts)
 removeQueries (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeQueries p1
   p2' = removeQueries p2
+removeQueries (Restrict pol pred) = Restrict pol' pred
+  where pol' = removeQueries pol
 
 -- |Remove forwarding actions to ports other than p
 justTo :: Port -> Policy -> Policy
@@ -141,6 +145,8 @@ justTo p (PoBasic pred acts) = pred ==> (filter pr acts) where
 justTo p (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = justTo p p1
   p2' = justTo p p2
+justTo p (Restrict pol pred) = Restrict (justTo p pol) pred
+
 
 -- TODO(astory): egress predicates
 -- |Produce a list of policies that together instrument the edge-compiled
@@ -230,6 +236,8 @@ modifyVlan vlan (PoBasic pred acts) = pred ==> (map f acts)
         f act = act
 modifyVlan vlan (PoUnion p1 p2) = PoUnion (modifyVlan vlan p1)
                                           (modifyVlan vlan p2)
+modifyVlan vlan (Restrict pol pred) = Restrict pol' pred
+  where pol' = modifyVlan vlan pol
 
 -- |Unset vlan for packets forwarded to location (without link transfer) and
 -- leave rest of policy unchanged.  Note that this assumes that each PoBasic
@@ -255,6 +263,7 @@ setVlan vlan (Loc switch port) pol@(PoBasic pred acts) =
     setVlanOnPort (Forward AllPorts mod) =
       error "AllPorts encountered in slice compilation.  Did you localize?"
     setVlanOnPort act = act
+setVlan vlan loc (Restrict pol pred) = Restrict (setVlan vlan loc pol) pred
 
 -- |Determine if a predicate can match any packets on a switch (overapproximate)
 matchesSwitch :: Switch -> Predicate -> Bool

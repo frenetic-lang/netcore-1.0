@@ -91,6 +91,7 @@ localize slice policy = case policy of
       locations = Set.union (internal slice)
                             (Set.fromList . Map.keys $ egress slice)
       pred' = pred <&&> onSlice slice
+  Restrict pol pred -> localize slice (synthRestrict pol pred)
 
 onSlice :: Slice -> Predicate
 onSlice (Slice int ing egr) = prOr .
@@ -137,6 +138,7 @@ poUsesVlans :: Policy -> Bool
 poUsesVlans PoBottom = False
 poUsesVlans (PoUnion p1 p2) = poUsesVlans p1 || poUsesVlans p2
 poUsesVlans (PoBasic pred action) = prUsesVlans pred || actUsesVlans action
+poUsesVlans (Restrict pol pred) = poUsesVlans pol || prUsesVlans pred
 
 -- |Determine if a predicate matches on VLAN tags
 prUsesVlans :: Predicate -> Bool

@@ -28,6 +28,7 @@ reducePo (PoUnion p1 p2) = if p1' == PoBottom then p2'
                            else PoUnion p1' p2' where
   p1' = reducePo p1
   p2' = reducePo p2
+reducePo (Restrict pol pred) = Restrict (reducePo pol) pred
 
 isNonNegatedAtom pred = case pred of
   DlSrc _ -> True

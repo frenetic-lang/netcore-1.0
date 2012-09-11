@@ -16,6 +16,7 @@ module Frenetic.NetCore.Short
   , (==>)
   , (<%>)
   , (<+>)
+  , synthRestrict
   -- * Packet modifications
   , Modification (..)
   , unmodified
@@ -94,10 +95,18 @@ modify mods = [ Forward (Physical p) mod | (p, mod) <- mods ]
 (==>) = PoBasic
 
 -- |Restrict a policy to act over packets matching the predicate.
-policy <%> pred = case policy of
+(<%>) = Restrict
+
+-- |Restricts the policy's domain to 'pred'. Does not eliminate
+-- 'Restrict' expressions, but does restrict their restrictions.
+synthRestrict :: Policy -> Predicate -> Policy
+synthRestrict pol pred = case pol of
   PoBottom -> PoBottom
-  PoBasic predicate act -> PoBasic (And predicate pred) act
-  PoUnion p1 p2 -> PoUnion (p1 <%> pred) (p2 <%> pred)
+  PoBasic pred' acts -> 
+    PoBasic (And pred' pred) acts
+  PoUnion pol1 pol2 ->
+    PoUnion (synthRestrict pol1 pred) (synthRestrict pol2 pred)
+  Restrict pol pred' -> Restrict pol (And pred pred')
 
 instance Monoid Policy where
   mappend = PoUnion
