@@ -100,7 +100,7 @@ data Policy
   | PoBasic Predicate (MS.MultiSet Action)
      -- ^Performs the given action on packets matching the given predicate.
   | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 -- |For each fields with a value Just v, modify that field to be v.
 --  If the field is Nothing then there is no modification of that field.
