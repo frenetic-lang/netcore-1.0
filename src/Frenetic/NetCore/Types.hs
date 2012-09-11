@@ -97,7 +97,7 @@ data Policy
   | PoBasic Predicate [Action]
      -- ^Performs the given action on packets matching the given predicate.
   | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
-  deriving (Eq, Show)
+  deriving (Eq)
 
 -- |For each fields with a value Just v, modify that field to be v.
 --  If the field is Nothing then there is no modification of that field.
@@ -161,6 +161,12 @@ instance Show Action where
     "CountPackets (interval=" ++ show queryInterval ++ "ms, id=" ++
        show idOfQuery ++ ")"
   show (GetPacket{..}) = "GetPacket(id=" ++ show idOfQuery ++  ")"
+
+instance Show Policy where
+  show pol = case pol of
+    PoBottom -> "PoBottom"
+    PoBasic pred acts -> "PoBasic " ++ show pred ++ " " ++ show acts
+    PoUnion pol1 pol2 -> "PoUnion (" ++ show pol1 ++ ") (" ++ show pol2 ++ ")"
 
 
 -- |Periodically polls the network to counts the number of packets received.
