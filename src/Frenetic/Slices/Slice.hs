@@ -102,7 +102,7 @@ onSlice (Slice int ing egr) = prOr .
 -- ones on the switch.
 localizeMods :: Predicate -> [Action] -> Set.Set Port -> Policy
 localizeMods pred actions ports = 
-  mconcat $ pred ==> (forwardPol <+> obs) : floodPols where
+  mconcat $ (pred ==> (forwardPol ++ obs)) : floodPols where
     (allFwds, obs) = partition isForward actions
     (forwards, floods) = partition split allFwds
     -- partial match is safe because we split it

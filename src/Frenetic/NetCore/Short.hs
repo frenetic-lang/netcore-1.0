@@ -36,6 +36,11 @@ import Frenetic.Pattern
 import Frenetic.NetCore.Types
 import Frenetic.Common
 
+infixr 5 <+>
+infixl 6 ==>
+infixr 7 <||>
+infixr 8 <&&>
+
 -- |Construct the predicate matching packets on this switch and port
 inport :: Switch -> Port -> Predicate
 inport switch port = And (Switch switch) (IngressPort port)
