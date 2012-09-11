@@ -16,6 +16,7 @@ import Frenetic.Common
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Frenetic.NetCore.Types
+import Frenetic.NetCore.Util
 import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.NetCore.Reduce
@@ -117,7 +118,7 @@ queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
 -- |Remove forwarding actions from policy leaving only queries
 removeForwards :: Policy -> Policy
 removeForwards PoBottom = PoBottom
-removeForwards (PoBasic pred acts) = pred ==> (filter (not.isForward) acts)
+removeForwards (PoBasic pred acts) = pred ==> (filter isQuery acts)
 removeForwards (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeForwards p1
   p2' = removeForwards p2

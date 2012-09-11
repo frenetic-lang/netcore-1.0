@@ -201,7 +201,7 @@ actnTranslate act = OFAct (ofFwd ++ toCtrl) queries
           Just _  -> [SendOutPort (ToController maxBound)]
           Nothing -> []
         fwd = filter isForward act
-        queries = filter (not.isForward) act
+        queries = filter isQuery act
         hasUnimplementableMods as
           | length as <= 1 = False
           | otherwise =

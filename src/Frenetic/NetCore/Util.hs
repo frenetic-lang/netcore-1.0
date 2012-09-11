@@ -11,6 +11,9 @@ module Frenetic.NetCore.Util
   , poUnUnion
   , poDom
   , size
+  , isForward
+  , isGetPacket
+  , isQuery
   ) where
 
 import Frenetic.Common
@@ -121,3 +124,17 @@ modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
            , case modifyTpSrc of { Just _ -> Just FTpSrc; Nothing -> Nothing }
            , case modifyTpDst of { Just _ -> Just FTpDst; Nothing -> Nothing }
            ]
+
+isGetPacket (GetPacket{}) = True
+isGetPacket _ = False
+
+isForward :: Action -> Bool
+isForward (Forward _ _) = True
+isForward _ = False
+
+isQuery :: Action -> Bool
+isQuery act = case act of
+  CountPackets {} -> True
+  CountBytes {} -> True
+  GetPacket {} -> True
+  Forward {} -> False

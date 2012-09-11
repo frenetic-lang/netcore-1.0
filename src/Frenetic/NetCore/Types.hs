@@ -9,8 +9,6 @@ module Frenetic.NetCore.Types
   , Action (..)
   , Modification (..)
   , unmodified
-  , isGetPacket
-  , isForward
   -- * Predicates
   , Predicate (..)
   -- * Packets
@@ -164,12 +162,6 @@ instance Show Action where
        show idOfQuery ++ ")"
   show (GetPacket{..}) = "GetPacket(id=" ++ show idOfQuery ++  ")"
 
-isGetPacket (GetPacket{}) = True
-isGetPacket _ = False
-
-isForward :: Action -> Bool
-isForward (Forward _ _) = True
-isForward _ = False
 
 -- |Periodically polls the network to counts the number of packets received.
 --

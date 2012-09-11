@@ -19,6 +19,7 @@ import qualified Data.Set as Set
 import Data.Word
 import Frenetic.NetCore.Short
 import Frenetic.NetCore.Types
+import Frenetic.NetCore.Util
 import Frenetic.Pattern
 import Frenetic.Topo
 

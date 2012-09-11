@@ -212,14 +212,14 @@ produceWith acts p@(p', vlp) q@(q', vlq) =
 
 -- |Determine if an action emits an observation
 observesAct :: [Action] -> Bool
-observesAct acts = not (null (filter (not.isForward) acts))
+observesAct acts = not (null (filter isQuery acts))
 
 -- |Determine if an action emits a particular observation
 queryAct :: [Action] -> Z3Int -> BoolExp
 queryAct acts qid = nOr queries where
   queries = map (\qid' -> Equals (Variable qid) (Primitive qid')) .
             map fromIntegral . map idOfQuery $
-            (filter (not.isForward) acts)
+            (filter isQuery acts)
 
 vlanOfPacket :: (Z3Packet, Maybe Z3Int) -> IntExp
 vlanOfPacket (pkt, Just vl) = Variable vl
