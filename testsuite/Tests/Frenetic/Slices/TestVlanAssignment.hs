@@ -7,6 +7,7 @@ import Test.HUnit hiding (Node)
 import Test.Framework.Providers.HUnit
 import Frenetic.Pattern
 import qualified Data.Map as Map
+import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.NetCore
 import Frenetic.Slices.Slice
@@ -14,6 +15,14 @@ import Frenetic.Slices.VlanAssignment
 import Frenetic.TopoGen
 
 vlanAssignmentTests = $(testGroupGenerator)
+
+case_duplicate_slice = do
+  let topo = linear 2
+  let slice = internalSlice topo
+  let policy = PoBasic Any (MS.singleton (Forward AllPorts unmodified))
+  let sp = (slice, policy) -- y'all need a name for this
+  assertBool "policies should be different"
+    (not $ edge topo [sp] == edge topo [sp, sp, sp])
 
 case_testBasicSequential = do
   let slices = [internalSlice (linear i) | i <- [1 .. 10]]
