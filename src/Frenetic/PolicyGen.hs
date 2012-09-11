@@ -35,7 +35,7 @@ toHops [_] = []
 toHops all@(_ : tail) = zip all tail
 
 -- |Get an infinite stream of fresh queries
-queries :: IO [MultiSet Action]
+queries :: IO [[Action]]
 queries = do
   (_, q) <- countPkts 1
   rest <- unsafeInterleaveIO queries
@@ -59,7 +59,7 @@ simuFlood topo = mconcat policies where
   validPort s = prOr . map (\p -> IngressPort p) $ ports topo s
 
 -- |Simulate flooding, and observe all packets with query.
-simuFloodQuery :: Topo -> MultiSet Action -> Policy
+simuFloodQuery :: Topo -> [Action] -> Policy
 simuFloodQuery topo q = mconcat policies where
   ss = switches topo
   policies = [Switch (fromIntegral s) <&&> validPort s ==>

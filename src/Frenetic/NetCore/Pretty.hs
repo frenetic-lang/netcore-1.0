@@ -6,7 +6,6 @@ module Frenetic.NetCore.Pretty
   ) where
 
 import Data.List
-import qualified Data.MultiSet as MS
 import Frenetic.NetCore.Short
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Util

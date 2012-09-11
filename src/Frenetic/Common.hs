@@ -2,7 +2,6 @@
 module Frenetic.Common
   ( Set
   , Map
-  , MultiSet
   , ByteString
   , module Control.Concurrent.Chan
   , module Control.Concurrent
@@ -21,7 +20,6 @@ import Control.Monad
 import Data.Monoid hiding (Any)
 import Data.Set (Set)
 import Data.Map (Map)
-import Data.MultiSet
 import Data.ByteString.Lazy (ByteString)
 import Data.Maybe (catMaybes)
 

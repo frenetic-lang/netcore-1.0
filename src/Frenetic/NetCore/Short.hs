@@ -32,7 +32,6 @@ module Frenetic.NetCore.Short
 
 import Data.Word
 import qualified Data.List as List
-import qualified Data.MultiSet as MS
 import Frenetic.Pattern
 import Frenetic.NetCore.Types
 import Frenetic.Common
@@ -55,28 +54,26 @@ prAnd :: [Predicate] -> Predicate
 prAnd [] = Any
 prAnd ps = List.foldr1 (\ p1 p2 -> And p1 p2) ps
 
-dropPkt :: MultiSet Action
-dropPkt = MS.empty
+dropPkt :: [Action]
+dropPkt = []
 
 -- |Forward the packet out of all physical ports, except the packet's
 -- ingress port.
 allPorts :: Modification -- ^modifications to apply to the packet. Use
                          -- 'allPorts unmodified' to make no modifications.
-         -> MultiSet Action
-allPorts mod = MS.singleton (Forward AllPorts mod)
+         -> [Action]
+allPorts mod = [Forward AllPorts mod]
 
 -- |Forward the packet out of the specified physical ports.
-forward :: [Port] -> MultiSet Action
-forward ports = MS.fromList lst
-  where lst = [ Forward (Physical p) unmodified | p <- ports ]
+forward :: [Port] -> [Action]
+forward ports = [ Forward (Physical p) unmodified | p <- ports ]
 
 -- |Forward the packet out of the specified physical ports with modifications.
 --
 -- Each port has its own record of modifications, so modifications at one port
 -- do not interfere with modifications at another port.
-modify :: [(Port, Modification)] -> MultiSet Action
-modify mods = MS.fromList lst
-  where lst = [ Forward (Physical p) mod | (p, mod) <- mods ]
+modify :: [(Port, Modification)] -> [Action]
+modify mods = [ Forward (Physical p) mod | (p, mod) <- mods ]
 
 -- |Join: overloaded to find the union of policies and the join of actions.
 (<+>) :: Monoid a => a -> a -> a

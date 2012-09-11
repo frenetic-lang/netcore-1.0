@@ -74,7 +74,7 @@ kComplete k = (topo, map mkCombined sliceNodes) where
     policy = simuFlood topo'
 
 -- |Build a linear graph from input slices.  Requires as many queries as slices
-linearQ :: Integral n => [[n]] -> [MultiSet Action]-> (Topo, [Policy])
+linearQ :: Integral n => [[n]] -> [[Action]]-> (Topo, [Policy])
 linearQ nodess queries = (topo, policies) where
   nodess' = map Set.fromList nodess
   max = maximum . concat . map Set.toList $ nodess'
@@ -85,7 +85,7 @@ linearQ nodess queries = (topo, policies) where
 
 -- |Build a linear graph from input slices with two hosts per node.  Requires as
 -- many queries as slices
-linearHostsQ :: Integral n => [[n]] -> [MultiSet Action]-> (Topo, [(Slice, Policy)])
+linearHostsQ :: Integral n => [[n]] -> [[Action]]-> (Topo, [(Slice, Policy)])
 linearHostsQ nodess queries = (topo, map (\(ns, q) -> (mkSlice ns, mkPolicy ns q))
                                         (zip nodess' queries)) where
   nodess' = map Set.fromList nodess
@@ -114,7 +114,7 @@ linearHostsQ nodess queries = (topo, map (\(ns, q) -> (mkSlice ns, mkPolicy ns q
 
 -- |Construct a k-complete graph and k slices on floor(k/2) nodes.  Requires k
 -- queries
-kCompleteQ :: Integral k => k -> [MultiSet Action] -> (Topo, [([Node], Slice, Policy)])
+kCompleteQ :: Integral k => k -> [[Action]] -> (Topo, [([Node], Slice, Policy)])
 kCompleteQ k queries = (topo, map mkCombined $ zip sliceNodes queries) where
   k' = fromIntegral k
   topo = TG.kComplete k'
@@ -129,7 +129,7 @@ kCompleteQ k queries = (topo, map mkCombined $ zip sliceNodes queries) where
 -- |Construct a k-complete graph and k slices on floor(k/2) nodes with two hosts
 -- on each switch.  Each slice is assigned the IP address of its lowest member.
 -- Requires k queries.
-kCompleteQHosts :: Integral k => k -> [MultiSet Action] ->
+kCompleteQHosts :: Integral k => k -> [[Action]] ->
                                  (Topo, [([Node], Slice, Policy)])
 kCompleteQHosts k queries = (topo, map mkCombined $ zip sliceNodes queries) where
   k' = fromIntegral k

@@ -15,7 +15,6 @@ import Frenetic.NetCore.Types
 import Frenetic.Slices.Slice
 
 import qualified Data.Map as Map
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 
 sliceTests = $(testGroupGenerator)

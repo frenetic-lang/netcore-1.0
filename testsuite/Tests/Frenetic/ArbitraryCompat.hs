@@ -16,7 +16,6 @@ import Data.Bits
 import Frenetic.Compat
 import Frenetic.Pattern
 import Test.QuickCheck
-import qualified Data.MultiSet as MS
 import Frenetic.Switches.OpenFlow
 import Frenetic.NetCore
 
@@ -60,6 +59,4 @@ instance Arbitrary Action where
     return (Forward p unmodified)
 
 instance Arbitrary ActionImpl where
-  arbitrary = do
-    acts <- arbitrary
-    return (actnTranslate (MS.fromList acts))
+  arbitrary = liftM actnTranslate arbitrary

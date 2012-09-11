@@ -8,7 +8,6 @@ module Tests.Frenetic.NetCore.TestCompiler where
 import Nettle.IPv4.IPAddress
 import Nettle.OpenFlow.Packet
 import Frenetic.NetCore.Semantics
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Data.Word
 import Test.Framework

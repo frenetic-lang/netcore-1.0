@@ -14,7 +14,6 @@ module Frenetic.Slices.Compile
 import Control.Monad
 import Frenetic.Common
 import qualified Data.Map as Map
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
@@ -118,7 +117,7 @@ queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
 -- |Remove forwarding actions from policy leaving only queries
 removeForwards :: Policy -> Policy
 removeForwards PoBottom = PoBottom
-removeForwards (PoBasic pred acts) = pred ==> (MS.filter (not.isForward) acts)
+removeForwards (PoBasic pred acts) = pred ==> (filter (not.isForward) acts)
 removeForwards (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeForwards p1
   p2' = removeForwards p2
@@ -126,7 +125,7 @@ removeForwards (PoUnion p1 p2) = PoUnion p1' p2' where
 -- |Remove queries from policy leaving only forwarding actions
 removeQueries :: Policy -> Policy
 removeQueries PoBottom = PoBottom
-removeQueries (PoBasic pred acts) = pred ==> (MS.filter isForward acts)
+removeQueries (PoBasic pred acts) = pred ==> (filter isForward acts)
 removeQueries (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeQueries p1
   p2' = removeQueries p2
@@ -134,7 +133,7 @@ removeQueries (PoUnion p1 p2) = PoUnion p1' p2' where
 -- |Remove forwarding actions to ports other than p
 justTo :: Port -> Policy -> Policy
 justTo _ PoBottom = PoBottom
-justTo p (PoBasic pred acts) = pred ==> (MS.filter pr acts) where
+justTo p (PoBasic pred acts) = pred ==> (filter pr acts) where
   pr (Forward (Physical p') _) = p == p'
   pr (Forward AllPorts _) = error "AllPorts found while compiling."
   pr _ = True
@@ -225,7 +224,7 @@ ingressSpecToPred (loc, pred) = And pred (locToPred loc)
 -- action
 modifyVlan :: Maybe Vlan -> Policy -> Policy
 modifyVlan _ PoBottom = PoBottom
-modifyVlan vlan (PoBasic pred acts) = pred ==> (MS.map f acts)
+modifyVlan vlan (PoBasic pred acts) = pred ==> (map f acts)
   where f (Forward p m) = Forward p (m { modifyDlVlan = Just vlan })
         f act = act
 modifyVlan vlan (PoUnion p1 p2) = PoUnion (modifyVlan vlan p1)
@@ -248,7 +247,7 @@ setVlan vlan (Loc switch port) pol@(PoBasic pred acts) =
   if matchesSwitch switch pred then PoBasic pred m'
                                else pol
   where
-    m' = MS.map setVlanOnPort acts
+    m' = map setVlanOnPort acts
     setVlanOnPort (Forward (Physical p) mod) =
       if p == port then (Forward (Physical p) mod {modifyDlVlan = Just vlan})
                    else (Forward (Physical p) mod)

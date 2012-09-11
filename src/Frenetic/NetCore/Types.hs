@@ -27,7 +27,6 @@ import Frenetic.Common
 import Data.Bits
 import Data.IORef
 import qualified Data.List as List
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Data.Word
 import Frenetic.Pattern
@@ -97,7 +96,7 @@ data Predicate
 {-| Policies denote functions from (switch, packet) to packets. -}
 data Policy
   = PoBottom -- ^Performs no actions.
-  | PoBasic Predicate (MS.MultiSet Action)
+  | PoBasic Predicate [Action]
      -- ^Performs the given action on packets matching the given predicate.
   | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
   deriving (Eq, Show)
@@ -179,12 +178,12 @@ isForward _ = False
 -- on the network. The controller returns the number of matching packets
 -- on each switch.
 countPkts :: Int -- ^polling interval, in milliseconds
-          -> IO (Chan (Switch, Integer), MultiSet Action)
+          -> IO (Chan (Switch, Integer), [Action])
 countPkts millisecondInterval = do
   ch <- newChan
   queryID <- getNextQueryID
   let q = CountPackets queryID millisecondInterval (writeChan ch)
-  return (ch, MS.singleton q)
+  return (ch, [q])
 
 -- |Periodically polls the network to counts the number of bytes received.
 --
@@ -193,22 +192,22 @@ countPkts millisecondInterval = do
 -- on the network. The controller returns the number of matching packets
 -- on each switch.
 countBytes :: Int -- ^polling interval, in milliseconds
-           -> IO (Chan (Switch, Integer), MultiSet Action)
+           -> IO (Chan (Switch, Integer), [Action])
 countBytes millisecondInterval = do
   ch <- newChan
   queryID <- getNextQueryID
   let q = CountBytes queryID millisecondInterval (writeChan ch)
-  return (ch, MS.singleton q)
+  return (ch, [q])
 
 -- |Sends packets to the controller.
 --
 -- Returns an 'Action' and a channel. When the 'Action' is used in the active
 -- 'Policy', all matching packets are sent to the controller. These packets
 -- are written into the channel.
-getPkts :: IO (Chan (Switch, Packet), MultiSet Action)
+getPkts :: IO (Chan (Switch, Packet), [Action])
 getPkts = do
   ch <- newChan
   queryID <- getNextQueryID
   let q = GetPacket queryID (writeChan ch)
-  return (ch, MS.singleton q)
+  return (ch, [q])
 

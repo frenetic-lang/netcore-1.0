@@ -5,7 +5,6 @@ module Frenetic.NetCore.Reduce
 import Frenetic.Common
 import Data.List (nub)
 import Data.Maybe
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short

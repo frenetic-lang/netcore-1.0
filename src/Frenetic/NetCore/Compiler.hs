@@ -154,7 +154,7 @@ pred sw pr = case pr of
   Not pr -> skelMap not (pred sw pr) ++ [Bone matchAny True]
 
 {-| Compile a policy to intermediate form -}
-compilePolicy :: Switch -> Policy -> Skeleton (MultiSet Action)
+compilePolicy :: Switch -> Policy -> Skeleton [Action]
 compilePolicy _ PoBottom = []
 compilePolicy s (PoBasic po as) =
     skelMap f $ pred s po

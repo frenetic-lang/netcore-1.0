@@ -29,9 +29,9 @@ import Data.Bits
 import qualified Data.Graph.Inductive.Graph as Graph
 import qualified Data.Map as Map
 import Data.Maybe
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.Common
+import Data.List (nub)
 import Nettle.Ethernet.EthernetAddress (unpackEth64)
 
 -- We use this a lot, so make a shortcut.  Need the type signature to get it to
@@ -178,16 +178,16 @@ matchWith pred p@(pk, _) = case pred of
 
 -- |Build the constraint for a packet being produced from another packet by an
 -- action, maybe substituting a value for VLAN on either or both
-produceWith :: MultiSet Action
+produceWith :: [Action]
             -> (Z3Packet, Maybe Z3Int) -> (Z3Packet, Maybe Z3Int)
             -> BoolExp
 produceWith acts p@(p', vlp) q@(q', vlq) =
   ZAnd (Equals (switch p') (switch q')) (nOr portConstraints)
   where
-    rewrite = MS.fromList (mapMaybe select (MS.toList acts))
+    rewrite = mapMaybe select acts
     select (Forward p m) = Just (p, m)
     select _ = Nothing
-    portConstraints = map fieldConstraint (MS.distinctElems rewrite)
+    portConstraints = map fieldConstraint (nub rewrite)
     fieldConstraint (pp, m) = nAnd cs where
       cs = (case pp of Physical port' -> [Equals (port q')
                                                  (Primitive (fint port'))]
@@ -211,15 +211,15 @@ produceWith acts p@(p', vlp) q@(q', vlq) =
         ]
 
 -- |Determine if an action emits an observation
-observesAct :: MultiSet Action -> Bool
-observesAct acts = not (MS.null (MS.filter (not.isForward) acts))
+observesAct :: [Action] -> Bool
+observesAct acts = not (null (filter (not.isForward) acts))
 
 -- |Determine if an action emits a particular observation
-queryAct :: MultiSet Action -> Z3Int -> BoolExp
+queryAct :: [Action] -> Z3Int -> BoolExp
 queryAct acts qid = nOr queries where
   queries = map (\qid' -> Equals (Variable qid) (Primitive qid')) .
             map fromIntegral . map idOfQuery $
-            MS.toList (MS.filter (not.isForward) acts)
+            (filter (not.isForward) acts)
 
 vlanOfPacket :: (Z3Packet, Maybe Z3Int) -> IntExp
 vlanOfPacket (pkt, Just vl) = Variable vl

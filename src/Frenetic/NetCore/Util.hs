@@ -15,7 +15,6 @@ module Frenetic.NetCore.Util
 
 import Frenetic.Common
 import Frenetic.NetCore.Types
-import qualified Data.MultiSet as MS
 import qualified Data.List as List
 import qualified Data.Set as Set
 import Nettle.Ethernet.EthernetAddress
@@ -27,21 +26,20 @@ data Field
   | FTpSrc | FTpDst | FNwProto | FInPort
   deriving (Eq, Ord, Show)
 
-
 transActions :: (Action -> Action) 
              -> Policy 
              -> Policy
 transActions f pol = case pol of
   PoBottom -> PoBottom
-  PoBasic pred acts -> PoBasic pred (MS.map f acts)
+  PoBasic pred acts -> PoBasic pred (map f acts)
   PoUnion pol1 pol2 -> PoUnion (transActions f pol1) (transActions f pol2)
 
 policyImage :: Policy
-            -> MS.MultiSet Action
+            -> [Action]
 policyImage pol = case pol of
-  PoBottom -> MS.empty
+  PoBottom -> []
   PoBasic _ acts -> acts
-  PoUnion pol1 pol2 -> policyImage pol1 `MS.union` policyImage pol2
+  PoUnion pol1 pol2 -> policyImage pol1 ++ policyImage pol2
 
 -- |Get back all predicates in the intersection.  Does not return any naked
 -- intersections.
