@@ -57,4 +57,6 @@ interpretPolicy (Restrict pol pred) tr =
     interpretPolicy pol tr
   else
     []
+interpretPolicy (SendPackets chan) _ =
+  []
 

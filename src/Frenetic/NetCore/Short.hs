@@ -106,15 +106,16 @@ synthRestrict pol pred = case pol of
     PoBasic (And pred' pred) acts
   PoUnion pol1 pol2 ->
     PoUnion (synthRestrict pol1 pred) (synthRestrict pol2 pred)
-  Restrict pol pred' -> Restrict pol (And pred pred')
+  Restrict (SendPackets chan) pred' -> 
+    Restrict (SendPackets chan) (And pred pred')
+  Restrict pol pred' -> 
+    Restrict pol (And pred pred')
+  SendPackets chan -> 
+    Restrict (SendPackets chan) pred
 
 instance Monoid Policy where
   mappend = PoUnion
   mempty = PoBottom
-
-
-
-
 
 modDlSrc     value = unmodified {modifyDlSrc = Just value}
 modDlDst     value = unmodified {modifyDlDst = Just value}

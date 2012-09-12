@@ -37,6 +37,7 @@ transActions f pol = case pol of
   PoBasic pred acts -> PoBasic pred (map f acts)
   PoUnion pol1 pol2 -> PoUnion (transActions f pol1) (transActions f pol2)
   Restrict pol pred -> Restrict (transActions f pol) pred
+  SendPackets _ -> pol
 
 policyImage :: Policy
             -> [Action]
@@ -45,6 +46,7 @@ policyImage pol = case pol of
   PoBasic _ acts -> acts
   PoUnion pol1 pol2 -> policyImage pol1 ++ policyImage pol2
   Restrict pol pred -> policyImage pol
+  SendPackets _ -> []
 
 -- |Get back all predicates in the intersection.  Does not return any naked
 -- intersections.
@@ -78,6 +80,7 @@ poDom PoBottom = None
 poDom (PoBasic pred _) = pred
 poDom (PoUnion pol1 pol2) = Or (poDom pol1) (poDom pol2)
 poDom (Restrict pol pred) = And (poDom pol) (Not pred)
+poDom (SendPackets _) = None -- TODO(arjun): but this has a range, right?
 
 -- |Returns the approximate size of the policy
 size :: Policy -> Int
@@ -85,6 +88,7 @@ size PoBottom = 1
 size (PoBasic p _) = prSize p + 1
 size (PoUnion p1 p2) = size p1 + size p2 + 1
 size (Restrict pol pred) = size pol + prSize pred + 1
+size (SendPackets _) = 1
 
 -- |Returns the approximate size of the predicate
 prSize :: Predicate -> Int

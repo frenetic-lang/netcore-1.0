@@ -29,6 +29,7 @@ reducePo (PoUnion p1 p2) = if p1' == PoBottom then p2'
   p1' = reducePo p1
   p2' = reducePo p2
 reducePo (Restrict pol pred) = Restrict (reducePo pol) pred
+reducePo (SendPackets chan) = SendPackets chan
 
 isNonNegatedAtom pred = case pred of
   DlSrc _ -> True
