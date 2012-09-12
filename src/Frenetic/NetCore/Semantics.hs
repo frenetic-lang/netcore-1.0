@@ -9,6 +9,27 @@ import Frenetic.Common
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import Frenetic.Switches.OpenFlow
+import qualified Data.Map as M
+
+evalProgram :: Program
+            -> ([Queue], Policy)
+evalProgram prog = (queues, pol)
+  where (qMap, pol) = eval M.empty prog 
+        queues = concatMap snd (M.elems qMap)
+        eval qMap prog = case prog of
+          Policy pol -> (qMap, pol)
+          ProgramUnion prog1 prog2 ->
+            let (qMap', pol1) = eval qMap prog1
+                (qMap'', pol2) = eval qMap' prog2
+              in (qMap'', pol1 `mappend` pol2)
+          WithQueue sw pt rate fn -> case M.lookup (sw,pt) qMap of
+            Nothing -> 
+              let q = Queue sw pt 1 rate
+                in eval (M.insert (sw,pt) (1, [q]) qMap) (fn q)
+            Just (n, qs) ->
+              let q = Queue sw pt (n+1) rate
+                in eval (M.insert (sw,pt) (n+1, q : qs) qMap) (fn q)
+          
 
 -- |Implements the denotation function for predicates.
 interpretPredicate :: Predicate

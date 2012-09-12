@@ -2,6 +2,7 @@ module Frenetic.NetCore.Types
   ( -- * Basic types
     Switch
   , Port
+  , Queue (..)
   , Vlan
   , Loc (..)
   , PseudoPort (..)
@@ -16,6 +17,7 @@ module Frenetic.NetCore.Types
   , LocPacket
   -- * Policies
   , Policy (..)
+  , Program (..)
   -- * Channel Interface
   , countPkts
   , countBytes
@@ -40,6 +42,9 @@ type Switch = Word64
 -- |The number of a physical port.
 type Port = Word16
 
+-- |The identifier of a queue at a port.
+type QueueID = Word32
+
 -- |'Loc' uniquely identifies a port at a switch.
 data Loc = Loc Switch Port
   deriving (Eq, Ord, Show)
@@ -50,6 +55,7 @@ type LocPacket = (Loc, Packet)
 data PseudoPort
   = Physical Port
   | AllPorts
+  | ToQueue Queue
   deriving (Eq, Ord, Show)
 
 -- |VLAN tags. Only the lower 12-bits are used.
@@ -103,6 +109,14 @@ data Policy
     -- ^If a program writes a located packet to this channel, the controller
     -- will send the packet to its location.
   deriving (Eq)
+
+data Queue = Queue Switch Port QueueID Word16
+  deriving (Eq, Ord, Show)
+
+data Program
+  = Policy Policy
+  | WithQueue Switch Port Word16 (Queue -> Program)
+  | ProgramUnion Program Program
 
 -- |For each fields with a value Just v, modify that field to be v.
 --  If the field is Nothing then there is no modification of that field.

@@ -32,8 +32,9 @@ instance Matchable IPAddressPrefix where
   top = defaultIPPrefix
   intersect = IPAddr.intersect
 
-physicalPortOfPseudoPort (Physical p) = PhysicalPort p
-physicalPortOfPseudoPort AllPorts = Flood
+physicalPortOfPseudoPort (Physical p) = SendOutPort (PhysicalPort p)
+physicalPortOfPseudoPort AllPorts = SendOutPort Flood
+physicalPortOfPseudoPort (ToQueue (Queue _ p q _)) = Enqueue p q
 
 toController :: ActionSequence
 toController = sendToController maxBound
@@ -192,7 +193,7 @@ actnTranslate act = OFAct (ofFwd ++ toCtrl) queries
                 then [SendOutPort (ToController maxBound)]
                 else ofFwd ++ toCtrl
         ofFwd = concatMap (\(Forward pp md) -> modTranslate md
-                               ++ [SendOutPort (physicalPortOfPseudoPort pp)])
+                               ++ [physicalPortOfPseudoPort pp])
                     fwd
         toCtrl = case find isGetPacket queries of
           -- sends as much of the packet as possible to the controller
