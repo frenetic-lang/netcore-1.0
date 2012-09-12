@@ -4,7 +4,7 @@ module Frenetic.NetCore.Util
   ( Field (..)
   , exactMatch
   , modifiedFields
-  , transActions
+  , modifyActions
   , policyImage
   , prUnIntersect
   , prUnUnion
@@ -29,14 +29,14 @@ data Field
   | FTpSrc | FTpDst | FNwProto | FInPort
   deriving (Eq, Ord, Show)
 
-transActions :: (Action -> Action) 
-             -> Policy 
-             -> Policy
-transActions f pol = case pol of
+modifyActions :: ([Action] -> [Action]) 
+              -> Policy 
+              -> Policy
+modifyActions f pol = case pol of
   PoBottom -> PoBottom
-  PoBasic pred acts -> PoBasic pred (map f acts)
-  PoUnion pol1 pol2 -> PoUnion (transActions f pol1) (transActions f pol2)
-  Restrict pol pred -> Restrict (transActions f pol) pred
+  PoBasic pred acts -> PoBasic pred (f acts)
+  PoUnion pol1 pol2 -> PoUnion (modifyActions f pol1) (modifyActions f pol2)
+  Restrict pol pred -> Restrict (modifyActions f pol) pred
   SendPackets _ -> pol
 
 policyImage :: Policy
