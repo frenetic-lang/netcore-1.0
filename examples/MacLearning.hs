@@ -33,8 +33,7 @@ pktsByLocation = do
   let loop :: Map.Map (Switch, EthernetAddress) (Port, Predicate)
            -> IO ()
       loop locs = do
-        (sw, pkt) <- readChan pktChan
-        let port = pktInPort pkt
+        (Loc sw port, pkt) <- readChan pktChan
         let srcMac = pktDlSrc pkt
         case Map.lookup (sw, srcMac) locs of
           Just (port', _) | port == port' -> do

@@ -98,10 +98,11 @@ prSize (Not p) = prSize p + 1
 prSize _ = 1
 
 -- |A predicate that exactly matches a packet's headers.
-exactMatch :: Packet -> Predicate
-exactMatch (Packet{..}) = foldl f None lst
+exactMatch :: LocPacket -> Predicate
+exactMatch (Loc sw pt, Packet{..}) = foldl f locPred lst
   where f pr Nothing = pr
         f pr (Just pr') = And pr pr'
+        locPred = IngressPort pt `And` Switch sw
         lst = [ Just (DlSrc pktDlSrc), 
                 Just (DlDst pktDlDst),
                 Just (DlTyp pktDlTyp),
@@ -116,8 +117,7 @@ exactMatch (Packet{..}) = foldl f None lst
                 Just (NwProto pktNwProto), 
                 Just (NwTos pktNwTos), 
                 fmap TpSrcPort pktTpSrc,
-                fmap TpDstPort pktTpDst, 
-                Just (IngressPort pktInPort) ]
+                fmap TpDstPort pktTpDst ]
 
 modifiedFields :: Modification -> Set Field
 modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where

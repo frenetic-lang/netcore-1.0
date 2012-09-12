@@ -168,8 +168,6 @@ toPacket pkt = do
                   tos
                   (srcPort body)
                   (dstPort body)
-                  (receivedOnPort pkt)
-
 
 actnController = OFAct toController []
 actnDefault = OFAct toController []

@@ -27,8 +27,8 @@ known ips = prOr . map (\ip -> NwDst (IPAddressPrefix ip 32)) $ Map.keys ips
 -- MAC address, build an ARP reply packet, otherwise return Nothing.  It's
 -- possible that we get a malformed packet that doesn't have one or more of the
 -- IP src or dst fields, in which case also return Nothing.
-handleQuery :: (Switch, Packet) -> IpMap -> Maybe (Loc, ByteString)
-handleQuery (switch, Packet {..}) ips =
+handleQuery :: LocPacket -> IpMap -> Maybe (Loc, ByteString)
+handleQuery (Loc switch port, Packet {..}) ips =
   case pktNwDst of
     Nothing -> Nothing
     Just toIp ->
@@ -37,7 +37,7 @@ handleQuery (switch, Packet {..}) ips =
         Just toMac ->
           case pktNwSrc of
             Nothing -> Nothing
-            Just fromIp -> Just (Loc switch pktInPort,
+            Just fromIp -> Just (Loc switch port,
                                  arpReply toMac 
                                    (ipAddressToWord32 toIp) 
                                    pktDlSrc 
@@ -47,8 +47,8 @@ handleQuery (switch, Packet {..}) ips =
 -- Try to parse the packet, and if you can, and it's a new mapping, return the
 -- new map.  Otherwise, return Nothing to signal that we didn't learn something
 -- new so it's not necessary to update the policy.
-handleReply :: (Switch, Packet) -> IpMap -> Maybe IpMap
-handleReply (switch, packet) ips =
+handleReply :: LocPacket -> IpMap -> Maybe IpMap
+handleReply (Loc switch _, packet) ips =
   let fromMac = pktDlSrc packet in
   case pktNwSrc packet of
     Nothing -> Nothing

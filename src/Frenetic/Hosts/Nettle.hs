@@ -130,7 +130,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
             Nothing -> return ()
             Just pk -> do
               let actions = interpretPolicy policy (loc, pk)
-              actnControllerPart (actnTranslate actions) switchID pkt
+              actnControllerPart (actnTranslate actions) loc pkt
           nextMsg <- readChan policiesAndMessages
           loop policy threads nextMsg
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
@@ -141,7 +141,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
             Nothing -> return ()
             Just pk -> do
               let actions = interpretPolicy policy (loc, pk)
-              actnControllerPart (actnTranslate actions) switchID pkt
+              actnControllerPart (actnTranslate actions) loc pkt
               case bufferID pkt of
                 Nothing -> return ()
                 Just buf -> do

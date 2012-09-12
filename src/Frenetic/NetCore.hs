@@ -45,6 +45,7 @@ module Frenetic.NetCore
   , ethernetAddress
   -- * Packets
   , Packet (..)
+  , LocPacket
   -- * Packet modifications
   , modDlSrc
   , modDlDst

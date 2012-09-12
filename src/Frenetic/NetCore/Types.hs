@@ -67,9 +67,7 @@ data Packet = Packet {
   pktNwProto :: Word8, -- ^IP protocol number (e.g., 6 for TCP segments)
   pktNwTos :: Word8, -- ^IP TOS field
   pktTpSrc :: Maybe Word16, -- ^source port for IP packets
-  pktTpDst :: Maybe Word16, -- ^destination port for IP packets
-  pktInPort :: Port -- ^ingress port on the switch where the packet was
-                    -- received
+  pktTpDst :: Maybe Word16 -- ^destination port for IP packets
 } deriving (Show, Eq, Ord)
 
 -- |Predicates to match packets.
@@ -146,7 +144,7 @@ data Action
     }
   | GetPacket {
       idOfQuery :: QueryID,
-      getPacketAction :: (Switch, Packet) -> IO ()
+      getPacketAction :: (Loc, Packet) -> IO ()
     }
 
 instance Eq Action where
@@ -210,7 +208,7 @@ countBytes millisecondInterval = do
 -- Returns an 'Action' and a channel. When the 'Action' is used in the active
 -- 'Policy', all matching packets are sent to the controller. These packets
 -- are written into the channel.
-getPkts :: IO (Chan (Switch, Packet), [Action])
+getPkts :: IO (Chan (Loc, Packet), [Action])
 getPkts = do
   ch <- newChan
   queryID <- getNextQueryID
