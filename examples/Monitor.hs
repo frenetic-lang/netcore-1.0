@@ -133,5 +133,4 @@ monitor routeChan = do
 main = do
   routeChan <- learningSwitch
   polChan <- monitor routeChan
-  pktChan <- newChan
-  dynController polChan pktChan
+  dynController polChan

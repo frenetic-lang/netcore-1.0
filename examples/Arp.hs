@@ -63,7 +63,7 @@ handleReply (Loc switch _, packet) ips =
 -- host-to-host connectivity.  The simplest implementation simplhy floods
 -- packets, but more sophisticated options might include a learning switch, or a
 -- topology-based shortest path approach.
-doArp :: Chan Policy -> IO (Chan Policy, Chan (Loc, ByteString))
+doArp :: Chan Policy -> IO (Chan Policy)
 doArp routeChan = do
   (queryChan, queryAction) <- getPkts
   (replyChan, replyAction) <- getPkts
@@ -87,7 +87,8 @@ doArp routeChan = do
   -- routes the ARP packets we're not going to handle, plus installs the packet
   -- receiving actions to query the packets we want to either reply to or learn
   -- from.
-  let buildPolicy route ips = route' <+> query <+> reply
+  let buildPolicy route ips = route' <+> query <+> reply <+> 
+                              SendPackets packetOutChan
         where
         -- First, we define whether we can reply to a particular packet as
         -- whether it is an ARP query (thus, it wants a reply) for an IP address
@@ -145,11 +146,11 @@ doArp routeChan = do
                       writeChan policyOutChan (buildPolicy route ips')
                       loop mRoute ips'
   forkIO (loop Nothing Map.empty)
-  return (policyOutChan, packetOutChan)
+  return policyOutChan
 
 -- |Runs ARP on top of a learning switch to gradually learn both routes and the
 -- ARP table.  Provides both regular connectivity and synthetic ARP replies.
 main = do
   lsChan <- learningSwitch
-  (policyChan, packetChan) <- doArp lsChan
-  dynController policyChan packetChan
+  policyChan <- doArp lsChan
+  dynController policyChan

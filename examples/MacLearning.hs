@@ -120,5 +120,4 @@ learningSwitch = do
 
 main = do
   polChan <- learningSwitch
-  pktChan <- newChan
-  dynController polChan pktChan
+  dynController polChan

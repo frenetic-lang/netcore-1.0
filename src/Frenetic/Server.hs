@@ -13,7 +13,6 @@ import Frenetic.Common
 -- the controller receives a program on the channel, it compiles it and
 -- reconfigures the network to run it.
 dynController :: Chan Policy
-              -> Chan (Loc, ByteString) -- ^packets to emit
               -> IO ()
 dynController = nettleServer
 
@@ -22,5 +21,4 @@ controller :: Policy -> IO ()
 controller policy = do
   ch <- newChan
   writeChan ch policy
-  pktChan <- newChan
-  dynController ch pktChan
+  dynController ch
