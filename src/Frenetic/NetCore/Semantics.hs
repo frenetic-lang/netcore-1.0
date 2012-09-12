@@ -4,7 +4,6 @@ module Frenetic.NetCore.Semantics where
 
 import Nettle.OpenFlow.Match
 import Nettle.IPv4.IPAddress
-import Frenetic.Compat
 import Frenetic.Pattern
 import Frenetic.Common
 import Frenetic.NetCore.Types
@@ -13,9 +12,9 @@ import Frenetic.Switches.OpenFlow
 
 -- |Implements the denotation function for predicates.
 interpretPredicate :: Predicate
-                   -> Transmission Match Packet
+                   -> LocPacket
                    -> Bool
-interpretPredicate pred tr@(Transmission _ sw Packet{..}) = case pred of
+interpretPredicate pred lp@(Loc switch port, Packet{..}) = case pred of
   DlSrc eth -> pktDlSrc == eth
   DlDst eth -> pktDlDst == eth
   DlTyp typ -> pktDlTyp == typ
@@ -35,28 +34,27 @@ interpretPredicate pred tr@(Transmission _ sw Packet{..}) = case pred of
   TpDstPort pt -> case pktTpDst of
     Nothing -> False
     Just pt' -> pt == pt'
-  IngressPort pt -> pt == pktInPort
+  IngressPort pt -> pt == port
   Any -> True
   None -> False
-  Switch sw -> sw == trSwitch tr
-  Or pr1 pr2 -> interpretPredicate pr1 tr || interpretPredicate pr2 tr
-  And pr1 pr2 -> interpretPredicate pr1 tr && interpretPredicate pr2 tr
-  Not pr -> not (interpretPredicate pr tr)
+  Switch sw -> sw == switch
+  Or pr1 pr2 -> interpretPredicate pr1 lp || interpretPredicate pr2 lp
+  And pr1 pr2 -> interpretPredicate pr1 lp && interpretPredicate pr2 lp
+  Not pr -> not (interpretPredicate pr lp)
 
 -- |Implements the denotation function for policies.
 interpretPolicy :: Policy
-                -> Transmission Match Packet
+                -> LocPacket
                 -> [Action]
-interpretPolicy PoBottom tr = dropPkt
-interpretPolicy (PoBasic pred acts) tr =
-  if interpretPredicate pred tr then acts else dropPkt
-interpretPolicy (PoUnion p1 p2) tr =
-  interpretPolicy p1 tr <+> interpretPolicy p2 tr
-interpretPolicy (Restrict pol pred) tr =
-  if interpretPredicate pred tr then
-    interpretPolicy pol tr
+interpretPolicy PoBottom lp = dropPkt
+interpretPolicy (PoBasic pred acts) lp =
+  if interpretPredicate pred lp then acts else dropPkt
+interpretPolicy (PoUnion p1 p2) lp =
+  interpretPolicy p1 lp <+> interpretPolicy p2 lp
+interpretPolicy (Restrict pol pred) lp =
+  if interpretPredicate pred lp then
+    interpretPolicy pol lp
   else
     []
 interpretPolicy (SendPackets chan) _ =
   []
-

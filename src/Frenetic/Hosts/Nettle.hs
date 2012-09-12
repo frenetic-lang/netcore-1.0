@@ -15,7 +15,6 @@ import Data.Binary (decode)
 import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
-import Frenetic.Compat
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
 import qualified Frenetic.NetCore.Types as NetCore
@@ -50,13 +49,13 @@ policyOutputs (SendPackets chan) = [(chan, Any)]
 
 mkOutputThread :: Nettle -> (Chan (Loc, ByteString), Predicate) -> IO ThreadId
 mkOutputThread nettle (chan, pred) = forkIO $ forever $ do
-  (Loc switch port, pktBytes) <- readChan chan
+  (loc@(Loc switch port), pktBytes) <- readChan chan
   let len = fromIntegral (BS.length pktBytes) -- TODO(arjun): overflow
   let body = Right (decode pktBytes)
   case toPacket (PacketInfo Nothing len port ExplicitSend pktBytes body) of
     Nothing -> warningM "nettle" $ "dropping unparsable packet being sent to "
-                 ++  show (Loc switch port)
-    Just pkt -> case interpretPredicate pred (Transmission undefined switch pkt) of
+                 ++  show loc
+    Just pkt -> case interpretPredicate pred (loc, pkt) of
       True -> do
         let msg = PacketOut $ 
                     PacketOutRecord (Right pktBytes) Nothing (sendOnPort port)
@@ -126,23 +125,23 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                                    reasonSent=ExplicitSend,
                                    enclosedFrame=Right frame})) -> do
+          let loc = Loc switchID inPort
           case toPacket pkt of
             Nothing -> return ()
             Just pk -> do
-              let t = Transmission (frameToExactMatch inPort frame) switchID pk
-              let actions = interpretPolicy policy t
-              actnControllerPart (actnTranslate actions) switchID (pkt)
+              let actions = interpretPolicy policy (loc, pk)
+              actnControllerPart (actnTranslate actions) switchID pkt
           nextMsg <- readChan policiesAndMessages
           loop policy threads nextMsg
         PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
                                    reasonSent=NotMatched,
                                    enclosedFrame=Right frame})) -> do
+          let loc = Loc switchID inPort
           case toPacket pkt of
             Nothing -> return ()
             Just pk -> do
-              let t = Transmission (frameToExactMatch inPort frame) switchID pk
-              let actions = interpretPolicy policy t
-              actnControllerPart (actnTranslate actions) switchID (pkt)
+              let actions = interpretPolicy policy (loc, pk)
+              actnControllerPart (actnTranslate actions) switchID pkt
               case bufferID pkt of
                 Nothing -> return ()
                 Just buf -> do

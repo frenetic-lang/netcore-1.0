@@ -7,7 +7,6 @@ module Tests.Frenetic.NetCore.ArbitraryTypes where
 import Data.Set                                 as Set
 import Control.Monad
 import Frenetic.NetCore.Types
-import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
 import Tests.Frenetic.Switches.ArbitraryOpenFlow
 import Test.QuickCheck

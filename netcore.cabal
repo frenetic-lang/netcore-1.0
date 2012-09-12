@@ -36,7 +36,6 @@ Library
   exposed-modules:
     Nettle.Ethernet.EthernetAddress,
     Frenetic.Common,
-    Frenetic.Compat,
     Frenetic.NetCore,
     Frenetic.NetCore.Semantics,
     Frenetic.NetCore.Short,

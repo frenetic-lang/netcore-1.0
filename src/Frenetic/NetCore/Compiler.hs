@@ -11,7 +11,6 @@ import Nettle.OpenFlow.Packet
 import Nettle.OpenFlow.Match
 import Frenetic.Switches.OpenFlow
 import Prelude hiding (pred)
-import           Frenetic.Compat
 import           Frenetic.Pattern
 import           Frenetic.Common
 import           Frenetic.NetCore.Types

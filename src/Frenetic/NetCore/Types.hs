@@ -13,6 +13,7 @@ module Frenetic.NetCore.Types
   , Predicate (..)
   -- * Packets
   , Packet (..)
+  , LocPacket
   -- * Policies
   , Policy (..)
   -- * Channel Interface
@@ -42,6 +43,8 @@ type Port = Word16
 -- |'Loc' uniquely identifies a port at a switch.
 data Loc = Loc Switch Port
   deriving (Eq, Ord, Show)
+
+type LocPacket = (Loc, Packet)
 
 -- |Logical ports.
 data PseudoPort

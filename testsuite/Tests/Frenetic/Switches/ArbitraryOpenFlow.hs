@@ -5,7 +5,6 @@ import Test.QuickCheck
 import Nettle.OpenFlow
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
-import Frenetic.Compat
 import Frenetic.NetCore.Types hiding (Action, PseudoPort)
 
 instance Arbitrary Match where
