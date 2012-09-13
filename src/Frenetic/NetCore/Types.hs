@@ -160,16 +160,11 @@ data Action
       idOfQuery :: QueryID,
       getPacketAction :: (Loc, Packet) -> IO ()
     }
+      
 
 instance Eq Action where
   (Forward p m) == (Forward p' m') = (p,m) == (p',m')
   q1 == q2 = idOfQuery q1 == idOfQuery q2
-
-instance Ord Action where
-  compare (Forward p m) (Forward p' m') = compare (p,m) (p',m')
-  compare (Forward _ _) _ = LT
-  compare _ (Forward _ _) = GT
-  compare q1 q2 = compare (idOfQuery q1) (idOfQuery q2)
 
 instance Show Action where
   show (Forward p m) = show p ++ show m
