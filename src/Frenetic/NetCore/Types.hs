@@ -35,6 +35,7 @@ import System.IO.Unsafe
 import Data.Maybe (catMaybes)
 import Nettle.Ethernet.EthernetAddress
 import Nettle.IPv4.IPAddress
+import Nettle.OpenFlow (SwitchFeatures)
 
 -- |A switch's unique identifier.
 type Switch = Word64
@@ -144,6 +145,10 @@ nextQueryID = unsafePerformIO $ newIORef 0
 getNextQueryID :: IO QueryID
 getNextQueryID = atomicModifyIORef nextQueryID (\i -> (i + 1, i))
 
+data SwitchEvent
+  = SwitchConnected Switch SwitchFeatures
+  | SwitchDisconnected Switch
+
 data Action
   = Forward PseudoPort Modification
   | CountPackets {
@@ -160,8 +165,12 @@ data Action
       idOfQuery :: QueryID,
       getPacketAction :: (Loc, Packet) -> IO ()
     }
+  | MonitorSwitch {
+      idOfQuery :: QueryID,
+      monitorAction :: SwitchEvent -> IO ()
+  }
+    
       
-
 instance Eq Action where
   (Forward p m) == (Forward p' m') = (p,m) == (p',m')
   q1 == q2 = idOfQuery q1 == idOfQuery q2
@@ -175,6 +184,7 @@ instance Show Action where
     "CountPackets (interval=" ++ show queryInterval ++ "ms, id=" ++
        show idOfQuery ++ ")"
   show (GetPacket{..}) = "GetPacket(id=" ++ show idOfQuery ++  ")"
+  show (MonitorSwitch{..}) = "MonitorSwitch"
 
 instance Show Policy where
   show pol = case pol of

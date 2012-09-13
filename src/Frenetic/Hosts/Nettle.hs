@@ -262,7 +262,8 @@ runQueryOnSwitch nettle switch classifier = do
       runQuery (CountBytes _ msDelay ctrlAction, pats) =
         runCounterQuery killFlag nettle switch ctrlAction msDelay pats 
                         ByteCounter
-
+      runQuery (Forward{}, _) = return ()
+      runQuery (MonitorSwitch{}, _) = return ()
   mapM_ runQuery (classifierQueries classifier)
   return $ do
     writeIORef killFlag True

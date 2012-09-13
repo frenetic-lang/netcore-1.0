@@ -145,4 +145,6 @@ isQuery act = case act of
   CountPackets {} -> True
   CountBytes {} -> True
   GetPacket {} -> True
+  MonitorSwitch {} -> True
   Forward {} -> False
+  
