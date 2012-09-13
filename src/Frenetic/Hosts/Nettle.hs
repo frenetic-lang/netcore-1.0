@@ -1,6 +1,7 @@
 module Frenetic.Hosts.Nettle where
 
 import Frenetic.Common
+import Control.Concurrent.MVar
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -47,6 +48,13 @@ mkFlowMod (pat, acts) pri = FlowMod AddFlow {
   overlapAllowed=True
 }
 
+prettyClassifier :: (Match, ActionSequence) -> String
+prettyClassifier (match, as) = "(" ++ show match ++ ", " ++ show as ++ ")"
+
+isNotToController (SendOutPort (ToController _)) = False
+isNotToController _ = True
+
+
 policyOutputs :: Policy -> [(Chan (Loc, ByteString), Predicate)]
 policyOutputs PoBottom = []
 policyOutputs (PoBasic _ _) = []
@@ -70,33 +78,22 @@ mkOutputThread nettle (chan, pred) = forkIO $ forever $ do
         sendToSwitchWithID nettle switch (0, msg)
       False -> infoM "nettle" $ "dropping packet due to policy restriction"
 
-handlePolicyOutputs :: Nettle -> Policy -> Chan Policy -> IO ()
-handlePolicyOutputs nettle initPol polChan = do
-  procThreadIds <- newIORef []
-  let body pol = do
-        oldTids <- readIORef procThreadIds
-        mapM_ killThread oldTids
-        let outputs = policyOutputs pol
-        newTids <- mapM (mkOutputThread nettle) outputs
-        writeIORef procThreadIds newTids
-  body initPol
-  forever $ do
-    pol <- readChan polChan
-    body pol
-  return ()
-
-
-prettyClassifier :: (Match, ActionSequence) -> String
-prettyClassifier (match, as) = "(" ++ show match ++ ", " ++ show as ++ ")"
+handlePolicyOutputs :: Nettle -> Policy -> MVar () -> IO ()
+handlePolicyOutputs nettle pol kill = do
+  let outputs = policyOutputs pol
+  childTids <- mapM (mkOutputThread nettle) outputs
+  readMVar kill
+  mapM_ killThread childTids
+  putMVar kill ()
 
 -- |Installs the static portion of the policy, then react.
 handleSwitch :: Nettle
              -> SwitchHandle
              -> Policy
-             -> Chan Policy
+             -> MVar ()
              -> Chan (TransactionID, SCMessage)
              -> IO ()
-handleSwitch nettle switch initPolicy policyChan msgChan = do
+handleSwitch nettle switch policy kill msgChan = do
   -- 1. Clear the flow table
   -- 2. In parallel:
   --    a. Receive a message from the switch
@@ -106,83 +103,84 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   --    update!)
   -- 5. On new policy, update the switch and accumulator
   let switchID = handle2SwitchID switch
-  policiesAndMessages <- select policyChan msgChan
-  let loop oldPolicy oldThreads (Left policy) = do
-        sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
-        let classifier = compile (handle2SwitchID switch) policy
-        let flowTbl = toFlowTable classifier
-        debugM "nettle" $ "policy is " ++ show policy ++
-                          " and flow table is " ++
-                          concat (intersperse ", "
-                                    (map prettyClassifier flowTbl))
-        oldThreads
-        newThreads <- runQueryOnSwitch nettle switch classifier
-        -- Priority 65535 is for microflow rules from reactive-specialization
-        let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
-        mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
-        debugM "nettle" $ "finished reconfiguring switch " ++
-                          show (handle2SwitchID switch)
-        nextMsg <- readChan policiesAndMessages
-
-        loop policy newThreads nextMsg
-      loop policy threads (Right (xid, msg)) = case msg of
-        PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
-                                   reasonSent=ExplicitSend,
+  killChan <- newChan
+  killThreadId <- forkIO $ do
+    v <- readMVar kill
+    writeChan killChan v
+  let classifier = compile (handle2SwitchID switch) policy
+  let flowTbl = toFlowTable classifier
+  debugM "nettle" $ "flow table is " ++ show flowTbl
+  killChildThreads <- runQueryOnSwitch nettle switch classifier
+  -- Priority 65535 is for microflow rules from reactive-specialization
+  let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
+  mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
+  killOrMsg <- select killChan msgChan
+  forever $ do
+    v <- readChan killOrMsg
+    case v of
+      Left () -> do
+        killChildThreads
+        putMVar kill ()
+        tid <- myThreadId
+        killThread tid
+      Right (xid, msg) ->  case msg of
+        PacketIn (pkt@(PacketInfo {receivedOnPort=inPort, 
+                                   reasonSent=reason,
                                    enclosedFrame=Right frame})) -> do
           let loc = Loc switchID inPort
           case toPacket pkt of
             Nothing -> return ()
             Just pk -> do
               let actions = interpretPolicy policy (loc, pk)
-              actnControllerPart (actnTranslate actions) loc pkt
-          nextMsg <- readChan policiesAndMessages
-          loop policy threads nextMsg
-        PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
-                                   reasonSent=NotMatched,
-                                   enclosedFrame=Right frame})) -> do
-          let loc = Loc switchID inPort
-          case toPacket pkt of
-            Nothing -> return ()
-            Just pk -> do
-              let actions = interpretPolicy policy (loc, pk)
-              actnControllerPart (actnTranslate actions) loc pkt
-              case bufferID pkt of
-                Nothing -> return ()
-                Just buf -> do
-                  let unCtrl (SendOutPort (ToController _)) = False
-                      unCtrl _ = True
-                  let msg = PacketOut $
-                              PacketOutRecord (Left buf) (Just inPort)
-                                (filter unCtrl (fromOFAct $ actnTranslate actions))
-                  sendToSwitch switch (2, msg)
-          nextMsg <- readChan policiesAndMessages
-          loop policy threads nextMsg
-        otherwise -> do
-          nextMsg <- readChan policiesAndMessages
-          loop policy threads nextMsg
-  loop PoBottom (return ()) (Left initPolicy)
+              let ofActions = actnTranslate actions
+              actnControllerPart ofActions loc pkt
+              case reason of
+                ExplicitSend -> return ()
+                NotMatched -> case bufferID pkt of
+                  Nothing -> return () -- odd case
+                  Just buf -> do
+                    let msg = PacketOutRecord (Left buf) (Just inPort)
+                                (filter isNotToController (fromOFAct ofActions))
+                    sendToSwitch switch (2, PacketOut msg)
 
 nettleServer :: Chan Policy -> IO ()
 nettleServer policyChan = do
   server <- startOpenFlowServerEx Nothing 6633
-  currentPolicy <- newIORef PoBottom
-  forkIO $ forever $ do
-    pol <- readChan policyChan
-    writeIORef currentPolicy pol
+  switchChan <- makeSwitchChan server
+  switchPolicyChan <- select switchChan policyChan
+  let loop :: [(SwitchHandle, Chan (TransactionID, SCMessage), MVar ())]
+           -> Policy
+           -> MVar ()
+           -> Either (SwitchHandle, 
+                     SwitchFeatures, Chan (TransactionID, SCMessage))
+                     Policy
+           -> IO ()
+      loop switches policy outputs (Left (switch, features, msgChan)) = do
+        noticeM "controller" $ "switch " ++ show (handle2SwitchID switch) ++
+                " connected"
+        kill <- newEmptyMVar
+        forkIO (handleSwitch server switch policy kill msgChan)
+        next <- readChan switchPolicyChan
+        loop ((switch,msgChan,kill):switches) policy outputs next
+      loop switches _ outputs (Right policy) = do
+        let killVars = map (\(_,_,k) -> k) switches
+        mapM_ (\k -> putMVar k ()) (outputs:killVars) -- kill all handlers
+        mapM_ readMVar (outputs:killVars) -- wait for termination
+        let handle (switch, msgChan, _) = do
+              kill <- newEmptyMVar
+              forkIO (handleSwitch server switch policy kill msgChan)
+              return (switch, msgChan, kill)
+        switches' <- mapM handle switches
+        killOutputs <- newEmptyMVar
+        forkIO (handlePolicyOutputs server policy killOutputs)
+        next <- readChan switchPolicyChan
+        loop switches' policy killOutputs next
+  v <- readChan switchPolicyChan
+  dummyOutput <- newEmptyMVar
   forkIO $ do
-    chan <- dupChan policyChan
-    initPolicy <- readIORef currentPolicy
-    handlePolicyOutputs server initPolicy chan
-  forever $ do
-    -- Nettle does the OpenFlow handshake
-    (switch, switchFeatures, msgChan) <- acceptSwitch server
-    noticeM "controller" $ "switch " ++ show (handle2SwitchID switch) ++
-                           " connected"
-    -- reading from a channel removes the messages. We need to dupChan for
-    -- each switch.
-    switchPolicyChan <- dupChan policyChan
-    initPolicy <- readIORef currentPolicy
-    forkIO (handleSwitch server switch initPolicy switchPolicyChan msgChan)
+    readMVar dummyOutput
+    putMVar dummyOutput ()
+  loop [] PoBottom dummyOutput v
   closeServer server
 
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
