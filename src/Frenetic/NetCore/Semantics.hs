@@ -12,10 +12,12 @@ import Frenetic.Switches.OpenFlow
 import qualified Data.Map as M
 
 evalProgram :: Program
-            -> ([Queue], Policy)
-evalProgram prog = (queues, pol)
+            -> (Map Switch [Queue], Policy)
+evalProgram prog = (M.fromListWith (++) queues, pol)
   where (qMap, pol) = eval M.empty prog 
-        queues = concatMap snd (M.elems qMap)
+        queues = concatMap (\((sw, _), (_, qs)) -> zip [sw ..] (map (:[]) qs))
+                           -- I assume nobody is reading this code.
+                           (M.toList qMap)
         eval qMap prog = case prog of
           Policy pol -> (qMap, pol)
           ProgramUnion prog1 prog2 ->

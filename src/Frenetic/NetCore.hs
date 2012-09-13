@@ -4,7 +4,9 @@ module Frenetic.NetCore
   ( -- * OpenFlow Controllers
     controller
   , dynController
+  , controllerProgram
   -- * Policies
+  , Program (..)
   , Policy (..)
   , (==>)
   , (<%>)
