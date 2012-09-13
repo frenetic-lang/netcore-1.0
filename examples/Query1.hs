@@ -6,5 +6,5 @@ main = do
   let f (sw, n) = do
         putStrLn ("Counter is: " ++ show n)
   let pol = Any ==> [Forward AllPorts unmodified] <+>
-            Any ==> [CountPackets 0 1000 f]
+            (Switch 5 <&&> DlSrc (EthernetAddress 1)) ==> [CountPackets 0 1000 f]
   controller pol

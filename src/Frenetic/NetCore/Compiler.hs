@@ -1,5 +1,6 @@
 module Frenetic.NetCore.Compiler
   ( compile
+  , toFlowTable
   , compilePredicate
   , Bone (..) -- TODO(arjun): do not export
   , Classifier
@@ -9,6 +10,7 @@ module Frenetic.NetCore.Compiler
 
 import Nettle.OpenFlow.Packet
 import Nettle.OpenFlow.Match
+import qualified Nettle.OpenFlow as OF
 import Frenetic.Switches.OpenFlow
 import Prelude hiding (pred)
 import           Frenetic.Pattern
@@ -178,3 +180,11 @@ compile s po = map f skel
     f (Bone sptrn actn) = (sptrn, actnTranslate actn)
     skel = compilePolicy s po
 
+useInPort (Just pt) (OF.SendOutPort (OF.PhysicalPort pt'))
+  | pt == pt' = OF.SendOutPort OF.InPort
+  | otherwise = OF.SendOutPort (OF.PhysicalPort pt')
+useInPort _ act = act
+
+toFlowTable classifier =
+  map (\(m, a) -> (m, map (useInPort (OF.inPort m)) $ fromOFAct a)) 
+      classifier

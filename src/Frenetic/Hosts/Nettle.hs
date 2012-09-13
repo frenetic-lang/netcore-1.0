@@ -19,10 +19,18 @@ import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
 import qualified Frenetic.NetCore.Types as NetCore
 
-useInPort (Just pt) (SendOutPort (PhysicalPort pt'))
-  | pt == pt' = SendOutPort InPort
-  | otherwise = SendOutPort (PhysicalPort pt')
-useInPort _ act = act
+data Counters = Counters {
+  totalVal :: IORef Integer,
+  lastVal :: IORef Integer
+}
+
+data Counter = PktCounter | ByteCounter
+
+newCounters :: IO Counters
+newCounters = do
+  total <- newIORef 0
+  last <- newIORef 0
+  return (Counters total last)
 
 mkFlowMod :: (Match, ActionSequence)
           -> Priority
@@ -30,7 +38,7 @@ mkFlowMod :: (Match, ActionSequence)
 mkFlowMod (pat, acts) pri = FlowMod AddFlow {
   match=pat,
   priority=pri,
-  actions=map (useInPort (inPort pat)) acts,
+  actions=acts,
   cookie=0,
   notifyWhenRemoved=False,
   idleTimeOut=Permanent,
@@ -77,10 +85,6 @@ handlePolicyOutputs nettle initPol polChan = do
     body pol
   return ()
 
-rawClassifier :: [(Match, ActionImpl)]
-              -> [(Match, ActionSequence)]
-rawClassifier classifier =
-  map (\(p, a) -> (p, fromOFAct a)) classifier
 
 prettyClassifier :: (Match, ActionSequence) -> String
 prettyClassifier (match, as) = "(" ++ show match ++ ", " ++ show as ++ ")"
@@ -106,7 +110,7 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   let loop oldPolicy oldThreads (Left policy) = do
         sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
         let classifier = compile (handle2SwitchID switch) policy
-        let flowTbl = rawClassifier classifier
+        let flowTbl = toFlowTable classifier
         debugM "nettle" $ "policy is " ++ show policy ++
                           " and flow table is " ++
                           concat (intersperse ", "
@@ -181,17 +185,6 @@ nettleServer policyChan = do
     forkIO (handleSwitch server switch initPolicy switchPolicyChan msgChan)
   closeServer server
 
-data Counters = Counters {
-  totalVal :: IORef Integer,
-  lastVal :: IORef Integer
-}
-
-newCounters :: IO Counters
-newCounters = do
-  total <- newIORef 0
-  last <- newIORef 0
-  return (Counters total last)
-
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
 -- The actions include queries that are not realizable on switches.
 -- We assume the classifier does not have any fully-shadowed patterns.
@@ -201,9 +194,6 @@ classifierQueries classifier = map sel queries where
   queries = nub (concatMap (actQueries.snd) classifier)
   sel query = (query, map fst (filter (hasQuery query) classifier))
   hasQuery query (_, action) = query `elem` actQueries action
-
-
-data Counter = PktCounter | ByteCounter
 
 runCounterQuery killFlag nettle switch ctrlAction msDelay pats counter = do
   (Counters totalRef lastRef) <- newCounters
@@ -227,7 +217,6 @@ runCounterQuery killFlag nettle switch ctrlAction msDelay pats counter = do
         writeIORef totalRef total'
         ctrlAction (switchID, total')
   return ()
-
 
 runQueryOnSwitch :: Nettle
                  -> SwitchHandle
