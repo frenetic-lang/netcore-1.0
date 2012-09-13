@@ -11,6 +11,7 @@ module Frenetic.Common
   , both
   , mapChan
   , catMaybes
+  , forever
   ) where
 
 import System.Log.Logger hiding (Priority)

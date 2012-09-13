@@ -143,44 +143,59 @@ handleSwitch nettle switch policy kill msgChan = do
                                 (filter isNotToController (fromOFAct ofActions))
                     sendToSwitch switch (2, PacketOut msg)
 
-nettleServer :: Chan Policy -> IO ()
+deleteQueue :: Nettle -> Queue -> IO ()
+deleteQueue nettle (Queue switch port queue _) = do
+  sendToSwitchWithID nettle switch
+    (0, ExtQueueDelete port [QueueConfig queue []])
+
+createQueue :: Nettle -> Queue -> IO ()
+createQueue nettle (Queue switch port queue minRate) = do
+  let cfg = MinRateQueue (Enabled minRate)
+  sendToSwitchWithID nettle switch
+    (0, ExtQueueModify port [QueueConfig queue [cfg]])
+
+nettleServer :: Chan Program -> IO ()
 nettleServer policyChan = do
   server <- startOpenFlowServerEx Nothing 6633
   switchChan <- makeSwitchChan server
   switchPolicyChan <- select switchChan policyChan
   let loop :: [(SwitchHandle, Chan (TransactionID, SCMessage), MVar ())]
            -> Policy
+           -> [Queue]
            -> MVar ()
            -> Either (SwitchHandle, 
                      SwitchFeatures, Chan (TransactionID, SCMessage))
-                     Policy
+                     Program
            -> IO ()
-      loop switches policy outputs (Left (switch, features, msgChan)) = do
+      loop switches policy queues outputs (Left (switch,features,msgChan)) = do
         noticeM "controller" $ "switch " ++ show (handle2SwitchID switch) ++
                 " connected"
         kill <- newEmptyMVar
         forkIO (handleSwitch server switch policy kill msgChan)
         next <- readChan switchPolicyChan
-        loop ((switch,msgChan,kill):switches) policy outputs next
-      loop switches _ outputs (Right policy) = do
+        loop ((switch,msgChan,kill):switches) policy queues outputs next
+      loop switches _ queues killOutputs (Right program) = do
+        let (queues', policy) = evalProgram program
         let killVars = map (\(_,_,k) -> k) switches
-        mapM_ (\k -> putMVar k ()) (outputs:killVars) -- kill all handlers
-        mapM_ readMVar (outputs:killVars) -- wait for termination
+        mapM_ (\k -> putMVar k ()) (killOutputs:killVars) -- kill all handlers
+        mapM_ readMVar (killOutputs:killVars) -- wait for termination
+        mapM_ (deleteQueue server) queues
+        mapM_ (createQueue server) queues'
         let handle (switch, msgChan, _) = do
               kill <- newEmptyMVar
               forkIO (handleSwitch server switch policy kill msgChan)
               return (switch, msgChan, kill)
         switches' <- mapM handle switches
-        killOutputs <- newEmptyMVar
+        killOutputs' <- newEmptyMVar
         forkIO (handlePolicyOutputs server policy killOutputs)
         next <- readChan switchPolicyChan
-        loop switches' policy killOutputs next
+        loop switches' policy queues' killOutputs' next
   v <- readChan switchPolicyChan
   dummyOutput <- newEmptyMVar
   forkIO $ do
     readMVar dummyOutput
     putMVar dummyOutput ()
-  loop [] PoBottom dummyOutput v
+  loop [] PoBottom [] dummyOutput v
   closeServer server
 
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
