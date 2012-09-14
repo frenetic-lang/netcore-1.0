@@ -29,10 +29,12 @@ import Data.Bits
 import qualified Data.Graph.Inductive.Graph as Graph
 import qualified Data.Map as Map
 import Data.Maybe
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.Common
+import Data.List (nub)
 import Nettle.Ethernet.EthernetAddress (unpackEth64)
+import Frenetic.NetCore.Util
+import Frenetic.NetCore.Short (synthRestrict)
 
 -- We use this a lot, so make a shortcut.  Need the type signature to get it to
 -- be properly polymorphic.
@@ -101,6 +103,7 @@ forwardsWith (PoUnion p1 p2) p q = ZOr (forwardsWith p1 p q)
                                        (forwardsWith p2 p q)
 forwardsWith (PoBasic pred action) p q = ZAnd (matchWith pred p)
                                               (produceWith action p q)
+forwardsWith (Restrict pol pred) p q = forwardsWith (synthRestrict pol pred) p q
 
 -- |Build the constraint that some query is fired by the policy.
 observes :: Policy -> Z3Packet -> BoolExp
@@ -120,6 +123,8 @@ observesWith (PoUnion p1 p2) p =
 observesWith (PoBasic pred action) p = if observesAct action
                                          then matchWith pred p
                                          else ZFalse
+observesWith (Restrict pol pred) p = observesWith (synthRestrict pol pred) p
+
 
 -- |Build the constraint that a particular query (as referenced by its serial
 -- ID) is triggered.
@@ -141,6 +146,8 @@ queriesWith (PoBasic pred action) p qid = if observesAct action
                                             then ZAnd (matchWith pred p)
                                                       (queryAct action qid)
                                             else ZFalse
+queriesWith (Restrict pol pred) p qid = 
+  queriesWith (synthRestrict pol pred) p qid
 
 -- |Build the constraint for pred matching packet.
 match :: Predicate -> Z3Packet -> BoolExp
@@ -178,16 +185,16 @@ matchWith pred p@(pk, _) = case pred of
 
 -- |Build the constraint for a packet being produced from another packet by an
 -- action, maybe substituting a value for VLAN on either or both
-produceWith :: MultiSet Action
+produceWith :: [Action]
             -> (Z3Packet, Maybe Z3Int) -> (Z3Packet, Maybe Z3Int)
             -> BoolExp
 produceWith acts p@(p', vlp) q@(q', vlq) =
   ZAnd (Equals (switch p') (switch q')) (nOr portConstraints)
   where
-    rewrite = MS.fromList (mapMaybe select (MS.toList acts))
+    rewrite = mapMaybe select acts
     select (Forward p m) = Just (p, m)
     select _ = Nothing
-    portConstraints = map fieldConstraint (MS.distinctElems rewrite)
+    portConstraints = map fieldConstraint (nub rewrite)
     fieldConstraint (pp, m) = nAnd cs where
       cs = (case pp of Physical port' -> [Equals (port q')
                                                  (Primitive (fint port'))]
@@ -211,15 +218,15 @@ produceWith acts p@(p', vlp) q@(q', vlq) =
         ]
 
 -- |Determine if an action emits an observation
-observesAct :: MultiSet Action -> Bool
-observesAct acts = not (MS.null (MS.filter (not.isForward) acts))
+observesAct :: [Action] -> Bool
+observesAct acts = not (null (filter isQuery acts))
 
 -- |Determine if an action emits a particular observation
-queryAct :: MultiSet Action -> Z3Int -> BoolExp
+queryAct :: [Action] -> Z3Int -> BoolExp
 queryAct acts qid = nOr queries where
   queries = map (\qid' -> Equals (Variable qid) (Primitive qid')) .
             map fromIntegral . map idOfQuery $
-            MS.toList (MS.filter (not.isForward) acts)
+            (filter isQuery acts)
 
 vlanOfPacket :: (Z3Packet, Maybe Z3Int) -> IntExp
 vlanOfPacket (pkt, Just vl) = Variable vl

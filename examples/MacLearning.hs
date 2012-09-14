@@ -9,7 +9,7 @@ import Data.IORef
 import Control.Monad (forever)
 import Frenetic.NetCore
 import qualified Data.Map as Map
-import Frenetic.NetCore.Types (poDom)
+import Frenetic.NetCore.Util (poDom)
 
 
 isFlood = DlDst broadcastAddress
@@ -33,8 +33,7 @@ pktsByLocation = do
   let loop :: Map.Map (Switch, EthernetAddress) (Port, Predicate)
            -> IO ()
       loop locs = do
-        (sw, pkt) <- readChan pktChan
-        let port = pktInPort pkt
+        (Loc sw port, pkt) <- readChan pktChan
         let srcMac = pktDlSrc pkt
         case Map.lookup (sw, srcMac) locs of
           Just (port', _) | port == port' -> do
@@ -121,5 +120,4 @@ learningSwitch = do
 
 main = do
   polChan <- learningSwitch
-  pktChan <- newChan
-  dynController polChan pktChan
+  dynController polChan

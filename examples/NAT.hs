@@ -48,14 +48,14 @@ fromGateway = IngressPort gatePort
 -- been sent to the gateway.  The second is a channel of policies that
 -- implement the packet query---as new tuples are recognized, the policy is
 -- refined to exclude more of the same packet.
-pktsByLocation :: IO (Chan Packet, Chan Policy)
+pktsByLocation :: IO (Chan LocPacket, Chan Policy)
 pktsByLocation = do
   uniqPktChan <- newChan
   polChan <- newChan
   (pktChan, act) <- getPkts
   let loop :: Map.Map (IPAddress, Port) (EthernetAddress, Predicate) -> IO ()
       loop locs = do
-        (sw, pkt) <- readChan pktChan
+        (loc, pkt) <- readChan pktChan
         let srcMac = pktDlSrc pkt
         let srcIp = pktNwSrc pkt
         let srcTp = pktTpSrc pkt
@@ -71,7 +71,7 @@ pktsByLocation = do
                 let pred = DlSrc srcMac <&&> NwSrc (IPAddressPrefix srcIp 32) 
                            <&&> TpSrcPort srcTp
                 let locs' = Map.insert (srcIp, srcTp) (srcMac, pred) locs
-                writeChan uniqPktChan pkt
+                writeChan uniqPktChan (loc, pkt)
                 writeChan polChan $
                   (DlDst gateMAC) <&&>
                   (Not (prOr (map snd (Map.elems locs')))) ==> act
@@ -95,19 +95,18 @@ pktsByLocation = do
 --      2: External -> Internal.  Packets arriving on port 3 (i.e. from the
 --         outside world) will have dstIP = fakeIP and dstPort = map(srcIP, tpSrc).
 --         Replace with the proper IP, port, and MAC.
-installHosts :: Chan Packet -> IO (Chan Policy)
+installHosts :: Chan LocPacket -> IO (Chan Policy)
 installHosts pktChan = do
   polChan <- newChan
   -- Map (SrcIP, SrcPort) to an external port coupled with two policies;
   -- for outgoing and incoming packets, respectively.
   let loop :: Map.Map (IPAddress, Port) (Port, Policy) -> Port -> IO ()
       loop locs pNum = do
-        pkt <- readChan pktChan
+        (Loc _ inSwitchPort, pkt) <- readChan pktChan
         -- Extract the internal source information from the packet.
         let srcMac = pktDlSrc pkt
         let srcIp = pktNwSrc pkt
         let srcTp = pktTpSrc pkt
-        let inSwitchPort = pktInPort pkt
         -- Ignore this packet if the source IP or port aren't set.
         case (srcIp, srcTp) of
             (Just srcIp, Just srcTp) -> do

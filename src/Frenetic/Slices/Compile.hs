@@ -14,9 +14,9 @@ module Frenetic.Slices.Compile
 import Control.Monad
 import Frenetic.Common
 import qualified Data.Map as Map
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.NetCore.Types
+import Frenetic.NetCore.Util
 import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.NetCore.Reduce
@@ -118,29 +118,38 @@ queryOnly slice assignment policy = justQueries <%> (onSlice <||> inBound) where
 -- |Remove forwarding actions from policy leaving only queries
 removeForwards :: Policy -> Policy
 removeForwards PoBottom = PoBottom
-removeForwards (PoBasic pred acts) = pred ==> (MS.filter (not.isForward) acts)
+removeForwards (PoBasic pred acts) = pred ==> (filter isQuery acts)
 removeForwards (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeForwards p1
   p2' = removeForwards p2
+removeForwards (Restrict pol pred) = Restrict pol' pred
+  where pol' = removeForwards pol
+removeForwards (SendPackets chan) = SendPackets chan -- TODO(arjun): why?
 
 -- |Remove queries from policy leaving only forwarding actions
 removeQueries :: Policy -> Policy
 removeQueries PoBottom = PoBottom
-removeQueries (PoBasic pred acts) = pred ==> (MS.filter isForward acts)
+removeQueries (PoBasic pred acts) = pred ==> (filter isForward acts)
 removeQueries (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = removeQueries p1
   p2' = removeQueries p2
+removeQueries (Restrict pol pred) = Restrict pol' pred
+  where pol' = removeQueries pol
+removeQueries (SendPackets chan) = SendPackets chan -- TODO(arjun): why?
 
 -- |Remove forwarding actions to ports other than p
 justTo :: Port -> Policy -> Policy
 justTo _ PoBottom = PoBottom
-justTo p (PoBasic pred acts) = pred ==> (MS.filter pr acts) where
+justTo p (PoBasic pred acts) = pred ==> (filter pr acts) where
   pr (Forward (Physical p') _) = p == p'
   pr (Forward AllPorts _) = error "AllPorts found while compiling."
   pr _ = True
 justTo p (PoUnion p1 p2) = PoUnion p1' p2' where
   p1' = justTo p p1
   p2' = justTo p p2
+justTo p (Restrict pol pred) = Restrict (justTo p pol) pred
+justTo p (SendPackets chan) = SendPackets chan -- TODO(arjun): needs work
+
 
 -- TODO(astory): egress predicates
 -- |Produce a list of policies that together instrument the edge-compiled
@@ -225,11 +234,15 @@ ingressSpecToPred (loc, pred) = And pred (locToPred loc)
 -- action
 modifyVlan :: Maybe Vlan -> Policy -> Policy
 modifyVlan _ PoBottom = PoBottom
-modifyVlan vlan (PoBasic pred acts) = pred ==> (MS.map f acts)
+modifyVlan vlan (PoBasic pred acts) = pred ==> (map f acts)
   where f (Forward p m) = Forward p (m { modifyDlVlan = Just vlan })
         f act = act
 modifyVlan vlan (PoUnion p1 p2) = PoUnion (modifyVlan vlan p1)
                                           (modifyVlan vlan p2)
+modifyVlan vlan (Restrict pol pred) = Restrict pol' pred
+  where pol' = modifyVlan vlan pol
+modifyVlan vlan (SendPackets chan) = SendPackets chan
+  -- TODO(arjun): needs work
 
 -- |Unset vlan for packets forwarded to location (without link transfer) and
 -- leave rest of policy unchanged.  Note that this assumes that each PoBasic
@@ -248,13 +261,16 @@ setVlan vlan (Loc switch port) pol@(PoBasic pred acts) =
   if matchesSwitch switch pred then PoBasic pred m'
                                else pol
   where
-    m' = MS.map setVlanOnPort acts
+    m' = map setVlanOnPort acts
     setVlanOnPort (Forward (Physical p) mod) =
       if p == port then (Forward (Physical p) mod {modifyDlVlan = Just vlan})
                    else (Forward (Physical p) mod)
     setVlanOnPort (Forward AllPorts mod) =
       error "AllPorts encountered in slice compilation.  Did you localize?"
     setVlanOnPort act = act
+setVlan vlan loc (Restrict pol pred) = Restrict (setVlan vlan loc pol) pred
+setVlan vlan loc (SendPackets chan) = SendPackets chan 
+  -- TODO(arjun): needs work--clearly just transform outputs to set VLAN
 
 -- |Determine if a predicate can match any packets on a switch (overapproximate)
 matchesSwitch :: Switch -> Predicate -> Bool

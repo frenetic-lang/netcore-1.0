@@ -6,6 +6,7 @@ module Frenetic.NettleEx
   , module Nettle.Servers.Server
   , closeServer
   , acceptSwitch
+  , makeSwitchChan
   , sendToSwitch
   , sendToSwitchWithID
   , startOpenFlowServerEx
@@ -49,6 +50,16 @@ startOpenFlowServerEx host port = do
   nextTxId <- newIORef 10
   txHandlers <- newIORef Map.empty
   return (Nettle server switches nextTxId txHandlers)
+
+makeSwitchChan :: Nettle
+               -> IO (Chan (SwitchHandle, SwitchFeatures, 
+                            Chan (TransactionID, SCMessage)))
+makeSwitchChan nettle = do
+  chan <- newChan
+  forkIO $ forever $ do
+    v <- acceptSwitch nettle
+    writeChan chan v
+  return chan
 
 acceptSwitch :: Nettle
              -> IO (SwitchHandle,

@@ -23,7 +23,6 @@ import Data.Graph.Inductive.Graph
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 
 endToEndTests = $(testGroupGenerator)

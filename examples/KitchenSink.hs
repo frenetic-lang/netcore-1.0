@@ -25,7 +25,7 @@ spy = do
 -- * Learning Switch in a slice that only accepts ipv4 packets
 -- Note that this is built to only work on the default mininet topology of
 -- H2 --1 S1 2-- H3
-sink :: IO (Chan Policy) -> IO (Chan Policy, Chan (Loc, ByteString))
+sink :: IO (Chan Policy) -> IO (Chan Policy)
 sink routing = do
   route <- routing
   arpRoute <- routing
@@ -39,15 +39,15 @@ sink routing = do
   let routeSlice = simpleSlice topo (Not (prOr [ DlTyp 0x0806
                                                , DlTyp 0x0800 <&&> NwProto 0x01]))
   let spySlice = simpleSlice topo Any
-  (arpPolicy, arpPacket) <- doArp arpRoute
+  arpPolicy <- doArp arpRoute
   monitorPolicy <- monitor monitorRoute
   policies <- dynTransform [ (routeSlice, route)
                                , (arpSlice, arpPolicy)
                                , (monitorSlice, monitorPolicy)
                                , (spySlice, spyPolicy)
                                ]
-  return (policies, arpPacket)
+  return policies
 
 main = do
-  (policies, packets) <- sink learningSwitch
-  dynController policies packets
+  policies <- sink learningSwitch
+  dynController policies

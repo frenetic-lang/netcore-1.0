@@ -15,11 +15,11 @@ import Data.Graph.Inductive.Graph
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Data.Word
 import Frenetic.NetCore.Short
 import Frenetic.NetCore.Types
+import Frenetic.NetCore.Util
 import Frenetic.Pattern
 import Frenetic.Topo
 
@@ -91,6 +91,10 @@ localize slice policy = case policy of
       locations = Set.union (internal slice)
                             (Set.fromList . Map.keys $ egress slice)
       pred' = pred <&&> onSlice slice
+  Restrict (SendPackets chan) pred -> policy -- TODO(arjun): needs work
+  Restrict pol pred -> localize slice (synthRestrict pol pred)
+  SendPackets chan -> policy -- TODO(arjun): needs work
+  
 
 onSlice :: Slice -> Predicate
 onSlice (Slice int ing egr) = prOr .
@@ -101,19 +105,19 @@ onSlice (Slice int ing egr) = prOr .
 
 -- |Transform potentially non-local forwarding actions into explicitly local
 -- ones on the switch.
-localizeMods :: Predicate -> MultiSet Action -> Set.Set Port -> Policy
+localizeMods :: Predicate -> [Action] -> Set.Set Port -> Policy
 localizeMods pred actions ports = 
-  mconcat $ pred ==> (forwardPol <+> obs) : floodPols where
-    (allFwds, obs) = MS.partition isForward actions
-    (forwards, floods) = MS.partition split allFwds
+  mconcat $ (pred ==> (forwardPol ++ obs)) : floodPols where
+    (allFwds, obs) = partition isForward actions
+    (forwards, floods) = partition split allFwds
     -- partial match is safe because we split it
-    forwards' = MS.filter (\(Forward (Physical p)  _) -> Set.member p ports)
+    forwards' = filter (\(Forward (Physical p)  _) -> Set.member p ports)
                  forwards
     forwardPol = forwards'
     floodPols = [mkFlood p mods | p <- Set.toList ports, 
-                                  mods <- map getMod (MS.toList floods)]
+                                  mods <- map getMod floods]
     mkFlood port mods = 
-      pred <&&> IngressPort port ==> MS.fromList (map f otherPorts) where
+      pred <&&> IngressPort port ==> map f otherPorts where
       f p = Forward (Physical p) mods
       otherPorts = Set.toList $ Set.delete port ports
     split (Forward (Physical _) _) = True
@@ -137,6 +141,8 @@ poUsesVlans :: Policy -> Bool
 poUsesVlans PoBottom = False
 poUsesVlans (PoUnion p1 p2) = poUsesVlans p1 || poUsesVlans p2
 poUsesVlans (PoBasic pred action) = prUsesVlans pred || actUsesVlans action
+poUsesVlans (Restrict pol pred) = poUsesVlans pol || prUsesVlans pred
+poUsesVlans (SendPackets _) = False
 
 -- |Determine if a predicate matches on VLAN tags
 prUsesVlans :: Predicate -> Bool
@@ -147,7 +153,7 @@ prUsesVlans (And p1 p2) = prUsesVlans p1 || prUsesVlans p2
 prUsesVlans (Not p) = prUsesVlans p
 prUsesVlans _ = False
 
-actUsesVlans :: MultiSet Action -> Bool
-actUsesVlans actions = any f (MS.toList actions)
+actUsesVlans :: [Action] -> Bool
+actUsesVlans actions = any f actions
   where f (Forward _ m) = isJust (modifyDlVlan m)
         f _ = False

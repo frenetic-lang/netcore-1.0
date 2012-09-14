@@ -2,7 +2,6 @@
 module Frenetic.Common
   ( Set
   , Map
-  , MultiSet
   , ByteString
   , module Control.Concurrent.Chan
   , module Control.Concurrent
@@ -12,6 +11,7 @@ module Frenetic.Common
   , both
   , mapChan
   , catMaybes
+  , forever
   ) where
 
 import System.Log.Logger hiding (Priority)
@@ -21,7 +21,6 @@ import Control.Monad
 import Data.Monoid hiding (Any)
 import Data.Set (Set)
 import Data.Map (Map)
-import Data.MultiSet
 import Data.ByteString.Lazy (ByteString)
 import Data.Maybe (catMaybes)
 

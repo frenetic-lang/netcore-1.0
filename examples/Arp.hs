@@ -27,8 +27,8 @@ known ips = prOr . map (\ip -> NwDst (IPAddressPrefix ip 32)) $ Map.keys ips
 -- MAC address, build an ARP reply packet, otherwise return Nothing.  It's
 -- possible that we get a malformed packet that doesn't have one or more of the
 -- IP src or dst fields, in which case also return Nothing.
-handleQuery :: (Switch, Packet) -> IpMap -> Maybe (Loc, ByteString)
-handleQuery (switch, Packet {..}) ips =
+handleQuery :: LocPacket -> IpMap -> Maybe (Loc, ByteString)
+handleQuery (Loc switch port, Packet {..}) ips =
   case pktNwDst of
     Nothing -> Nothing
     Just toIp ->
@@ -37,7 +37,7 @@ handleQuery (switch, Packet {..}) ips =
         Just toMac ->
           case pktNwSrc of
             Nothing -> Nothing
-            Just fromIp -> Just (Loc switch pktInPort,
+            Just fromIp -> Just (Loc switch port,
                                  arpReply toMac 
                                    (ipAddressToWord32 toIp) 
                                    pktDlSrc 
@@ -47,8 +47,8 @@ handleQuery (switch, Packet {..}) ips =
 -- Try to parse the packet, and if you can, and it's a new mapping, return the
 -- new map.  Otherwise, return Nothing to signal that we didn't learn something
 -- new so it's not necessary to update the policy.
-handleReply :: (Switch, Packet) -> IpMap -> Maybe IpMap
-handleReply (switch, packet) ips =
+handleReply :: LocPacket -> IpMap -> Maybe IpMap
+handleReply (Loc switch _, packet) ips =
   let fromMac = pktDlSrc packet in
   case pktNwSrc packet of
     Nothing -> Nothing
@@ -63,7 +63,7 @@ handleReply (switch, packet) ips =
 -- host-to-host connectivity.  The simplest implementation simplhy floods
 -- packets, but more sophisticated options might include a learning switch, or a
 -- topology-based shortest path approach.
-doArp :: Chan Policy -> IO (Chan Policy, Chan (Loc, ByteString))
+doArp :: Chan Policy -> IO (Chan Policy)
 doArp routeChan = do
   (queryChan, queryAction) <- getPkts
   (replyChan, replyAction) <- getPkts
@@ -87,7 +87,8 @@ doArp routeChan = do
   -- routes the ARP packets we're not going to handle, plus installs the packet
   -- receiving actions to query the packets we want to either reply to or learn
   -- from.
-  let buildPolicy route ips = route' <+> query <+> reply
+  let buildPolicy route ips = route' <+> query <+> reply <+> 
+                              SendPackets packetOutChan
         where
         -- First, we define whether we can reply to a particular packet as
         -- whether it is an ARP query (thus, it wants a reply) for an IP address
@@ -145,11 +146,11 @@ doArp routeChan = do
                       writeChan policyOutChan (buildPolicy route ips')
                       loop mRoute ips'
   forkIO (loop Nothing Map.empty)
-  return (policyOutChan, packetOutChan)
+  return policyOutChan
 
 -- |Runs ARP on top of a learning switch to gradually learn both routes and the
 -- ARP table.  Provides both regular connectivity and synthetic ARP replies.
 main = do
   lsChan <- learningSwitch
-  (policyChan, packetChan) <- doArp lsChan
-  dynController policyChan packetChan
+  policyChan <- doArp lsChan
+  dynController policyChan

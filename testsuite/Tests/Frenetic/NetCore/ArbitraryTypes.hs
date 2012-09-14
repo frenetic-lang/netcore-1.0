@@ -4,11 +4,9 @@
 
 module Tests.Frenetic.NetCore.ArbitraryTypes where
 
-import Data.MultiSet as MS
 import Data.Set                                 as Set
 import Control.Monad
 import Frenetic.NetCore.Types
-import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
 import Tests.Frenetic.Switches.ArbitraryOpenFlow
 import Test.QuickCheck
@@ -58,7 +56,7 @@ instance Arbitrary Policy where
           acts <- resize s arbitrary
           --p1   <- resize (s-1) arbitrary
           --p2   <- resize (s-1) arbitrary
-          oneof [ return $ PoBasic pred (MS.fromList acts)
+          oneof [ return $ PoBasic pred acts
                 --, return $ PoUnion p1 p2
                   -- TODO(arjun): test putting union into here and un-comment
                   -- code
@@ -66,7 +64,7 @@ instance Arbitrary Policy where
         else do
           pred <- resize s arbitrary
           acts <- resize s arbitrary
-          return $ PoBasic pred (MS.fromList acts)
+          return $ PoBasic pred acts
   shrink (PoBottom)             = [PoBottom]
   shrink (PoBasic pr as)        = [PoBasic pr' as | pr' <- shrink pr]
   shrink (PoUnion p1 p2)        = [p1, p2]

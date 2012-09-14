@@ -4,18 +4,20 @@ module Frenetic.NetCore.Util
   ( Field (..)
   , exactMatch
   , modifiedFields
-  , transActions
+  , modifyActions
   , policyImage
   , prUnIntersect
   , prUnUnion
   , poUnUnion
   , poDom
   , size
+  , isForward
+  , isGetPacket
+  , isQuery
   ) where
 
 import Frenetic.Common
 import Frenetic.NetCore.Types
-import qualified Data.MultiSet as MS
 import qualified Data.List as List
 import qualified Data.Set as Set
 import Nettle.Ethernet.EthernetAddress
@@ -27,21 +29,24 @@ data Field
   | FTpSrc | FTpDst | FNwProto | FInPort
   deriving (Eq, Ord, Show)
 
-
-transActions :: (Action -> Action) 
-             -> Policy 
-             -> Policy
-transActions f pol = case pol of
+modifyActions :: ([Action] -> [Action]) 
+              -> Policy 
+              -> Policy
+modifyActions f pol = case pol of
   PoBottom -> PoBottom
-  PoBasic pred acts -> PoBasic pred (MS.map f acts)
-  PoUnion pol1 pol2 -> PoUnion (transActions f pol1) (transActions f pol2)
+  PoBasic pred acts -> PoBasic pred (f acts)
+  PoUnion pol1 pol2 -> PoUnion (modifyActions f pol1) (modifyActions f pol2)
+  Restrict pol pred -> Restrict (modifyActions f pol) pred
+  SendPackets _ -> pol
 
 policyImage :: Policy
-            -> MS.MultiSet Action
+            -> [Action]
 policyImage pol = case pol of
-  PoBottom -> MS.empty
+  PoBottom -> []
   PoBasic _ acts -> acts
-  PoUnion pol1 pol2 -> policyImage pol1 `MS.union` policyImage pol2
+  PoUnion pol1 pol2 -> policyImage pol1 ++ policyImage pol2
+  Restrict pol pred -> policyImage pol
+  SendPackets _ -> []
 
 -- |Get back all predicates in the intersection.  Does not return any naked
 -- intersections.
@@ -74,12 +79,16 @@ poDom :: Policy -> Predicate
 poDom PoBottom = None
 poDom (PoBasic pred _) = pred
 poDom (PoUnion pol1 pol2) = Or (poDom pol1) (poDom pol2)
+poDom (Restrict pol pred) = And (poDom pol) (Not pred)
+poDom (SendPackets _) = None -- TODO(arjun): but this has a range, right?
 
 -- |Returns the approximate size of the policy
 size :: Policy -> Int
 size PoBottom = 1
 size (PoBasic p _) = prSize p + 1
 size (PoUnion p1 p2) = size p1 + size p2 + 1
+size (Restrict pol pred) = size pol + prSize pred + 1
+size (SendPackets _) = 1
 
 -- |Returns the approximate size of the predicate
 prSize :: Predicate -> Int
@@ -89,10 +98,11 @@ prSize (Not p) = prSize p + 1
 prSize _ = 1
 
 -- |A predicate that exactly matches a packet's headers.
-exactMatch :: Packet -> Predicate
-exactMatch (Packet{..}) = foldl f None lst
+exactMatch :: LocPacket -> Predicate
+exactMatch (Loc sw pt, Packet{..}) = foldl f locPred lst
   where f pr Nothing = pr
         f pr (Just pr') = And pr pr'
+        locPred = IngressPort pt `And` Switch sw
         lst = [ Just (DlSrc pktDlSrc), 
                 Just (DlDst pktDlDst),
                 Just (DlTyp pktDlTyp),
@@ -107,8 +117,7 @@ exactMatch (Packet{..}) = foldl f None lst
                 Just (NwProto pktNwProto), 
                 Just (NwTos pktNwTos), 
                 fmap TpSrcPort pktTpSrc,
-                fmap TpDstPort pktTpDst, 
-                Just (IngressPort pktInPort) ]
+                fmap TpDstPort pktTpDst ]
 
 modifiedFields :: Modification -> Set Field
 modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
@@ -123,3 +132,19 @@ modifiedFields (Modification{..}) = Set.fromList (catMaybes fields) where
            , case modifyTpSrc of { Just _ -> Just FTpSrc; Nothing -> Nothing }
            , case modifyTpDst of { Just _ -> Just FTpDst; Nothing -> Nothing }
            ]
+
+isGetPacket (GetPacket{}) = True
+isGetPacket _ = False
+
+isForward :: Action -> Bool
+isForward (Forward _ _) = True
+isForward _ = False
+
+isQuery :: Action -> Bool
+isQuery act = case act of
+  CountPackets {} -> True
+  CountBytes {} -> True
+  GetPacket {} -> True
+  MonitorSwitch {} -> True
+  Forward {} -> False
+  

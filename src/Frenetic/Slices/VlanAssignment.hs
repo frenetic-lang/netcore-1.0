@@ -11,6 +11,7 @@ import Frenetic.NetCore.Short
 import Frenetic.NetCore.Types
 import Frenetic.Slices.Slice
 import Frenetic.Topo
+import Frenetic.Common
 
 maxVlan :: Vlan
 maxVlan = 2^12
@@ -25,41 +26,61 @@ sequential combined =
 type Edge = (Loc, Loc)
 
 edge :: Topo -> [(Slice, Policy)] -> [(Map.Map Loc Vlan, (Slice, Policy))]
-edge topo combined = paired  where
-  locUse :: Map.Map Loc (Set.Set (Slice, Policy))
-  locUse =  foldr addEdges Map.empty combined
+edge topo slices = paired  where
+  indexedSlices :: [(Int, Slice, Policy)]
+  indexedSlices = zipWith (\n (s,p) -> (n,s,p)) [0 .. ] slices
+  
+  -- Slice and policy at each (switch, port)
+  locUse :: Map Loc (Map Int (Slice, Policy))
+  locUse = foldr addEdges Map.empty indexedSlices
 
-  edgeUse :: Map.Map Edge (Set.Set (Slice, Policy))
+  -- Slice and policy at each edge (switch,port) --- (switch,port)
+  edgeUse :: Map Edge (Map Int (Slice, Policy))
   -- getEdge returns the normal form (smallest first)
-  edgeUse = Map.mapKeysWith Set.union (getEdge topo) locUse
+  edgeUse = Map.mapKeysWith Map.union (getEdge topo) locUse
+  -- It is safe to use Map.union above. Any conflict between keys will be
+  -- spurious, since a key always indexes the same slice.
 
-  vlanEdges :: Map.Map Edge (Map.Map (Slice, Policy) Vlan)
-  vlanEdges = Map.map assign edgeUse
+  vlanEdges :: [(Edge, Map Int (Slice, Policy, Vlan))]
+  vlanEdges = map (\(e,m) -> (e, assign m)) (Map.toList edgeUse)
 
-  vlans :: Map.Map Loc (Map.Map (Slice, Policy) Vlan)
-  vlans = Map.fromList .
-          concatMap (\ ((l1, l2), v) -> [(l1, v), (l2, v)]) .
-          Map.toList $
-          vlanEdges
+  vlans :: Map Loc (Map Int (Slice, Policy, Vlan))
+  vlans = Map.fromList $
+            concatMap (\((loc1, loc2), v) -> [(loc1, v), (loc2, v)])
+                      vlanEdges
 
-  bySlice :: Map.Map (Slice, Policy) (Map.Map Loc Vlan)
-  bySlice = invert vlans
+  locations = Map.keys vlans
 
-  paired = [ (lookup, both) | (both, lookup) <- Map.toList bySlice]
+  bySlice :: [(Int, Slice, Policy, Map Loc Vlan)]
+  bySlice = map f indexedSlices where
+              f (ix, s, p) = (ix, s, p, foldl g Map.empty locations) where
+                g vlanMap loc = case Map.lookup loc vlans of
+                  Nothing -> error "bySlice expected to find location"
+                  Just map -> case Map.lookup ix map of
+                    Nothing -> vlanMap
+                    Just (_, _, vlan) -> Map.insert loc vlan vlanMap
+
+  paired = map (\(_, s, p, vlanMap) -> (vlanMap, (s, p))) bySlice       
 
 -- | Add (loc, slice) to map for all internal locations in slice
-addEdges :: (Slice, Policy) -> Map.Map Loc (Set.Set (Slice, Policy)) ->
-                               Map.Map Loc (Set.Set (Slice, Policy))
-addEdges (slice, policy) m = Map.unionWith Set.union (Map.fromList locations) m where
-  locations = map (\l -> (l, Set.singleton (slice, policy))) .
-              Set.toList $ internal slice
+addEdges :: (Int, Slice, Policy)
+         -> Map Loc (Map Int (Slice, Policy))
+         -> Map Loc (Map Int (Slice, Policy))
+addEdges (ix, slice, policy) byLoc = 
+  Map.unionWith Map.union byLoc thisSliceByLoc
+    where thisSlice = Map.singleton ix (slice, policy)
+          thisSliceByLoc = Map.fromList $
+            map (\loc -> (loc, thisSlice))
+                (Set.toList (internal slice))
 
-assign :: Set.Set (Slice, Policy) -> Map.Map (Slice, Policy) Vlan
+assign :: Map Int (Slice, Policy)
+       -> Map Int (Slice, Policy, Vlan)
 assign slices =
-  if Set.size slices > fromIntegral maxVlan
-    then error (show (Set.size slices) ++
-                " is too many VLANs to compile sequentially.")
-    else Map.fromList $ zip (Set.toList slices) [1..maxVlan]
+  if Map.size slices > fromIntegral maxVlan then
+    error (show (Map.size slices) ++ 
+           " is too many VLANs to compile sequentially.")
+  else 
+    snd $ Map.mapAccum (\vlan (s, pol) -> (succ vlan, (s, pol, vlan))) 1 slices
 
 invert :: (Ord a, Ord b) => Map.Map a (Map.Map b v) -> Map.Map b (Map.Map a v)
 invert m = m' where

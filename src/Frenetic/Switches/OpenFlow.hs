@@ -18,7 +18,6 @@ import Frenetic.NetCore.Util
 import Control.Concurrent.Chan
 import           Data.Bits
 import qualified Data.Set                        as Set
-import qualified Data.MultiSet                   as MS
 import           Data.Word
 import Data.List (nub, find)
 import qualified Nettle.IPv4.IPAddress as IPAddr
@@ -33,8 +32,9 @@ instance Matchable IPAddressPrefix where
   top = defaultIPPrefix
   intersect = IPAddr.intersect
 
-physicalPortOfPseudoPort (Physical p) = PhysicalPort p
-physicalPortOfPseudoPort AllPorts = Flood
+physicalPortOfPseudoPort (Physical p) = SendOutPort (PhysicalPort p)
+physicalPortOfPseudoPort AllPorts = SendOutPort Flood
+physicalPortOfPseudoPort (ToQueue (Queue _ p q _)) = Enqueue p q
 
 toController :: ActionSequence
 toController = sendToController maxBound
@@ -169,8 +169,6 @@ toPacket pkt = do
                   tos
                   (srcPort body)
                   (dstPort body)
-                  (receivedOnPort pkt)
-
 
 actnController = OFAct toController []
 actnDefault = OFAct toController []
@@ -190,19 +188,19 @@ actnDefault = OFAct toController []
 
 -- The ToController action needs to come last. If you reorder, it will not
 -- work. Observed with the usermode switch.
-actnTranslate act = OFAct (ofFwd ++ toCtrl) (MS.toList queries)
-  where acts  = if hasUnimplementableMods $ map (\(Forward _ m) -> m) $ MS.toList fwd
+actnTranslate act = OFAct (ofFwd ++ toCtrl) queries
+  where acts  = if hasUnimplementableMods $ map (\(Forward _ m) -> m) fwd
                 then [SendOutPort (ToController maxBound)]
                 else ofFwd ++ toCtrl
         ofFwd = concatMap (\(Forward pp md) -> modTranslate md
-                               ++ [SendOutPort (physicalPortOfPseudoPort pp)])
-                    $ MS.toList fwd
-        toCtrl = case find isGetPacket (MS.toList queries) of
+                               ++ [physicalPortOfPseudoPort pp])
+                    fwd
+        toCtrl = case find isGetPacket queries of
           -- sends as much of the packet as possible to the controller
           Just _  -> [SendOutPort (ToController maxBound)]
           Nothing -> []
-        fwd = MS.filter isForward act
-        queries = MS.filter (not.isForward) act
+        fwd = filter isForward act
+        queries = filter isQuery act
         hasUnimplementableMods as
           | length as <= 1 = False
           | otherwise =

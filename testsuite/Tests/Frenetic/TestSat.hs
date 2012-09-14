@@ -20,7 +20,6 @@ import Frenetic.Z3
 import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.MultiSet as MS
 
 satTests = $(testGroupGenerator)
 

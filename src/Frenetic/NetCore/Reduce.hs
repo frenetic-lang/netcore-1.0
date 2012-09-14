@@ -5,7 +5,6 @@ module Frenetic.NetCore.Reduce
 import Frenetic.Common
 import Data.List (nub)
 import Data.Maybe
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
@@ -24,11 +23,15 @@ reducePo (PoBasic pr act) = if pr' == None || act == mempty
   act' = act
 -- Note that because we use multiset forwarding semantics, we CANNOT do common
 -- subexpression reduction on unions.
-reducePo (PoUnion p1 p2) = if p1' == PoBottom then p2'
-                           else if p2' == PoBottom then p1'
-                           else PoUnion p1' p2' where
-  p1' = reducePo p1
-  p2' = reducePo p2
+reducePo (PoUnion p1 p2) = 
+  let p1' = reducePo p1
+      p2' = reducePo p2
+    in case (p1', p2') of
+         (PoBottom, _) -> p2'
+         (_, PoBottom) -> p1'
+         otherwise ->  PoUnion p1' p2' where
+reducePo (Restrict pol pred) = Restrict (reducePo pol) pred
+reducePo (SendPackets chan) = SendPackets chan
 
 isNonNegatedAtom pred = case pred of
   DlSrc _ -> True

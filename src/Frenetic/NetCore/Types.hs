@@ -2,6 +2,7 @@ module Frenetic.NetCore.Types
   ( -- * Basic types
     Switch
   , Port
+  , Queue (..)
   , Vlan
   , Loc (..)
   , PseudoPort (..)
@@ -9,14 +10,14 @@ module Frenetic.NetCore.Types
   , Action (..)
   , Modification (..)
   , unmodified
-  , isGetPacket
-  , isForward
   -- * Predicates
   , Predicate (..)
   -- * Packets
   , Packet (..)
+  , LocPacket
   -- * Policies
   , Policy (..)
+  , Program (..)
   -- * Channel Interface
   , countPkts
   , countBytes
@@ -27,7 +28,6 @@ import Frenetic.Common
 import Data.Bits
 import Data.IORef
 import qualified Data.List as List
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Data.Word
 import Frenetic.Pattern
@@ -35,6 +35,7 @@ import System.IO.Unsafe
 import Data.Maybe (catMaybes)
 import Nettle.Ethernet.EthernetAddress
 import Nettle.IPv4.IPAddress
+import Nettle.OpenFlow (SwitchFeatures)
 
 -- |A switch's unique identifier.
 type Switch = Word64
@@ -42,14 +43,20 @@ type Switch = Word64
 -- |The number of a physical port.
 type Port = Word16
 
+-- |The identifier of a queue at a port.
+type QueueID = Word32
+
 -- |'Loc' uniquely identifies a port at a switch.
 data Loc = Loc Switch Port
   deriving (Eq, Ord, Show)
+
+type LocPacket = (Loc, Packet)
 
 -- |Logical ports.
 data PseudoPort
   = Physical Port
   | AllPorts
+  | ToQueue Queue
   deriving (Eq, Ord, Show)
 
 -- |VLAN tags. Only the lower 12-bits are used.
@@ -67,9 +74,7 @@ data Packet = Packet {
   pktNwProto :: Word8, -- ^IP protocol number (e.g., 6 for TCP segments)
   pktNwTos :: Word8, -- ^IP TOS field
   pktTpSrc :: Maybe Word16, -- ^source port for IP packets
-  pktTpDst :: Maybe Word16, -- ^destination port for IP packets
-  pktInPort :: Port -- ^ingress port on the switch where the packet was
-                    -- received
+  pktTpDst :: Maybe Word16 -- ^destination port for IP packets
 } deriving (Show, Eq, Ord)
 
 -- |Predicates to match packets.
@@ -97,10 +102,22 @@ data Predicate
 {-| Policies denote functions from (switch, packet) to packets. -}
 data Policy
   = PoBottom -- ^Performs no actions.
-  | PoBasic Predicate (MS.MultiSet Action)
+  | PoBasic Predicate [Action]
      -- ^Performs the given action on packets matching the given predicate.
   | PoUnion Policy Policy -- ^Performs the actions of both P1 and P2.
+  | Restrict Policy Predicate
+  | SendPackets (Chan (Loc, ByteString))
+    -- ^If a program writes a located packet to this channel, the controller
+    -- will send the packet to its location.
+  deriving (Eq)
+
+data Queue = Queue Switch Port QueueID Word16
   deriving (Eq, Ord, Show)
+
+data Program
+  = Policy Policy
+  | WithQueue Switch Port Word16 (Queue -> Program)
+  | ProgramUnion Program Program
 
 -- |For each fields with a value Just v, modify that field to be v.
 --  If the field is Nothing then there is no modification of that field.
@@ -128,6 +145,10 @@ nextQueryID = unsafePerformIO $ newIORef 0
 getNextQueryID :: IO QueryID
 getNextQueryID = atomicModifyIORef nextQueryID (\i -> (i + 1, i))
 
+data SwitchEvent
+  = SwitchConnected Switch SwitchFeatures
+  | SwitchDisconnected Switch
+
 data Action
   = Forward PseudoPort Modification
   | CountPackets {
@@ -142,18 +163,17 @@ data Action
     }
   | GetPacket {
       idOfQuery :: QueryID,
-      getPacketAction :: (Switch, Packet) -> IO ()
+      getPacketAction :: (Loc, Packet) -> IO ()
     }
-
+  | MonitorSwitch {
+      idOfQuery :: QueryID,
+      monitorAction :: SwitchEvent -> IO ()
+  }
+    
+      
 instance Eq Action where
   (Forward p m) == (Forward p' m') = (p,m) == (p',m')
   q1 == q2 = idOfQuery q1 == idOfQuery q2
-
-instance Ord Action where
-  compare (Forward p m) (Forward p' m') = compare (p,m) (p',m')
-  compare (Forward _ _) _ = LT
-  compare _ (Forward _ _) = GT
-  compare q1 q2 = compare (idOfQuery q1) (idOfQuery q2)
 
 instance Show Action where
   show (Forward p m) = show p ++ show m
@@ -164,13 +184,15 @@ instance Show Action where
     "CountPackets (interval=" ++ show queryInterval ++ "ms, id=" ++
        show idOfQuery ++ ")"
   show (GetPacket{..}) = "GetPacket(id=" ++ show idOfQuery ++  ")"
+  show (MonitorSwitch{..}) = "MonitorSwitch"
 
-isGetPacket (GetPacket{}) = True
-isGetPacket _ = False
-
-isForward :: Action -> Bool
-isForward (Forward _ _) = True
-isForward _ = False
+instance Show Policy where
+  show pol = case pol of
+    PoBottom -> "PoBottom"
+    PoBasic pred acts -> "PoBasic " ++ show pred ++ " " ++ show acts
+    PoUnion pol1 pol2 -> "PoUnion (" ++ show pol1 ++ ") (" ++ show pol2 ++ ")"
+    Restrict pol' pred -> "Restrict (" ++ show pol' ++ ") (" ++ show pred ++ ")"
+    SendPackets _ -> "SendPackets"
 
 -- |Periodically polls the network to counts the number of packets received.
 --
@@ -179,12 +201,12 @@ isForward _ = False
 -- on the network. The controller returns the number of matching packets
 -- on each switch.
 countPkts :: Int -- ^polling interval, in milliseconds
-          -> IO (Chan (Switch, Integer), MultiSet Action)
+          -> IO (Chan (Switch, Integer), [Action])
 countPkts millisecondInterval = do
   ch <- newChan
   queryID <- getNextQueryID
   let q = CountPackets queryID millisecondInterval (writeChan ch)
-  return (ch, MS.singleton q)
+  return (ch, [q])
 
 -- |Periodically polls the network to counts the number of bytes received.
 --
@@ -193,22 +215,22 @@ countPkts millisecondInterval = do
 -- on the network. The controller returns the number of matching packets
 -- on each switch.
 countBytes :: Int -- ^polling interval, in milliseconds
-           -> IO (Chan (Switch, Integer), MultiSet Action)
+           -> IO (Chan (Switch, Integer), [Action])
 countBytes millisecondInterval = do
   ch <- newChan
   queryID <- getNextQueryID
   let q = CountBytes queryID millisecondInterval (writeChan ch)
-  return (ch, MS.singleton q)
+  return (ch, [q])
 
 -- |Sends packets to the controller.
 --
 -- Returns an 'Action' and a channel. When the 'Action' is used in the active
 -- 'Policy', all matching packets are sent to the controller. These packets
 -- are written into the channel.
-getPkts :: IO (Chan (Switch, Packet), MultiSet Action)
+getPkts :: IO (Chan (Loc, Packet), [Action])
 getPkts = do
   ch <- newChan
   queryID <- getNextQueryID
   let q = GetPacket queryID (writeChan ch)
-  return (ch, MS.singleton q)
+  return (ch, [q])
 

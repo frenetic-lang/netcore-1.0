@@ -1,5 +1,6 @@
 module Frenetic.NetCore.Compiler
   ( compile
+  , toFlowTable
   , compilePredicate
   , Bone (..) -- TODO(arjun): do not export
   , Classifier
@@ -9,9 +10,9 @@ module Frenetic.NetCore.Compiler
 
 import Nettle.OpenFlow.Packet
 import Nettle.OpenFlow.Match
+import qualified Nettle.OpenFlow as OF
 import Frenetic.Switches.OpenFlow
 import Prelude hiding (pred)
-import           Frenetic.Compat
 import           Frenetic.Pattern
 import           Frenetic.Common
 import           Frenetic.NetCore.Types
@@ -154,7 +155,7 @@ pred sw pr = case pr of
   Not pr -> skelMap not (pred sw pr) ++ [Bone matchAny True]
 
 {-| Compile a policy to intermediate form -}
-compilePolicy :: Switch -> Policy -> Skeleton (MultiSet Action)
+compilePolicy :: Switch -> Policy -> Skeleton [Action]
 compilePolicy _ PoBottom = []
 compilePolicy s (PoBasic po as) =
     skelMap f $ pred s po
@@ -165,6 +166,10 @@ compilePolicy s (PoUnion po1 po2) =
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
             (skel12', skel1', skel2') = skelCart (<+>) skel1 skel2
+compilePolicy _ (Restrict (SendPackets _) _) = []
+compilePolicy _ (SendPackets _) = []
+compilePolicy s (Restrict pol pred) =
+  compilePolicy s (synthRestrict pol pred)
 
 {-| Compile a policy to a classifier. -}
 compile :: Switch
@@ -175,3 +180,11 @@ compile s po = map f skel
     f (Bone sptrn actn) = (sptrn, actnTranslate actn)
     skel = compilePolicy s po
 
+useInPort (Just pt) (OF.SendOutPort (OF.PhysicalPort pt'))
+  | pt == pt' = OF.SendOutPort OF.InPort
+  | otherwise = OF.SendOutPort (OF.PhysicalPort pt')
+useInPort _ act = act
+
+toFlowTable classifier =
+  map (\(m, a) -> (m, map (useInPort (OF.inPort m)) $ fromOFAct a)) 
+      classifier

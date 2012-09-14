@@ -1,6 +1,7 @@
 module Frenetic.Hosts.Nettle where
 
 import Frenetic.Common
+import Control.Concurrent.MVar
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -9,18 +10,28 @@ import Control.Monad.State
 import System.IO
 import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Types
+import Frenetic.NetCore.Util
+import Frenetic.NetCore.Short (synthRestrict)
+import Data.Binary (decode)
 import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
-import Frenetic.Compat
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
 import qualified Frenetic.NetCore.Types as NetCore
 
-useInPort (Just pt) (SendOutPort (PhysicalPort pt'))
-  | pt == pt' = SendOutPort InPort
-  | otherwise = SendOutPort (PhysicalPort pt')
-useInPort _ act = act
+data Counters = Counters {
+  totalVal :: IORef Integer,
+  lastVal :: IORef Integer
+}
+
+data Counter = PktCounter | ByteCounter
+
+newCounters :: IO Counters
+newCounters = do
+  total <- newIORef 0
+  last <- newIORef 0
+  return (Counters total last)
 
 mkFlowMod :: (Match, ActionSequence)
           -> Priority
@@ -28,7 +39,7 @@ mkFlowMod :: (Match, ActionSequence)
 mkFlowMod (pat, acts) pri = FlowMod AddFlow {
   match=pat,
   priority=pri,
-  actions=map (useInPort (inPort pat)) acts,
+  actions=acts,
   cookie=0,
   notifyWhenRemoved=False,
   idleTimeOut=Permanent,
@@ -37,22 +48,52 @@ mkFlowMod (pat, acts) pri = FlowMod AddFlow {
   overlapAllowed=True
 }
 
-rawClassifier :: [(Match, ActionImpl)]
-              -> [(Match, ActionSequence)]
-rawClassifier classifier =
-  map (\(p, a) -> (p, fromOFAct a)) classifier
-
 prettyClassifier :: (Match, ActionSequence) -> String
 prettyClassifier (match, as) = "(" ++ show match ++ ", " ++ show as ++ ")"
+
+isNotToController (SendOutPort (ToController _)) = False
+isNotToController _ = True
+
+
+policyOutputs :: Policy -> [(Chan (Loc, ByteString), Predicate)]
+policyOutputs PoBottom = []
+policyOutputs (PoBasic _ _) = []
+policyOutputs (PoUnion pol1 pol2) = policyOutputs pol1 ++ policyOutputs pol2
+policyOutputs (Restrict (SendPackets chan) pred) = [(chan, pred)]
+policyOutputs (Restrict pol pred) = policyOutputs (synthRestrict pol pred)
+policyOutputs (SendPackets chan) = [(chan, Any)]
+
+mkOutputThread :: Nettle -> (Chan (Loc, ByteString), Predicate) -> IO ThreadId
+mkOutputThread nettle (chan, pred) = forkIO $ forever $ do
+  (loc@(Loc switch port), pktBytes) <- readChan chan
+  let len = fromIntegral (BS.length pktBytes) -- TODO(arjun): overflow
+  let body = Right (decode pktBytes)
+  case toPacket (PacketInfo Nothing len port ExplicitSend pktBytes body) of
+    Nothing -> warningM "controller" $ "dropping unparsable packet being sent to "
+                 ++  show loc
+    Just pkt -> case interpretPredicate pred (loc, pkt) of
+      True -> do
+        let msg = PacketOut $ 
+                    PacketOutRecord (Right pktBytes) Nothing (sendOnPort port)
+        sendToSwitchWithID nettle switch (0, msg)
+      False -> infoM "controller" $ "dropping packet due to policy restriction"
+
+handlePolicyOutputs :: Nettle -> Policy -> MVar () -> IO ()
+handlePolicyOutputs nettle pol kill = do
+  let outputs = policyOutputs pol
+  childTids <- mapM (mkOutputThread nettle) outputs
+  takeMVar kill
+  mapM_ killThread childTids
+  putMVar kill ()
 
 -- |Installs the static portion of the policy, then react.
 handleSwitch :: Nettle
              -> SwitchHandle
              -> Policy
-             -> Chan Policy
+             -> MVar ()
              -> Chan (TransactionID, SCMessage)
              -> IO ()
-handleSwitch nettle switch initPolicy policyChan msgChan = do
+handleSwitch nettle switch policy kill msgChan = do
   -- 1. Clear the flow table
   -- 2. In parallel:
   --    a. Receive a message from the switch
@@ -62,96 +103,122 @@ handleSwitch nettle switch initPolicy policyChan msgChan = do
   --    update!)
   -- 5. On new policy, update the switch and accumulator
   let switchID = handle2SwitchID switch
-  policiesAndMessages <- select policyChan msgChan
-  let loop oldPolicy oldThreads (Left policy) = do
-        sendToSwitch switch (0, FlowMod (DeleteFlows matchAny Nothing))
-        let classifier = compile (handle2SwitchID switch) policy
-        let flowTbl = rawClassifier classifier
-        debugM "nettle" $ "policy is " ++ toString policy ++
-                          " and flow table is " ++
-                          concat (intersperse ", "
-                                    (map prettyClassifier flowTbl))
-        oldThreads
-        newThreads <- runQueryOnSwitch nettle switch classifier
-        -- Priority 65535 is for microflow rules from reactive-specialization
-        let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
-        mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
-        debugM "nettle" $ "finished reconfiguring switch " ++
-                          show (handle2SwitchID switch)
-        nextMsg <- readChan policiesAndMessages
-
-        loop policy newThreads nextMsg
-      loop policy threads (Right (xid, msg)) = case msg of
-        PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
-                                   reasonSent=ExplicitSend,
-                                   enclosedFrame=Right frame})) -> do
-          case toPacket pkt of
-            Nothing -> return ()
-            Just pk -> do
-              let t = Transmission (frameToExactMatch inPort frame) switchID pk
-              let actions = interpretPolicy policy t
-              actnControllerPart (actnTranslate actions) switchID (pkt)
-          nextMsg <- readChan policiesAndMessages
-          loop policy threads nextMsg
-        PacketIn (pkt@(PacketInfo {receivedOnPort=inPort,
-                                   reasonSent=NotMatched,
-                                   enclosedFrame=Right frame})) -> do
-          case toPacket pkt of
-            Nothing -> return ()
-            Just pk -> do
-              let t = Transmission (frameToExactMatch inPort frame) switchID pk
-              let actions = interpretPolicy policy t
-              actnControllerPart (actnTranslate actions) switchID (pkt)
-              case bufferID pkt of
-                Nothing -> return ()
-                Just buf -> do
-                  let unCtrl (SendOutPort (ToController _)) = False
-                      unCtrl _ = True
-                  let msg = PacketOut $
-                              PacketOutRecord (Left buf) (Just inPort)
-                                (filter unCtrl (fromOFAct $ actnTranslate actions))
-                  sendToSwitch switch (2, msg)
-          nextMsg <- readChan policiesAndMessages
-          loop policy threads nextMsg
-        otherwise -> do
-          nextMsg <- readChan policiesAndMessages
-          loop policy threads nextMsg
-  loop PoBottom (return ()) (Left initPolicy)
-
-nettleServer :: Chan Policy -> Chan (Loc, ByteString) -> IO ()
-nettleServer policyChan pktChan = do
-  server <- startOpenFlowServerEx Nothing 6633
-  currentPolicy <- newIORef PoBottom
-  forkIO $ forever $ do
-    pol <- readChan policyChan
-    writeIORef currentPolicy pol
-  forkIO $ forever $ do
-    (Loc swID pt, pkt) <- readChan pktChan
-    let msg = PacketOut $ PacketOutRecord (Right pkt)
-                                          Nothing (sendOnPort pt)
-    sendToSwitchWithID server swID (0,msg)
+  killChan <- newChan
+  killThreadId <- forkIO $ do
+    v <- takeMVar kill
+    writeChan killChan v
+  let classifier = compile (handle2SwitchID switch) policy
+  let flowTbl = toFlowTable classifier
+  debugM "controller" $ "flow table is " ++ show flowTbl
+  killChildThreads <- runQueryOnSwitch nettle switch classifier
+  -- Priority 65535 is for microflow rules from reactive-specialization
+  let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
+  mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
+  killOrMsg <- select killChan msgChan
   forever $ do
-    -- Nettle does the OpenFlow handshake
-    (switch, switchFeatures, msgChan) <- acceptSwitch server
-    noticeM "controller" $ "switch " ++ show (handle2SwitchID switch) ++
-                           " connected"
-    -- reading from a channel removes the messages. We need to dupChan for
-    -- each switch.
-    switchPolicyChan <- dupChan policyChan
-    initPolicy <- readIORef currentPolicy
-    forkIO (handleSwitch server switch initPolicy switchPolicyChan msgChan)
+    v <- readChan killOrMsg
+    case v of
+      Left () -> do
+        killChildThreads
+        putMVar kill ()
+        tid <- myThreadId
+        killThread tid
+      Right (xid, msg) ->  case msg of
+        PacketIn (pkt@(PacketInfo {receivedOnPort=inPort, 
+                                   reasonSent=reason,
+                                   enclosedFrame=Right frame})) -> do
+          let loc = Loc switchID inPort
+          case toPacket pkt of
+            Nothing -> return ()
+            Just pk -> do
+              let actions = interpretPolicy policy (loc, pk)
+              let ofActions = actnTranslate actions
+              actnControllerPart ofActions loc pkt
+              case reason of
+                ExplicitSend -> return ()
+                NotMatched -> case bufferID pkt of
+                  Nothing -> return () -- odd case
+                  Just buf -> do
+                    let msg = PacketOutRecord (Left buf) (Just inPort)
+                                (filter isNotToController (fromOFAct ofActions))
+                    sendToSwitch switch (2, PacketOut msg)
+        otherwise -> return () -- ignore all other messages 
+
+deleteQueue :: Nettle -> Queue -> IO ()
+deleteQueue nettle (Queue switch port queue _) = do
+  sendToSwitchWithID nettle switch
+    (0, ExtQueueDelete port [QueueConfig queue []])
+
+createQueue :: Nettle -> Queue -> IO ()
+createQueue nettle (Queue switch port queue minRate) = do
+  let cfg = MinRateQueue (Enabled minRate)
+  sendToSwitchWithID nettle switch
+    (0, ExtQueueModify port [QueueConfig queue [cfg]])
+
+createQueuesForSwitch :: Nettle 
+                      -> Map Switch [Queue]
+                      -> Switch
+                      -> IO ()
+createQueuesForSwitch nettle qMap switch =
+  mapM_ (createQueue nettle) (Map.findWithDefault [] switch qMap)
+
+deleteQueuesForSwitch :: Nettle 
+                      -> Map Switch [Queue]
+                      -> Switch
+                      -> IO ()
+deleteQueuesForSwitch nettle qMap switch =
+  mapM_ (deleteQueue nettle) (Map.findWithDefault [] switch qMap)
+
+nettleServer :: Chan Program -> IO ()
+nettleServer policyChan = do
+  server <- startOpenFlowServerEx Nothing 6633
+  switchChan <- makeSwitchChan server
+  switchPolicyChan <- select switchChan policyChan
+  let loop :: [(SwitchHandle, Chan (TransactionID, SCMessage), MVar ())]
+           -> Policy
+           -> Map Switch [Queue]
+           -> MVar ()
+           -> Either (SwitchHandle, 
+                     SwitchFeatures, Chan (TransactionID, SCMessage))
+                     Program
+           -> IO ()
+      loop switches policy queues outputs (Left (switch,features,msgChan)) = do
+        let switchId = handle2SwitchID switch
+        noticeM "controller" $ "switch " ++ show switchId ++ " connected"
+        kill <- newEmptyMVar
+        forkIO (handleSwitch server switch policy kill msgChan)
+        createQueuesForSwitch server queues switchId -- TODO: del existing qs?
+        debugM "controller" $ "waiting for program/switch after new switch."
+        next <- readChan switchPolicyChan
+        loop ((switch,msgChan,kill):switches) policy queues outputs next
+      loop switches _ queues killOutputs (Right program) = do
+        debugM "controller" $ "recv new NetCore program"
+        let (queues', policy) = evalProgram program
+        let killVars = killOutputs : (map (\(_,_,k) -> k) switches)
+        mapM_ (\k -> putMVar k ()) killVars
+        mapM_ takeMVar killVars -- wait for termination
+        debugM "controller" $ "killed helper threads"
+        let switchIds = map (\(h, _, _) -> handle2SwitchID h) switches
+        mapM_ (deleteQueuesForSwitch server queues) switchIds
+        mapM_ (createQueuesForSwitch server queues') switchIds
+        let handle (switch, msgChan, _) = do
+              kill <- newEmptyMVar
+              forkIO (handleSwitch server switch policy kill msgChan)
+              return (switch, msgChan, kill)
+        switches' <- mapM handle switches
+        killOutputs' <- newEmptyMVar
+        forkIO (handlePolicyOutputs server policy killOutputs)
+        debugM "controller" $ "waiting for program/switch after new program."
+        next <- readChan switchPolicyChan
+        loop switches' policy queues' killOutputs' next
+  v <- readChan switchPolicyChan
+  dummyOutput <- newEmptyMVar
+  forkIO $ do
+    takeMVar dummyOutput
+    putMVar dummyOutput ()
+    debugM "controller" $ "dummy thead terminated"
+  loop [] PoBottom Map.empty dummyOutput v
   closeServer server
-
-data Counters = Counters {
-  totalVal :: IORef Integer,
-  lastVal :: IORef Integer
-}
-
-newCounters :: IO Counters
-newCounters = do
-  total <- newIORef 0
-  last <- newIORef 0
-  return (Counters total last)
 
 -- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
 -- The actions include queries that are not realizable on switches.
@@ -162,9 +229,6 @@ classifierQueries classifier = map sel queries where
   queries = nub (concatMap (actQueries.snd) classifier)
   sel query = (query, map fst (filter (hasQuery query) classifier))
   hasQuery query (_, action) = query `elem` actQueries action
-
-
-data Counter = PktCounter | ByteCounter
 
 runCounterQuery killFlag nettle switch ctrlAction msDelay pats counter = do
   (Counters totalRef lastRef) <- newCounters
@@ -189,7 +253,6 @@ runCounterQuery killFlag nettle switch ctrlAction msDelay pats counter = do
         ctrlAction (switchID, total')
   return ()
 
-
 runQueryOnSwitch :: Nettle
                  -> SwitchHandle
                  -> [(Match, ActionImpl)]
@@ -205,7 +268,8 @@ runQueryOnSwitch nettle switch classifier = do
       runQuery (CountBytes _ msDelay ctrlAction, pats) =
         runCounterQuery killFlag nettle switch ctrlAction msDelay pats 
                         ByteCounter
-
+      runQuery (Forward{}, _) = return ()
+      runQuery (MonitorSwitch{}, _) = return ()
   mapM_ runQuery (classifierQueries classifier)
   return $ do
     writeIORef killFlag True

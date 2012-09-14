@@ -13,6 +13,9 @@ import qualified Monitor
 import qualified NAT
 import qualified KitchenSink
 import qualified BaseCon
+import qualified PacketOut
+import qualified ReserveWeb
+
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
 import System.Log.Handler.Simple
@@ -46,6 +49,10 @@ argSpec =
       "tests connecting Mininet to the Internet"
   , Option [] ["nat"] (NoArg (Example NAT.main))
       "tests connecting Mininet to the Internet through a NAT"
+  , Option [] ["pktout"] (NoArg (Example PacketOut.main))
+      "a controller that sends out packets"
+  , Option [] ["reserve"] (NoArg (Example ReserveWeb.main))
+      "reserve Web"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
   , Option [ ] ["basecon"] (NoArg (Example BaseCon.main)) "Basic Connectivty and Monitoring"
   ]

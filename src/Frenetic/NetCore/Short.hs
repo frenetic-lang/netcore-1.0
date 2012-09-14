@@ -16,6 +16,7 @@ module Frenetic.NetCore.Short
   , (==>)
   , (<%>)
   , (<+>)
+  , synthRestrict
   -- * Packet modifications
   , Modification (..)
   , unmodified
@@ -32,10 +33,14 @@ module Frenetic.NetCore.Short
 
 import Data.Word
 import qualified Data.List as List
-import qualified Data.MultiSet as MS
 import Frenetic.Pattern
 import Frenetic.NetCore.Types
 import Frenetic.Common
+
+infixr 5 <+>
+infixl 6 ==>
+infixr 7 <||>
+infixr 8 <&&>
 
 -- |Construct the predicate matching packets on this switch and port
 inport :: Switch -> Port -> Predicate
@@ -55,28 +60,26 @@ prAnd :: [Predicate] -> Predicate
 prAnd [] = Any
 prAnd ps = List.foldr1 (\ p1 p2 -> And p1 p2) ps
 
-dropPkt :: MultiSet Action
-dropPkt = MS.empty
+dropPkt :: [Action]
+dropPkt = []
 
 -- |Forward the packet out of all physical ports, except the packet's
 -- ingress port.
 allPorts :: Modification -- ^modifications to apply to the packet. Use
                          -- 'allPorts unmodified' to make no modifications.
-         -> MultiSet Action
-allPorts mod = MS.singleton (Forward AllPorts mod)
+         -> [Action]
+allPorts mod = [Forward AllPorts mod]
 
 -- |Forward the packet out of the specified physical ports.
-forward :: [Port] -> MultiSet Action
-forward ports = MS.fromList lst
-  where lst = [ Forward (Physical p) unmodified | p <- ports ]
+forward :: [Port] -> [Action]
+forward ports = [ Forward (Physical p) unmodified | p <- ports ]
 
 -- |Forward the packet out of the specified physical ports with modifications.
 --
 -- Each port has its own record of modifications, so modifications at one port
 -- do not interfere with modifications at another port.
-modify :: [(Port, Modification)] -> MultiSet Action
-modify mods = MS.fromList lst
-  where lst = [ Forward (Physical p) mod | (p, mod) <- mods ]
+modify :: [(Port, Modification)] -> [Action]
+modify mods = [ Forward (Physical p) mod | (p, mod) <- mods ]
 
 -- |Join: overloaded to find the union of policies and the join of actions.
 (<+>) :: Monoid a => a -> a -> a
@@ -92,18 +95,27 @@ modify mods = MS.fromList lst
 (==>) = PoBasic
 
 -- |Restrict a policy to act over packets matching the predicate.
-policy <%> pred = case policy of
+(<%>) = Restrict
+
+-- |Restricts the policy's domain to 'pred'. Does not eliminate
+-- 'Restrict' expressions, but does restrict their restrictions.
+synthRestrict :: Policy -> Predicate -> Policy
+synthRestrict pol pred = case pol of
   PoBottom -> PoBottom
-  PoBasic predicate act -> PoBasic (And predicate pred) act
-  PoUnion p1 p2 -> PoUnion (p1 <%> pred) (p2 <%> pred)
+  PoBasic pred' acts -> 
+    PoBasic (And pred' pred) acts
+  PoUnion pol1 pol2 ->
+    PoUnion (synthRestrict pol1 pred) (synthRestrict pol2 pred)
+  Restrict (SendPackets chan) pred' -> 
+    Restrict (SendPackets chan) (And pred pred')
+  Restrict pol pred' -> 
+    Restrict pol (And pred pred')
+  SendPackets chan -> 
+    Restrict (SendPackets chan) pred
 
 instance Monoid Policy where
   mappend = PoUnion
   mempty = PoBottom
-
-
-
-
 
 modDlSrc     value = unmodified {modifyDlSrc = Just value}
 modDlDst     value = unmodified {modifyDlDst = Just value}

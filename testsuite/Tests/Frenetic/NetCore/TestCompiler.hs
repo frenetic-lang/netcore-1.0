@@ -8,7 +8,6 @@ module Tests.Frenetic.NetCore.TestCompiler where
 import Nettle.IPv4.IPAddress
 import Nettle.OpenFlow.Packet
 import Frenetic.NetCore.Semantics
-import qualified Data.MultiSet as MS
 import qualified Data.Set as Set
 import Data.Word
 import Test.Framework
@@ -19,7 +18,6 @@ import Test.QuickCheck.Text
 import Test.HUnit
 import Test.Framework.Providers.HUnit
 import Frenetic.NetCore.Types
-import Frenetic.Compat
 import Tests.Frenetic.ArbitraryCompat
 import Frenetic.Pattern
 import Frenetic.NetCore
@@ -175,7 +173,7 @@ pkx = Packet {pktDlSrc = EthernetAddress 0x00000000006e,
        pktDlDst = EthernetAddress 0x0000000002ca, pktDlTyp = 55,
        pktDlVlan = Just 25, pktDlVlanPcp = 11, pktNwSrc = Just (IPAddress 9),
        pktNwDst = Just (IPAddress 10), pktNwProto = 44, pktNwTos = 59, pktTpSrc = Just 52, 
-       pktTpDst = Nothing, pktInPort = 8}
+       pktTpDst = Nothing }
 
 {-
 xcase_sem_bug_1 = do

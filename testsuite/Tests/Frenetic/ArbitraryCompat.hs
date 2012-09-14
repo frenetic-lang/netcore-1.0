@@ -13,10 +13,8 @@ import Frenetic.NetCore.Types
 import qualified Data.Set as Set
 import Data.Word
 import Data.Bits
-import Frenetic.Compat
 import Frenetic.Pattern
 import Test.QuickCheck
-import qualified Data.MultiSet as MS
 import Frenetic.Switches.OpenFlow
 import Frenetic.NetCore
 
@@ -34,17 +32,9 @@ instance (Arbitrary a, Ord a) => Arbitrary (Set.Set a) where
                      _  -> Set.union (Set.fromList shrunkElems) b
     in [Set.fold f Set.empty s]
 
-instance (Arbitrary ptrn, Arbitrary pkt) => Arbitrary (Transmission ptrn pkt) where
-  arbitrary = do
-    pt <- arbitrary
-    sw <- arbitrary
-    pk <- arbitrary
-    return $ Transmission pt sw pk
-
-  shrink t =
-    [t {trPattern = s} | s <- shrink (trPattern t)] ++
-    [t {trSwitch = s} | s <- shrink (trSwitch t)] ++
-    [t {trPkt = s} | s <- shrink (trPkt t)]
+instance Arbitrary Loc where
+  arbitrary = 
+    liftM2 Loc arbitrary arbitrary
 
 instance Arbitrary PseudoPort where
   arbitrary = do
@@ -60,6 +50,4 @@ instance Arbitrary Action where
     return (Forward p unmodified)
 
 instance Arbitrary ActionImpl where
-  arbitrary = do
-    acts <- arbitrary
-    return (actnTranslate (MS.fromList acts))
+  arbitrary = liftM actnTranslate arbitrary
