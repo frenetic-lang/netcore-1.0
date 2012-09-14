@@ -12,6 +12,7 @@ import qualified Repeater
 import qualified Monitor
 import qualified NAT
 import qualified KitchenSink
+import qualified BaseCon
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
 import System.Log.Handler.Simple
@@ -46,6 +47,7 @@ argSpec =
   , Option [] ["nat"] (NoArg (Example NAT.main))
       "tests connecting Mininet to the Internet through a NAT"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
+  , Option [ ] ["basecon"] (NoArg (Example BaseCon.main)) "Basic Connectivty and Monitoring"
   ]
 
 init [Help] = putStrLn (usageInfo "Usage Info" argSpec)
