@@ -69,20 +69,20 @@ mkOutputThread nettle (chan, pred) = forkIO $ forever $ do
   let len = fromIntegral (BS.length pktBytes) -- TODO(arjun): overflow
   let body = Right (decode pktBytes)
   case toPacket (PacketInfo Nothing len port ExplicitSend pktBytes body) of
-    Nothing -> warningM "nettle" $ "dropping unparsable packet being sent to "
+    Nothing -> warningM "controller" $ "dropping unparsable packet being sent to "
                  ++  show loc
     Just pkt -> case interpretPredicate pred (loc, pkt) of
       True -> do
         let msg = PacketOut $ 
                     PacketOutRecord (Right pktBytes) Nothing (sendOnPort port)
         sendToSwitchWithID nettle switch (0, msg)
-      False -> infoM "nettle" $ "dropping packet due to policy restriction"
+      False -> infoM "controller" $ "dropping packet due to policy restriction"
 
 handlePolicyOutputs :: Nettle -> Policy -> MVar () -> IO ()
 handlePolicyOutputs nettle pol kill = do
   let outputs = policyOutputs pol
   childTids <- mapM (mkOutputThread nettle) outputs
-  readMVar kill
+  takeMVar kill
   mapM_ killThread childTids
   putMVar kill ()
 
@@ -105,11 +105,11 @@ handleSwitch nettle switch policy kill msgChan = do
   let switchID = handle2SwitchID switch
   killChan <- newChan
   killThreadId <- forkIO $ do
-    v <- readMVar kill
+    v <- takeMVar kill
     writeChan killChan v
   let classifier = compile (handle2SwitchID switch) policy
   let flowTbl = toFlowTable classifier
-  debugM "nettle" $ "flow table is " ++ show flowTbl
+  debugM "controller" $ "flow table is " ++ show flowTbl
   killChildThreads <- runQueryOnSwitch nettle switch classifier
   -- Priority 65535 is for microflow rules from reactive-specialization
   let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
@@ -142,6 +142,7 @@ handleSwitch nettle switch policy kill msgChan = do
                     let msg = PacketOutRecord (Left buf) (Just inPort)
                                 (filter isNotToController (fromOFAct ofActions))
                     sendToSwitch switch (2, PacketOut msg)
+        otherwise -> return () -- ignore all other messages 
 
 deleteQueue :: Nettle -> Queue -> IO ()
 deleteQueue nettle (Queue switch port queue _) = do
@@ -187,13 +188,16 @@ nettleServer policyChan = do
         kill <- newEmptyMVar
         forkIO (handleSwitch server switch policy kill msgChan)
         createQueuesForSwitch server queues switchId -- TODO: del existing qs?
+        debugM "controller" $ "waiting for program/switch after new switch."
         next <- readChan switchPolicyChan
         loop ((switch,msgChan,kill):switches) policy queues outputs next
       loop switches _ queues killOutputs (Right program) = do
+        debugM "controller" $ "recv new NetCore program"
         let (queues', policy) = evalProgram program
-        let killVars = map (\(_,_,k) -> k) switches
-        mapM_ (\k -> putMVar k ()) (killOutputs:killVars) -- kill all handlers
-        mapM_ readMVar (killOutputs:killVars) -- wait for termination
+        let killVars = killOutputs : (map (\(_,_,k) -> k) switches)
+        mapM_ (\k -> putMVar k ()) killVars
+        mapM_ takeMVar killVars -- wait for termination
+        debugM "controller" $ "killed helper threads"
         let switchIds = map (\(h, _, _) -> handle2SwitchID h) switches
         mapM_ (deleteQueuesForSwitch server queues) switchIds
         mapM_ (createQueuesForSwitch server queues') switchIds
@@ -204,13 +208,15 @@ nettleServer policyChan = do
         switches' <- mapM handle switches
         killOutputs' <- newEmptyMVar
         forkIO (handlePolicyOutputs server policy killOutputs)
+        debugM "controller" $ "waiting for program/switch after new program."
         next <- readChan switchPolicyChan
         loop switches' policy queues' killOutputs' next
   v <- readChan switchPolicyChan
   dummyOutput <- newEmptyMVar
   forkIO $ do
-    readMVar dummyOutput
+    takeMVar dummyOutput
     putMVar dummyOutput ()
+    debugM "controller" $ "dummy thead terminated"
   loop [] PoBottom Map.empty dummyOutput v
   closeServer server
 
