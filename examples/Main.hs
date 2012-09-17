@@ -12,6 +12,7 @@ import qualified Repeater
 import qualified Monitor
 import qualified NAT
 import qualified KitchenSink
+import qualified BaseCon
 import qualified PacketOut
 import qualified ReserveWeb
 import qualified ShortestPath
@@ -53,6 +54,7 @@ argSpec =
   , Option [] ["reserve"] (NoArg (Example ReserveWeb.main))
       "reserve Web"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
+  , Option [ ] ["basecon"] (NoArg (Example BaseCon.main)) "Basic Connectivty and Monitoring"
   ]
 
 init [Help] = putStrLn (usageInfo "Usage Info" argSpec)
