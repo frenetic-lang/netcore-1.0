@@ -14,6 +14,7 @@ import qualified NAT
 import qualified KitchenSink
 import qualified PacketOut
 import qualified ReserveWeb
+import qualified ShortestPath
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
 import System.Log.Handler.Simple
