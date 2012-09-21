@@ -16,7 +16,8 @@ Executable frenetic-example-suite
     netcore == 1.1.*,
     binary,
     bimap,
-    array
+    array,
+    fgl
   Extensions:
     ScopedTypeVariables,
     TypeFamilies,
