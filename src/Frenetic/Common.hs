@@ -7,13 +7,17 @@ module Frenetic.Common
   , module Control.Concurrent
   , module System.Log.Logger
   , module Data.Monoid
+  , module Data.Word
   , select
   , both
   , mapChan
   , catMaybes
+  , mapMaybe
+  , isJust
   , forever
   ) where
 
+import Data.Word
 import System.Log.Logger hiding (Priority)
 import Control.Concurrent.Chan
 import Control.Concurrent
@@ -22,7 +26,7 @@ import Data.Monoid hiding (Any)
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.ByteString.Lazy (ByteString)
-import Data.Maybe (catMaybes)
+import Data.Maybe
 
 -- |Produce a new channel that carries updates from both of the input channels,
 -- but does not wait for both to be ready.  Analogous to Unix SELECT(2) followed

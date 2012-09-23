@@ -6,7 +6,8 @@ module Frenetic.Switches.OpenFlow
   , toPacket
   , actnTranslate
   , ptrnMatchPkt
-  , actnControllerPart
+  , physicalPortOfPseudoPort
+  , predicateOfMatch
   ) where
 
 import Data.Map (Map)
@@ -14,7 +15,8 @@ import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import qualified Frenetic.NetCore.Types as NetCore
 import Data.HList
-import Frenetic.NetCore.Util
+import Frenetic.NetCore.Util (modifiedFields)
+import Frenetic.NetCore.Semantics
 import Control.Concurrent.Chan
 import           Data.Bits
 import qualified Data.Set                        as Set
@@ -38,6 +40,19 @@ physicalPortOfPseudoPort (ToQueue (Queue _ p q _)) = Enqueue p q
 
 toController :: ActionSequence
 toController = sendToController maxBound
+
+predicateOfMatch :: Match -> Predicate
+predicateOfMatch (Match{..}) = foldl And Any (catMaybes atoms)
+  where atoms = [ fmap DlSrc srcEthAddress
+                , fmap DlDst dstEthAddress
+                , fmap DlTyp ethFrameType
+                , fmap DlVlanPcp vLANPriority
+                , fmap NwProto matchIPProtocol
+                , fmap NwTos ipTypeOfService
+                , fmap TpSrcPort srcTransportPort
+                , fmap TpSrcPort dstTransportPort
+                , fmap IngressPort inPort
+                ]
 
 instance Eq a => Matchable (Maybe a) where
   top = Nothing
@@ -188,11 +203,11 @@ actnDefault = OFAct toController []
 
 -- The ToController action needs to come last. If you reorder, it will not
 -- work. Observed with the usermode switch.
-actnTranslate act = OFAct (ofFwd ++ toCtrl) queries
-  where acts  = if hasUnimplementableMods $ map (\(Forward _ m) -> m) fwd
+actnTranslate act = ofFwd ++ toCtrl
+  where acts  = if hasUnimplementableMods $ map (\(ActFwd _ m) -> m) fwd
                 then [SendOutPort (ToController maxBound)]
                 else ofFwd ++ toCtrl
-        ofFwd = concatMap (\(Forward pp md) -> modTranslate md
+        ofFwd = concatMap (\(ActFwd pp md) -> modTranslate md
                                ++ [physicalPortOfPseudoPort pp])
                     fwd
         toCtrl = case find isGetPacket queries of
@@ -208,11 +223,3 @@ actnTranslate act = OFAct (ofFwd ++ toCtrl) queries
                                     (modifiedFields $ head as)
                                     (map modifiedFields $ tail as)
               in not $ all (\pat -> Set.isSubsetOf (modifiedFields pat) minFields) as
-
-actnControllerPart (OFAct _ queries) switchID ofPkt  = do
-  let pktActions = map getPacketAction . filter isGetPacket $ queries
-  let sendParsablePkt act = case toPacket ofPkt of
-        Nothing -> return ()
-        Just pk -> act (switchID, pk)
-  mapM_ sendParsablePkt pktActions
-
