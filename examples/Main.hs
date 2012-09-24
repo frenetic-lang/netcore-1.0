@@ -16,6 +16,7 @@ import qualified BaseCon
 import qualified PacketOut
 import qualified ReserveWeb
 import qualified OneRes
+import qualified ShortestPath
 
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
