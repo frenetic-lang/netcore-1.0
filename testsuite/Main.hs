@@ -3,8 +3,6 @@ module Main where
 import Data.List
 import System.Environment
 
-import Tests.Frenetic.NetCore.TestCompiler
-import Tests.Frenetic.NetCore.TestNetCore
 import Tests.Frenetic.Slices.TestCompile
 import Tests.Frenetic.Slices.TestEndToEnd
 import Tests.Frenetic.Slices.TestSlice
@@ -23,9 +21,7 @@ main = do
 
 mainTests =
   [
-    compilerTests
-  , netCoreTests
-  , testGroup "Slice tests" [ sliceCompileTests
+    testGroup "Slice tests" [ sliceCompileTests
                             , sliceTests
                             , sliceVerificationTests
                             , vlanAssignmentTests
