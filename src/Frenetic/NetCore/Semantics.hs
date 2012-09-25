@@ -2,6 +2,7 @@
 -- interpret abstract packets.
 module Frenetic.NetCore.Semantics
   ( evalProgram
+  , Id (..)
   , Act (..)
   , Pol (..)
   , In (..)

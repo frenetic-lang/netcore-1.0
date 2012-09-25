@@ -2,7 +2,7 @@ module Main where
 
 import Data.List
 import System.Environment
-
+import qualified Semantics
 import Tests.Frenetic.Slices.TestCompile
 import Tests.Frenetic.Slices.TestEndToEnd
 import Tests.Frenetic.Slices.TestSlice
@@ -20,8 +20,8 @@ main = do
   defaultMainWithArgs ourTests args'
 
 mainTests =
-  [
-    testGroup "Slice tests" [ sliceCompileTests
+  [ Semantics.tests
+  , testGroup "Slice tests" [ sliceCompileTests
                             , sliceTests
                             , sliceVerificationTests
                             , vlanAssignmentTests
