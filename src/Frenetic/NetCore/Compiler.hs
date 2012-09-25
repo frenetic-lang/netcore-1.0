@@ -79,8 +79,8 @@ minimizeShadowing getPat rules = reverse $ f $ reverse rules
             Nothing -> False
             Just p3 -> match p1 p3
 
-minimizeClassifier :: Classifier ActionImpl
-                   -> Classifier ActionImpl
+minimizeClassifier :: Classifier a
+                   -> Classifier a
 minimizeClassifier rules = minimizeShadowing fst rules
 
 {-| Each rule of the intermediate form is called a Bone. -}
