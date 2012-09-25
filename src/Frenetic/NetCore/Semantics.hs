@@ -44,7 +44,7 @@ data Pol
   | PolUnion Pol Pol
   | PolRestrict Pol Predicate
   | PolGenPacket Id
-  deriving (Show)
+  deriving (Show, Eq)
 
 data Act
   = ActFwd PseudoPort Modification
@@ -52,14 +52,14 @@ data Act
   | ActQueryByteCounter Id
   | ActGetPkt Id
   | ActMonSwitch Id
-  deriving (Show)
+  deriving (Show, Eq)
 
 data In
   = InPkt Loc Packet (Maybe BufferID)
   | InGenPkt Id Switch PseudoPort Packet ByteString
   | InCounters Id Switch Predicate Integer {- packets -} Integer {- bytes -}
   | InSwitchEvt SwitchEvent
-  deriving (Show)
+  deriving (Show, Eq)
 
 data Out
   = OutPkt Switch PseudoPort Packet (Either BufferID ByteString)
@@ -70,7 +70,7 @@ data Out
   | OutGetPkt Id Loc Packet
   | OutNothing
   | OutSwitchEvt Id SwitchEvent
-  deriving (Show)
+  deriving (Show, Eq)
 
 data Callback
   = CallbackByteCounter Int ((Switch, Integer) -> IO ())
