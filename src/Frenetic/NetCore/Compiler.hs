@@ -157,7 +157,7 @@ pred sw pr = case pr of
 {-| Compile a policy to intermediate form -}
 compilePolicy :: Switch -> Pol -> Skeleton [Act]
 compilePolicy _ PolEmpty = []
-compilePolicy s (PolPktProcess po as) =
+compilePolicy s (PolProcessIn po as) =
     skelMap f $ pred s po
       where f True = as
             f False = []

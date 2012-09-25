@@ -66,7 +66,7 @@ processOut nettle _ _ (OutPkt sw pt hdrs pkt) = do
   let msg = PacketOut (PacketOutRecord pkt Nothing 
                                        [physicalPortOfPseudoPort pt])
   sendToSwitchWithID nettle sw (0, msg)
-processOut _ _ _ OutDrop = do
+processOut _ _ _ OutNothing = do
   return ()
 -- The errors below should *never* occur; if they do, we have a bug.
 processOut _ callbacks _ (OutGetPkt x loc hdrs) = case Map.lookup x callbacks of

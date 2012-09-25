@@ -18,7 +18,6 @@ module Frenetic.NetCore.Semantics
   , isQuery
   )  where
 
-import Debug.Trace
 import Prelude hiding (pred)
 import Nettle.OpenFlow.Match
 import Nettle.OpenFlow.Packet (BufferID)
@@ -41,7 +40,7 @@ data Prog
 
 data Pol
   = PolEmpty
-  | PolPktProcess Predicate [Act]
+  | PolProcessIn Predicate [Act]
   | PolUnion Pol Pol
   | PolRestrict Pol Predicate
   | PolGenPacket Id
@@ -69,7 +68,7 @@ data Out
   | OutSetPktCounter Id Switch Integer
   | OutSetByteCounter Id Switch Integer
   | OutGetPkt Id Loc Packet
-  | OutDrop
+  | OutNothing
   | OutSwitchEvt Id SwitchEvent
   deriving (Show)
 
@@ -102,8 +101,8 @@ isQuery act = case act of
 synthRestrictPol :: Pol -> Predicate -> Pol
 synthRestrictPol pol pred = case pol of
   PolEmpty -> PolEmpty
-  PolPktProcess pred' acts -> 
-    PolPktProcess (And pred' pred) acts
+  PolProcessIn pred' acts -> 
+    PolProcessIn (And pred' pred) acts
   PolUnion pol1 pol2 ->
     PolUnion (synthRestrictPol pol1 pred) (synthRestrictPol pol2 pred)
   PolRestrict (PolGenPacket chan) pred' -> 
@@ -124,7 +123,7 @@ evalPol = pol
 pol :: Pol -> In -> [Out]
 pol PolEmpty _ = []
 pol (PolUnion p1 p2) inp = pol p1 inp ++ pol p2 inp
-pol (PolPktProcess pr acts) inp = 
+pol (PolProcessIn pr acts) inp = 
   if pred pr inp then map (\a -> action a inp) acts else []
 pol (PolRestrict p pr) inp = 
   if pred pr inp then pol p inp else []
@@ -136,35 +135,35 @@ pol (PolGenPacket x) inp = case inp of
 action :: Act -> In -> Out
 action (ActFwd pt mods) (InPkt (Loc sw _) hdrs maybePkt) = case maybePkt of
   Just pkt -> OutPkt sw pt hdrs (Left pkt)
-  Nothing -> OutDrop
-action (ActFwd _ _) (InGenPkt _ _ _ _ _) = OutDrop
-action (ActFwd _ _) (InCounters _ _ _ _ _) = OutDrop
-action (ActFwd _ _) (InSwitchEvt _) = OutDrop
+  Nothing -> OutNothing
+action (ActFwd _ _) (InGenPkt _ _ _ _ _) = OutNothing
+action (ActFwd _ _) (InCounters _ _ _ _ _) = OutNothing
+action (ActFwd _ _) (InSwitchEvt _) = OutNothing
 action (ActQueryPktCounter x) (InCounters y sw _ numPkts _) =
   if x == y then
     OutSetPktCounter x sw numPkts
   else
-    OutDrop
-action (ActQueryPktCounter _) (InPkt _ _ _) = OutDrop
+    OutNothing
+action (ActQueryPktCounter _) (InPkt _ _ _) = OutNothing
 action (ActQueryPktCounter x) (InGenPkt _ _ _ _ _) = OutIncrPktCounter x
-action (ActQueryPktCounter _) (InSwitchEvt _) = OutDrop
+action (ActQueryPktCounter _) (InSwitchEvt _) = OutNothing
 action (ActQueryByteCounter x) (InCounters y sw _ _ numBytes) =
   if x == y then
     OutSetByteCounter x sw numBytes
   else
-    OutDrop
-action (ActQueryByteCounter _) (InPkt _ _ _) = OutDrop
+    OutNothing
+action (ActQueryByteCounter _) (InPkt _ _ _) = OutNothing
 action (ActQueryByteCounter x) (InGenPkt _ _ _ _ pkt) =
   OutIncrByteCounter x (fromIntegral (BS.length pkt))
-action (ActQueryByteCounter _) (InSwitchEvt _) = OutDrop
+action (ActQueryByteCounter _) (InSwitchEvt _) = OutNothing
 action (ActGetPkt x) (InPkt loc hdrs _) = OutGetPkt x loc hdrs
-action (ActGetPkt _) (InGenPkt _ _ _ _ _) = OutDrop
-action (ActGetPkt _) (InCounters _ _ _ _ _) = OutDrop
-action (ActGetPkt _) (InSwitchEvt _) = OutDrop
+action (ActGetPkt _) (InGenPkt _ _ _ _ _) = OutNothing
+action (ActGetPkt _) (InCounters _ _ _ _ _) = OutNothing
+action (ActGetPkt _) (InSwitchEvt _) = OutNothing
 action (ActMonSwitch x) (InSwitchEvt evt) = OutSwitchEvt x evt
-action (ActMonSwitch _) (InPkt _ _ _) = OutDrop
-action (ActMonSwitch _) (InGenPkt _ _ _ _ _) = OutDrop
-action (ActMonSwitch _) (InCounters _ _ _ _ _) = OutDrop
+action (ActMonSwitch _) (InPkt _ _ _) = OutNothing
+action (ActMonSwitch _) (InGenPkt _ _ _ _ _) = OutNothing
+action (ActMonSwitch _) (InCounters _ _ _ _ _) = OutNothing
 
 -- |When a packet-specific predicate is applied to a non-packet input, we
 -- produce this default value. 
@@ -309,7 +308,7 @@ dsPolicy ::  Policy -> DS Pol
 dsPolicy PoBottom = return PolEmpty
 dsPolicy (PoBasic pred actions) = do
   actions' <- mapM dsAction actions
-  return (PolPktProcess pred actions')
+  return (PolProcessIn pred actions')
 dsPolicy (PoUnion pol1 pol2) = do
   pol1' <- dsPolicy pol1
   pol2' <- dsPolicy pol2
