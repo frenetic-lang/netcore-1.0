@@ -79,6 +79,12 @@ data Callback
   | CallbackGetPkt ((Loc, Packet) -> IO ())
   | CallbackMonSwitch (SwitchEvent -> IO ())
 
+instance Show Callback where
+  show (CallbackByteCounter n _) = "CallbackByteCounter " ++ show n
+  show (CallbackPktCounter n _) = "CallbackPktCounter " ++ show n
+  show (CallbackGetPkt _) = "CallbackGetPkt"
+  show (CallbackMonSwitch _) = "CallbackMonSwitch"
+
 type Callbacks = Map Id Callback
 
 
@@ -258,7 +264,7 @@ insDelayStream delay evt [] = [Right delay, Left evt]
 insDelayStream delay evt (Right delay' : rest) =
   let delay'' = delay - delay'
     in if delay'' > 0 then
-         (Right delay) : (insDelayStream (delay - delay') evt rest)
+         (Right delay') : (insDelayStream delay'' evt rest)
        else if delay'' == 0 then
          (Right delay) : (Left evt) : rest
        else {- delay'' < 0 -}
