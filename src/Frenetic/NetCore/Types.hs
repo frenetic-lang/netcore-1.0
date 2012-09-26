@@ -133,7 +133,23 @@ data Modification = Modification {
   modifyNwTos :: Maybe Word8,
   modifyTpSrc :: Maybe Word16,
   modifyTpDst :: Maybe Word16
-} deriving (Ord, Eq, Show)
+} deriving (Ord, Eq)
+
+instance Show Modification where
+  show (Modification{..}) = case catMaybes strs of
+    [] -> ""
+    lst -> concat (List.intersperse "," lst)
+    where strs = [ fmap (\v -> "dlSrc=" ++ show v) modifyDlSrc
+                 , fmap (\v -> "dlDst=" ++ show v) modifyDlDst
+                 , fmap (\v -> "dlVlan=" ++ show v) modifyDlVlan
+                 , fmap (\v -> "dlVlanPcp=" ++ show v) modifyDlVlanPcp
+                 , fmap (\v -> "nwSrc=" ++ show v) modifyNwSrc
+                 , fmap (\v -> "nwDst=" ++ show v) modifyNwDst
+                 , fmap (\v -> "nwTos=" ++ show v) modifyNwTos
+                 , fmap (\v -> "nwTpSrc=" ++ show v) modifyTpSrc
+                 , fmap (\v -> "nwTpDst=" ++ show v) modifyTpDst
+                 ]
+              
 
 unmodified :: Modification
 unmodified = Modification Nothing Nothing Nothing Nothing Nothing Nothing
