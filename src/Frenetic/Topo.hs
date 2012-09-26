@@ -14,12 +14,13 @@ module Frenetic.Topo
 
 import Data.Graph.Inductive.Graph
 import Data.Graph.Inductive.Tree
+import Data.Maybe
 import qualified Data.List as List
 import qualified Data.Set as Set
 
 import Frenetic.NetCore.Types
 
-type Topo = Gr () Port
+type Topo = Gr Int Port
 
 -- | Build a graph from list of undirected edges labeled with their ports
 -- Ensures that the resulting graph is undirected-equivalent, and labels each
@@ -33,7 +34,7 @@ buildGraph :: [((Node, Port), (Node, Port))] -> Topo
 buildGraph links = mkGraph nodes edges where
   nodes = Set.toList .
           Set.unions $
-          map (\ ((n1, _), (n2, _)) -> Set.fromList [(n1, ()), (n2, ())])
+          map (\ ((n1, _), (n2, _)) -> Set.fromList [(n1,-2), (n2, -2)])
               links
   edges = Set.toList .
           Set.unions $
@@ -45,6 +46,31 @@ buildGraph links = mkGraph nodes edges where
 filterGr :: (Graph gr) => (LNode a -> Bool) -> gr a b -> gr a b
 filterGr pred gr = delNodes badNodes gr where
   badNodes = map fst . filter (not . pred) . labNodes $ gr
+
+
+-- |Get the l-1 nodes of the topology
+-- By definition, these are the nodes incident to no cycle in the topology
+lOne :: (Graph gr) => gr a b -> gr a b 
+lOne gr = 
+  let inCycle (v, label) = (foldl (\x -> \y -> if y == v then x+1 else x) 0 (dfs gr (v, label))) > 1 
+  in filterGr inCycle gr 
+
+lOneClose :: (Graph gr) => gr a b -> [Node] -> [Node]
+lOneClose g nodes = nodes
+
+
+
+dfs :: (Graph gr) => gr a b -> LNode a -> [Node]
+dfs gr a = 
+  let explore path visited (i,l) = 
+        case () of  _ 
+                      |  (isJust (List.find (\x -> i == x) path)) -> i : visited 
+                      |  (isJust (List.find (\x -> i == x) visited)) -> i : visited 
+                      |  otherwise -> 
+                        let n_path = i : path in
+                        let edges = labNodes (filterGr (\x -> isJust (getEdgeLabel gr i (fst x))) gr) in
+                          foldl (\x -> \y ->  x  ++ explore n_path visited y) [] edges 
+  in explore [] [] a
 
 -- | Get the subgraph only containing nodes
 subgraph :: (Graph gr) => Set.Set Node -> gr a b -> gr a b
@@ -101,3 +127,4 @@ lPorts topo n = lsuc topo n
 -- |Get the ports of a switch in the topology.
 ports :: (Graph gr) => gr a Port -> Node -> [Port]
 ports topo = map snd . lPorts topo
+
