@@ -20,18 +20,14 @@ import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
 import qualified Frenetic.NetCore.Types as NetCore
 
-data Counters = Counters {
-  totalVal :: IORef Integer,
-  lastVal :: IORef Integer
-}
+type Counters = Map Int (IORef (Integer, Map Switch Integer))
 
-data Counter = PktCounter | ByteCounter
-
-newCounters :: IO Counters
-newCounters = do
-  total <- newIORef 0
-  last <- newIORef 0
-  return (Counters total last)
+initCounters :: Callbacks -> IO Counters
+initCounters callbacks = do
+  let mk counters x = do
+        ref <- newIORef (0, Map.empty)
+        return (Map.insert x ref counters)
+  foldM mk Map.empty (Map.keys callbacks)
 
 mkFlowMod :: (Match, ActionSequence)
           -> Priority
@@ -48,12 +44,8 @@ mkFlowMod (pat, acts) pri = FlowMod AddFlow {
   overlapAllowed=True
 }
 
-prettyClassifier :: (Match, ActionSequence) -> String
-prettyClassifier (match, as) = "(" ++ show match ++ ", " ++ show as ++ ")"
-
 isNotToController (SendOutPort (ToController _)) = False
 isNotToController _ = True
-
 
 policyOutputs :: Policy -> [(Chan (Loc, ByteString), Predicate)]
 policyOutputs PoBottom = []
@@ -63,37 +55,114 @@ policyOutputs (Restrict (SendPackets chan) pred) = [(chan, pred)]
 policyOutputs (Restrict pol pred) = policyOutputs (synthRestrict pol pred)
 policyOutputs (SendPackets chan) = [(chan, Any)]
 
-mkOutputThread :: Nettle -> (Chan (Loc, ByteString), Predicate) -> IO ThreadId
-mkOutputThread nettle (chan, pred) = forkIO $ forever $ do
-  (loc@(Loc switch port), pktBytes) <- readChan chan
-  let len = fromIntegral (BS.length pktBytes) -- TODO(arjun): overflow
-  let body = Right (decode pktBytes)
-  case toPacket (PacketInfo Nothing len port ExplicitSend pktBytes body) of
-    Nothing -> warningM "controller" $ "dropping unparsable packet being sent to "
-                 ++  show loc
-    Just pkt -> case interpretPredicate pred (loc, pkt) of
-      True -> do
-        let msg = PacketOut $ 
-                    PacketOutRecord (Right pktBytes) Nothing (sendOnPort port)
-        sendToSwitchWithID nettle switch (0, msg)
-      False -> infoM "controller" $ "dropping packet due to policy restriction"
+parsePkt :: NetCore.Port -> ByteString -> Maybe Packet
+parsePkt pt rawPkt = 
+  let len = fromIntegral (BS.length rawPkt) -- TODO(arjun): overflow
+      body = Right (decode rawPkt)
+    in toPacket (PacketInfo Nothing len pt ExplicitSend rawPkt body)
 
-handlePolicyOutputs :: Nettle -> Policy -> MVar () -> IO ()
-handlePolicyOutputs nettle pol kill = do
-  let outputs = policyOutputs pol
-  childTids <- mapM (mkOutputThread nettle) outputs
+processOut :: Nettle -> Callbacks -> Counters -> Out -> IO ()
+processOut nettle _ _ (OutPkt sw pt hdrs pkt) = do
+  let msg = PacketOut (PacketOutRecord pkt Nothing 
+                                       [physicalPortOfPseudoPort pt])
+  sendToSwitchWithID nettle sw (0, msg)
+processOut _ _ _ OutNothing = do
+  return ()
+-- The errors below should *never* occur; if they do, we have a bug.
+processOut _ callbacks _ (OutGetPkt x loc hdrs) = case Map.lookup x callbacks of
+  Nothing -> do
+    errorM "controller" ("unknown callback " ++ show x)
+  Just cb -> case cb of
+    CallbackGetPkt procM -> procM (loc,hdrs)
+    otherwise -> errorM "controller" ("expected GetPkt callback for " ++ show x)
+processOut _ _ counters (OutSetPktCounter x sw numPkts) = 
+  case Map.lookup x counters of
+    Nothing -> errorM "controller" "counter not found"
+    Just mapRef -> atomicModifyIORef mapRef 
+                     (\(n,m) -> ((n, Map.insert sw numPkts m), ()))
+processOut _ _ counters (OutSetByteCounter x sw numBytes) = 
+  case Map.lookup x counters of
+    Nothing -> errorM "controller" "counter not found"
+    Just mapRef -> atomicModifyIORef mapRef 
+                     (\(n,m) -> ((n, Map.insert sw numBytes m), ()))
+processOut _ callbacks _ (OutSwitchEvt x evt) = case Map.lookup x callbacks of
+  Nothing -> do
+    errorM "controller" ("unknown callback " ++ show x)
+  Just cb -> case cb of
+    CallbackMonSwitch procM -> procM evt
+    otherwise -> errorM "controller" ("unexpected callback for " ++ show x)
+processOut _ _ counters (OutIncrPktCounter x) =
+  case Map.lookup x counters of
+    Nothing -> errorM "controller" "counter not found"
+    Just mapRef -> atomicModifyIORef mapRef 
+                     (\(n,m) -> ((n+1, m), ()))
+processOut _ _ counters (OutIncrByteCounter x pktSize) =
+  case Map.lookup x counters of
+    Nothing -> errorM "controller" "counter not found"
+    Just mapRef -> atomicModifyIORef mapRef 
+                     (\(n,m) -> ((n+pktSize, m), ()))
+
+invokeCallbacksOnTimers :: Counters
+                        -> Callbacks
+                        -> IO (MVar ())
+invokeCallbacksOnTimers counters callbacks = do
+  killMVar <- newEmptyMVar
+  let body (Right delay) = do
+        threadDelay (delay * 1000)
+      body (Left (x, cb)) = case Map.lookup x counters of
+        Nothing -> errorM "controller" "invokeCallbacksOnTimers: counter?"
+        Just ref -> do
+          (localCount, countersPerSwitch) <- readIORef ref
+          let v = localCount + sum (Map.elems countersPerSwitch)
+          case cb of
+            CallbackByteCounter _ procM -> procM (0, v)
+            CallbackPktCounter _ procM -> procM (0, v)
+            CallbackMonSwitch _ -> 
+              errorM "controller" "invokeCallbacksOnTimer: wrong callback type"
+            CallbackGetPkt _ ->
+              errorM "controller" "invokeCallbacksOnTimer: wrong callback type"
+  tid <- forkIO $ mapM_ body (callbackDelayStream callbacks)
+  forkIO $ do
+    takeMVar killMVar
+    killThread tid
+    putMVar killMVar ()
+  return killMVar
+
+
+handlePolicyOutputs :: Nettle 
+                    -> Callbacks
+                    -> Counters
+                    -> Pol 
+                    -> [(Int, Chan (Loc, ByteString))]
+                    -> MVar () 
+                    -> IO ()
+handlePolicyOutputs nettle callbacks counters pol gens kill = do
+  mergedChan <- newChan
+  let mkOutput (x, chan) = forkIO $ forever $ do
+        v <- readChan chan
+        writeChan mergedChan (x, v)
+  readThreads <- mapM mkOutput gens
+  writeThread <- forkIO $ forever $ do
+    (x, (Loc sw pt, rawPkt)) <- readChan mergedChan
+    case parsePkt pt rawPkt of
+      Nothing -> warningM "controller" "dropping unparsable packet"
+      Just pkt -> do
+        let outs = evalPol pol (InGenPkt x sw (Physical pt) pkt rawPkt)
+        mapM_ (processOut nettle callbacks counters) outs
   takeMVar kill
-  mapM_ killThread childTids
+  mapM_ killThread (writeThread:readThreads)
   putMVar kill ()
 
 -- |Installs the static portion of the policy, then react.
 handleSwitch :: Nettle
+             -> Callbacks
+             -> Counters
              -> SwitchHandle
-             -> Policy
+             -> Pol
              -> MVar ()
-             -> Chan (TransactionID, SCMessage)
+             -> Chan (Maybe (TransactionID, SCMessage))
              -> IO ()
-handleSwitch nettle switch policy kill msgChan = do
+handleSwitch nettle callbacks counters switch pol kill msgChan = do
   -- 1. Clear the flow table
   -- 2. In parallel:
   --    a. Receive a message from the switch
@@ -107,10 +176,10 @@ handleSwitch nettle switch policy kill msgChan = do
   killThreadId <- forkIO $ do
     v <- takeMVar kill
     writeChan killChan v
-  let classifier = compile (handle2SwitchID switch) policy
+  let classifier = compile (handle2SwitchID switch) pol
   let flowTbl = toFlowTable classifier
   debugM "controller" $ "flow table is " ++ show flowTbl
-  killChildThreads <- runQueryOnSwitch nettle switch classifier
+  killMVar' <- runQueryOnSwitch nettle switch classifier counters callbacks
   -- Priority 65535 is for microflow rules from reactive-specialization
   let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
   mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
@@ -119,29 +188,51 @@ handleSwitch nettle switch policy kill msgChan = do
     v <- readChan killOrMsg
     case v of
       Left () -> do
-        killChildThreads
+        putMVar killMVar' ()
+        takeMVar killMVar'
         putMVar kill ()
         tid <- myThreadId
         killThread tid
-      Right (xid, msg) ->  case msg of
-        PacketIn (pkt@(PacketInfo {receivedOnPort=inPort, 
-                                   reasonSent=reason,
-                                   enclosedFrame=Right frame})) -> do
+      Right Nothing -> do
+        let evt = InSwitchEvt (SwitchDisconnected switchID)
+        let outs = evalPol pol evt
+        mapM_ (processOut nettle callbacks counters) outs
+        writeChan killChan ()
+      Right (Just (xid, msg)) ->  case msg of
+        PortStatus (reason, ofPort@Port{..}) -> do
+          let evt = InSwitchEvt (PortEvent switchID portID reason ofPort)
+          let outs = evalPol pol evt
+          mapM_ (processOut nettle callbacks counters) outs      
+        StatsReply (FlowStatsReply _ stats) -> do
+          -- xid is the ID of the counter
+          let counterId = fromIntegral xid
+          let mkIn (FlowStats{..}) = 
+                InCounters counterId
+                           switchID
+                           (And (Switch switchID)
+                                (predicateOfMatch flowStatsMatch))
+                           flowStatsPacketCount 
+                           flowStatsByteCount
+          let ins = map mkIn stats
+          let outs = concatMap (evalPol pol) ins
+          debugM "controller" $ show (pol, stats, ins, outs)
+          mapM_ (processOut nettle callbacks counters) outs
+        PacketIn (pk@(PacketInfo {receivedOnPort=inPort, 
+                                  reasonSent=reason,
+                                  bufferID=bufferID,    
+                                  enclosedFrame=Right frame})) -> do
           let loc = Loc switchID inPort
-          case toPacket pkt of
+          case toPacket pk of
             Nothing -> return ()
-            Just pk -> do
-              let actions = interpretPolicy policy (loc, pk)
-              let ofActions = actnTranslate actions
-              actnControllerPart ofActions loc pkt
-              case reason of
-                ExplicitSend -> return ()
-                NotMatched -> case bufferID pkt of
-                  Nothing -> return () -- odd case
-                  Just buf -> do
-                    let msg = PacketOutRecord (Left buf) (Just inPort)
-                                (filter isNotToController (fromOFAct ofActions))
-                    sendToSwitch switch (2, PacketOut msg)
+            Just pkt -> do
+              let buf = case reason of
+                          ExplicitSend -> Nothing -- TODO(arjun): what?
+                          -- TODO(arjun): this is totally broken
+                          -- we are ignoring the bufferID if it is present!
+                          NotMatched -> bufferID
+              let inp = InPkt loc pkt buf
+              mapM_ (processOut nettle callbacks counters) (evalPol pol inp)
+
         otherwise -> return () -- ignore all other messages 
 
 deleteQueue :: Nettle -> Queue -> IO ()
@@ -174,111 +265,98 @@ nettleServer policyChan = do
   server <- startOpenFlowServerEx Nothing 6633
   switchChan <- makeSwitchChan server
   switchPolicyChan <- select switchChan policyChan
-  let loop :: [(SwitchHandle, Chan (TransactionID, SCMessage), MVar ())]
-           -> Policy
+  let loop :: [(SwitchHandle, Chan (Maybe (TransactionID, SCMessage)), MVar ())]
+           -> Callbacks
+           -> Counters
+           -> Pol
            -> Map Switch [Queue]
-           -> MVar ()
+           -> [MVar ()]
            -> Either (SwitchHandle, 
-                     SwitchFeatures, Chan (TransactionID, SCMessage))
+                     SwitchFeatures, Chan (Maybe (TransactionID, SCMessage)))
                      Program
            -> IO ()
-      loop switches policy queues outputs (Left (switch,features,msgChan)) = do
+      loop switches callbacks counters pol queues outputs 
+           (Left (switch,features,msgChan)) = do
         let switchId = handle2SwitchID switch
         noticeM "controller" $ "switch " ++ show switchId ++ " connected"
         kill <- newEmptyMVar
-        forkIO (handleSwitch server switch policy kill msgChan)
+        forkIO (handleSwitch server callbacks counters switch pol
+                             kill msgChan)
         createQueuesForSwitch server queues switchId -- TODO: del existing qs?
+        let outs = evalPol pol (InSwitchEvt $ SwitchConnected switchId features)
+        mapM_ (processOut server callbacks counters) outs
         debugM "controller" $ "waiting for program/switch after new switch."
         next <- readChan switchPolicyChan
-        loop ((switch,msgChan,kill):switches) policy queues outputs next
-      loop switches _ queues killOutputs (Right program) = do
+        loop ((switch,msgChan,kill):switches) callbacks counters pol
+             queues outputs next
+      loop switches _ _ _ queues killMVars (Right program) = do
         debugM "controller" $ "recv new NetCore program"
-        let (queues', policy) = evalProgram program
-        let killVars = killOutputs : (map (\(_,_,k) -> k) switches)
+        let (queues', sugaredPolicy) = evalProgram program
+        let (callbacks, generators, pol) = desugarPolicy sugaredPolicy
+        let killVars = killMVars ++ (map (\(_,_,k) -> k) switches)
         mapM_ (\k -> putMVar k ()) killVars
         mapM_ takeMVar killVars -- wait for termination
         debugM "controller" $ "killed helper threads"
         let switchIds = map (\(h, _, _) -> handle2SwitchID h) switches
         mapM_ (deleteQueuesForSwitch server queues) switchIds
         mapM_ (createQueuesForSwitch server queues') switchIds
+        counters <- initCounters callbacks
         let handle (switch, msgChan, _) = do
               kill <- newEmptyMVar
-              forkIO (handleSwitch server switch policy kill msgChan)
+              forkIO (handleSwitch server callbacks counters switch 
+                                   pol kill msgChan)
               return (switch, msgChan, kill)
         switches' <- mapM handle switches
         killOutputs' <- newEmptyMVar
-        forkIO (handlePolicyOutputs server policy killOutputs)
+        forkIO (handlePolicyOutputs server callbacks counters pol generators
+                                    killOutputs')
+        killCallbackInvokers' <- invokeCallbacksOnTimers counters callbacks
         debugM "controller" $ "waiting for program/switch after new program."
         next <- readChan switchPolicyChan
-        loop switches' policy queues' killOutputs' next
+        loop switches' callbacks counters pol queues'
+             [killOutputs', killCallbackInvokers'] next
   v <- readChan switchPolicyChan
   dummyOutput <- newEmptyMVar
   forkIO $ do
     takeMVar dummyOutput
     putMVar dummyOutput ()
     debugM "controller" $ "dummy thead terminated"
-  loop [] PoBottom Map.empty dummyOutput v
+  loop [] Map.empty Map.empty PolEmpty Map.empty [dummyOutput] v
   closeServer server
 
--- The classifier (1st arg.) pairs Nettle patterns with Frenetic actions.
--- The actions include queries that are not realizable on switches.
--- We assume the classifier does not have any fully-shadowed patterns.
-classifierQueries :: [(Match, ActionImpl)]
-                  -> [(NetCore.Action, [Match])]
-classifierQueries classifier = map sel queries where
-  queries = nub (concatMap (actQueries.snd) classifier)
-  sel query = (query, map fst (filter (hasQuery query) classifier))
-  hasQuery query (_, action) = query `elem` actQueries action
-
-runCounterQuery killFlag nettle switch ctrlAction msDelay pats counter = do
-  (Counters totalRef lastRef) <- newCounters
-  let mkReq m = StatsRequest (FlowStatsRequest m AllTables Nothing)
-  let statReqs = map mkReq pats
-  let switchID = handle2SwitchID switch
-  forkIO $ forever $ do
-    tid <- myThreadId
-    threadDelay (msDelay * 1000)
-    sendTransaction nettle switch statReqs $ \replies -> do
-      count <- readIORef lastRef
-      let count' = sum (map (getCount counter) replies)
-      total <- readIORef totalRef
-      let total' = total + (count' - count)
-      kill <- readIORef killFlag
-      if kill then do
-        writeIORef lastRef 0 -- assumes all rules evicted
-        killThread tid
-      else do
-        writeIORef lastRef count'
-        writeIORef totalRef total'
-        ctrlAction (switchID, total')
-  return ()
+selectMatches :: [(Match, [Act])] -> Int -> a -> [Match]
+selectMatches classifier x _ = map fst (filter hasQuery classifier)
+  where hasQuery (_, acts) = any matchingId acts
+        matchingId (ActFwd _ _) = False
+        matchingId (ActQueryPktCounter y) = x == y
+        matchingId (ActQueryByteCounter y) = x == y
+        matchingId (ActGetPkt _) = False
+        matchingId (ActMonSwitch _) = False
 
 runQueryOnSwitch :: Nettle
                  -> SwitchHandle
-                 -> [(Match, ActionImpl)]
-                 -> IO (IO ())
-runQueryOnSwitch nettle switch classifier = do
-  killFlag <- newIORef False
-  let runQuery (GetPacket _ _, pats) = do
-        -- nothing to do on the controller until a PacketIn
-        return ()
-      runQuery (CountPackets _ msDelay ctrlAction, pats) =
-        runCounterQuery killFlag nettle switch ctrlAction msDelay pats
-                        PktCounter
-      runQuery (CountBytes _ msDelay ctrlAction, pats) =
-        runCounterQuery killFlag nettle switch ctrlAction msDelay pats 
-                        ByteCounter
-      runQuery (Forward{}, _) = return ()
-      runQuery (MonitorSwitch{}, _) = return ()
-  mapM_ runQuery (classifierQueries classifier)
-  return $ do
-    writeIORef killFlag True
-
-
-getCount :: Counter -> SCMessage -> Integer
-getCount counter msg = case msg of
-  StatsReply (FlowStatsReply _ stats) -> case counter of
-    PktCounter -> sum (map flowStatsPacketCount stats)
-    ByteCounter -> sum (map flowStatsByteCount stats)
-  otherwise -> 0
-
+                 -> [(Match, [Act])]
+                 -> Counters
+                 -> Callbacks
+                 -> IO (MVar ())
+runQueryOnSwitch nettle switch classifier counters callbacks = do
+  let callbackMatches = Map.mapWithKey (selectMatches classifier) 
+                          (Map.filter (isJust.callbackInterval) callbacks)
+  let getMatches (Right delay) = Right delay
+      getMatches (Left (x, _)) = case Map.lookup x callbackMatches of
+        Nothing -> error "runQueryOnSwitch: callback not found"
+        Just matches -> Left (x, matches)
+  let queryStream = map getMatches (callbackDelayStream callbacks)
+  let body (Right delay) = do
+        threadDelay (delay * 1000)
+      body (Left (x, matches)) = do
+        let mkReq m = (fromIntegral x, -- Word32
+                       StatsRequest (FlowStatsRequest m AllTables Nothing))
+        mapM_ (sendToSwitch switch) (map mkReq matches)
+  tid <- forkIO $ mapM_ body queryStream
+  killMVar <- newEmptyMVar
+  forkIO $ do
+    takeMVar killMVar
+    killThread tid
+    putMVar killMVar ()
+  return killMVar

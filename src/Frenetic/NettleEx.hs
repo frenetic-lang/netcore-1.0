@@ -53,7 +53,7 @@ startOpenFlowServerEx host port = do
 
 makeSwitchChan :: Nettle
                -> IO (Chan (SwitchHandle, SwitchFeatures, 
-                            Chan (TransactionID, SCMessage)))
+                            Chan (Maybe (TransactionID, SCMessage))))
 makeSwitchChan nettle = do
   chan <- newChan
   forkIO $ forever $ do
@@ -64,7 +64,7 @@ makeSwitchChan nettle = do
 acceptSwitch :: Nettle
              -> IO (SwitchHandle,
                     SwitchFeatures,
-                    Chan (TransactionID, SCMessage))
+                    Chan (Maybe (TransactionID, SCMessage)))
 acceptSwitch nettle = do
   let exnHandler (e :: SomeException) = do
         infoM "nettle" $ "could not accept switch " ++ show e
@@ -79,14 +79,15 @@ acceptSwitch nettle = do
   let loop = do
         m <- receiveFromSwitch switch
         case m of
-          Nothing -> return ()
+          Nothing -> writeChan switchMessages Nothing
           Just (xid, msg) -> do
             handlers <- readIORef (txHandlers nettle)
             debugM "nettle" $ "received message xid=" ++ show xid
             case Map.lookup xid handlers of
               Just handler -> handler msg
-              Nothing      -> writeChan switchMessages (xid, msg)
-  threadId <- forkIO $ forever loop
+              Nothing      -> writeChan switchMessages (Just (xid, msg))
+            loop
+  threadId <- forkIO $ loop
   return (switch, switchFeatures, switchMessages)
 
 closeServer :: Nettle -> IO ()

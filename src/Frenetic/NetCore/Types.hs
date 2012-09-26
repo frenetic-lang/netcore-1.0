@@ -6,6 +6,7 @@ module Frenetic.NetCore.Types
   , Vlan
   , Loc (..)
   , PseudoPort (..)
+  , SwitchEvent (..)
   -- * Actions
   , Action (..)
   , Modification (..)
@@ -36,6 +37,7 @@ import Data.Maybe (catMaybes)
 import Nettle.Ethernet.EthernetAddress
 import Nettle.IPv4.IPAddress
 import Nettle.OpenFlow (SwitchFeatures)
+import qualified Nettle.OpenFlow as OF
 
 -- |A switch's unique identifier.
 type Switch = Word64
@@ -148,6 +150,14 @@ getNextQueryID = atomicModifyIORef nextQueryID (\i -> (i + 1, i))
 data SwitchEvent
   = SwitchConnected Switch SwitchFeatures
   | SwitchDisconnected Switch
+  | PortEvent Switch Port OF.PortStatusUpdateReason OF.Port
+  deriving (Eq)
+
+instance Show SwitchEvent where
+  show (SwitchConnected sw _) = "SwitchConnected " ++ show sw
+  show (SwitchDisconnected sw) = "SwitchDisconnected " ++ show sw
+  show (PortEvent sw pt reason status) = 
+    "PortEvent " ++ show sw ++ " " ++ show pt ++ " " ++ show status
 
 data Action
   = Forward PseudoPort Modification
@@ -165,10 +175,7 @@ data Action
       idOfQuery :: QueryID,
       getPacketAction :: (Loc, Packet) -> IO ()
     }
-  | MonitorSwitch {
-      idOfQuery :: QueryID,
-      monitorAction :: SwitchEvent -> IO ()
-  }
+  | MonitorSwitch (SwitchEvent -> IO ())
     
       
 instance Eq Action where
@@ -184,7 +191,7 @@ instance Show Action where
     "CountPackets (interval=" ++ show queryInterval ++ "ms, id=" ++
        show idOfQuery ++ ")"
   show (GetPacket{..}) = "GetPacket(id=" ++ show idOfQuery ++  ")"
-  show (MonitorSwitch{..}) = "MonitorSwitch"
+  show (MonitorSwitch{..}) = "MonitorSwitch{..}"
 
 instance Show Policy where
   show pol = case pol of

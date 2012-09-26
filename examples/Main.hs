@@ -8,6 +8,8 @@ import qualified Arp
 import qualified Internet
 import qualified MacLearning
 import qualified Query1
+import qualified Query2
+import qualified NetStatus
 import qualified Repeater
 import qualified Monitor
 import qualified NAT
@@ -43,6 +45,10 @@ argSpec =
       "a simple repeater"
   , Option [] ["query1"] (NoArg (Example Query1.main))
       "a repeater that also counts packets"
+  , Option [] ["query2"] (NoArg (Example Query2.main))
+      "a repeater that also counts packets at switch 5 for DlSrc 1"
+  , Option [] ["netstat"] (NoArg (Example NetStatus.main))
+      "a repeater that monitors switch/port events"
   , Option [] ["maclearning"] (NoArg (Example MacLearning.main))
       "a learning switch"
   , Option ['s'] ["sink"] (NoArg (Example KitchenSink.main))

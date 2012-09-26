@@ -1,30 +1,25 @@
 module Frenetic.Switches.OpenFlow
   ( OpenFlow (..)
-  , toOFAct
   , Nettle (..)
-  , ActionImpl (..)
   , toPacket
   , actnTranslate
   , ptrnMatchPkt
-  , actnControllerPart
+  , physicalPortOfPseudoPort
+  , predicateOfMatch
   ) where
 
-import Data.Map (Map)
+import Frenetic.Common
 import qualified Data.Map as Map
-import Data.Maybe (catMaybes)
 import qualified Frenetic.NetCore.Types as NetCore
 import Data.HList
-import Frenetic.NetCore.Util
-import Control.Concurrent.Chan
-import           Data.Bits
-import qualified Data.Set                        as Set
-import           Data.Word
-import Data.List (nub, find)
+import Frenetic.NetCore.Util (modifiedFields)
+import Frenetic.NetCore.Semantics
+import qualified Data.Set as Set
+import Data.List (find)
 import qualified Nettle.IPv4.IPAddress as IPAddr
 import Nettle.Ethernet.AddressResolutionProtocol
 import Frenetic.Pattern
 import Frenetic.NetCore.Types
-import Control.Concurrent
 import Frenetic.NettleEx hiding (AllPorts)
 import qualified Frenetic.NettleEx as NettleEx
 
@@ -36,8 +31,18 @@ physicalPortOfPseudoPort (Physical p) = SendOutPort (PhysicalPort p)
 physicalPortOfPseudoPort AllPorts = SendOutPort Flood
 physicalPortOfPseudoPort (ToQueue (Queue _ p q _)) = Enqueue p q
 
-toController :: ActionSequence
-toController = sendToController maxBound
+predicateOfMatch :: Match -> Predicate
+predicateOfMatch (Match{..}) = foldl And Any (catMaybes atoms)
+  where atoms = [ fmap DlSrc srcEthAddress
+                , fmap DlDst dstEthAddress
+                , fmap DlTyp ethFrameType
+                , fmap DlVlanPcp vLANPriority
+                , fmap NwProto matchIPProtocol
+                , fmap NwTos ipTypeOfService
+                , fmap TpSrcPort srcTransportPort
+                , fmap TpSrcPort dstTransportPort
+                , fmap IngressPort inPort
+                ]
 
 instance Eq a => Matchable (Maybe a) where
   top = Nothing
@@ -103,16 +108,6 @@ nettleEthernetBody pkt = case enclosedFrame pkt of
 
 data OpenFlow = OpenFlow Nettle
 
-toOFAct :: ActionSequence -> ActionImpl
-toOFAct p = OFAct p []
-
-instance Show ActionImpl where
-  show (OFAct acts ls) = show acts ++ " and " ++ show (length ls) ++ " queries"
-
-ifNothing :: Maybe a -> a -> a
-ifNothing (Just a) _ = a
-ifNothing Nothing b = b
-
 modTranslate :: Modification -> ActionSequence
 modTranslate (Modification{..}) =
   catMaybes [f1, f2, f3, f4, f5, f6, f7, f8, f9]
@@ -145,10 +140,6 @@ modTranslate (Modification{..}) =
                   Nothing -> Nothing
                   Just v  -> Just $ SetTransportDstPort v
 
-data ActionImpl  = OFAct { fromOFAct :: ActionSequence,
-                         actQueries :: [NetCore.Action] }
-                         deriving (Eq)
-
 ptrnMatchPkt pkt ptrn = case nettleEthernetFrame pkt of
   Just frame -> matches (receivedOnPort pkt, frame) ptrn
   Nothing -> False
@@ -170,9 +161,6 @@ toPacket pkt = do
                   (srcPort body)
                   (dstPort body)
 
-actnController = OFAct toController []
-actnDefault = OFAct toController []
-
 -- Not all multisets of actions can be translated to lists of OpenFlow
 -- actions.  For example, consider the set
 --
@@ -188,11 +176,11 @@ actnDefault = OFAct toController []
 
 -- The ToController action needs to come last. If you reorder, it will not
 -- work. Observed with the usermode switch.
-actnTranslate act = OFAct (ofFwd ++ toCtrl) queries
-  where acts  = if hasUnimplementableMods $ map (\(Forward _ m) -> m) fwd
+actnTranslate act = ofFwd ++ toCtrl
+  where acts  = if hasUnimplementableMods $ map (\(ActFwd _ m) -> m) fwd
                 then [SendOutPort (ToController maxBound)]
                 else ofFwd ++ toCtrl
-        ofFwd = concatMap (\(Forward pp md) -> modTranslate md
+        ofFwd = concatMap (\(ActFwd pp md) -> modTranslate md
                                ++ [physicalPortOfPseudoPort pp])
                     fwd
         toCtrl = case find isGetPacket queries of
@@ -208,11 +196,3 @@ actnTranslate act = OFAct (ofFwd ++ toCtrl) queries
                                     (modifiedFields $ head as)
                                     (map modifiedFields $ tail as)
               in not $ all (\pat -> Set.isSubsetOf (modifiedFields pat) minFields) as
-
-actnControllerPart (OFAct _ queries) switchID ofPkt  = do
-  let pktActions = map getPacketAction . filter isGetPacket $ queries
-  let sendParsablePkt act = case toPacket ofPkt of
-        Nothing -> return ()
-        Just pk -> act (switchID, pk)
-  mapM_ sendParsablePkt pktActions
-

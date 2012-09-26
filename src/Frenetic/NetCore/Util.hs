@@ -25,8 +25,8 @@ import Nettle.IPv4.IPAddress
 
 -- |Names of common header fields.
 data Field
-  = FDlSrc | FDlDst | FDlVlan | FDlVlanPcp | FNwSrc | FNwDst | FNwTos 
-  | FTpSrc | FTpDst | FNwProto | FInPort
+  = FDlSrc | FDlDst | FDlTyp | FDlVlan | FDlVlanPcp | FNwSrc | FNwDst | FNwTos 
+  | FTpSrc | FTpDst | FNwProto | FInPort | FSwitch
   deriving (Eq, Ord, Show)
 
 modifyActions :: ([Action] -> [Action]) 
@@ -145,6 +145,6 @@ isQuery act = case act of
   CountPackets {} -> True
   CountBytes {} -> True
   GetPacket {} -> True
-  MonitorSwitch {} -> True
   Forward {} -> False
+  MonitorSwitch {} -> True
   
