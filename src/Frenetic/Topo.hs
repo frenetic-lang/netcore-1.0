@@ -3,6 +3,7 @@ module Frenetic.Topo
   , buildGraph
   , getEdgeLabel
   , getEdge
+  , dfs
   , reverseLoc
   , subgraph
   , isHost

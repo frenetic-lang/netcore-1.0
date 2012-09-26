@@ -34,18 +34,9 @@ type Topology = Gr N ()
 mkMonitorPolicy :: Policy -> Topology -> IO ()
 mkMonitorPolicy fwd g = 
   let hosts = foldl (\acc (_,t) -> case t of {H e -> e:acc; _ -> acc }) [] (labNodes g) in 
-  -- mkqs :: EthernetAddress -> IO (EthernetAddress, Chan (Switch, Integer), [Action])
-  let mkqs e = 
-        do (c,a) <- countPkts 1000
-           return (e,c,a) in 
-  -- doit :: (EthernetAddress, Chan (Switch, Integer), [Action]) -> IO ()
-  let doit (ei,ci,_) = 
-        forkIO $ forever $do 
-          (sw,n) <- readChan ci
-          putStrLn ("Counter for " ++ show ei ++ " on " ++ show sw ++ " is: " ++ show n) in 
-  do qs <- mapM mkqs hosts 
-     let p = foldl (\acc (e,_,a) -> (DlDst e ==> a) `PoUnion` acc) PoBottom qs 
-     mapM doit qs
+  let monitorCallback ei ( sw, n ) = do
+        putStrLn ("Counter for " ++ show ei ++ " on " ++ show sw ++ " is: " ++ show n) in 
+  let p = foldl (\acc e -> (DlDst e ==> [GetPacket 0 (monitorCallback e)]) `PoUnion` acc) PoBottom hosts  in
      controller (fwd `PoUnion` p)
 
 myMain :: IO ()

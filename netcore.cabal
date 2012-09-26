@@ -43,10 +43,11 @@ Library
     Frenetic.NetCore.Util,
     Frenetic.NetworkFrames,
     Frenetic.Pattern,
-    Frenetic.Topo,
     Frenetic.NetCore.Reduce,
     Frenetic.Server,
-    Frenetic.CoFiniteSet
+    Frenetic.CoFiniteSet,
+    Frenetic.Topo,
+    Frenetic.TopoGen
   other-modules:
     Frenetic.Hosts.Nettle,
     Frenetic.NetCore.Compiler,
