@@ -59,7 +59,6 @@ lOneClose :: (Graph gr) => gr a b -> [Node] -> [Node]
 lOneClose g nodes = nodes
 
 
-
 dfs :: (Graph gr) => gr a b -> LNode a -> [Node]
 dfs gr a = 
   let explore path visited (i,l) = 
