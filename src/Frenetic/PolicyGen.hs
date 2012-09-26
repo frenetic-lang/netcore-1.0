@@ -25,7 +25,7 @@ import Nettle.Ethernet.EthernetAddress (EthernetAddress (..), broadcastAddress)
 
 -- |Convert a topology to a graph with weight 1 on each edge, for use with
 -- Data.Graph.Inductive.Query.SP's shortest path algorithms
-toUnitWeight :: Topo -> Gr Integer Integer
+toUnitWeight :: Topo -> Gr Int Integer
 toUnitWeight = emap (const 1)
 
 -- |Convert a list to a list of adjacent pairs
