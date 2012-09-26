@@ -45,7 +45,9 @@ Library
     Frenetic.Pattern,
     Frenetic.NetCore.Reduce,
     Frenetic.Server,
-    Frenetic.CoFiniteSet
+    Frenetic.CoFiniteSet,
+    Frenetic.Topo,
+    Frenetic.TopoGen
   other-modules:
     Frenetic.Hosts.Nettle,
     Frenetic.NetCore.Compiler,
@@ -55,7 +57,6 @@ Library
     Frenetic.Slices.Slice,
     Frenetic.Slices.VlanAssignment,
     Frenetic.Switches.OpenFlow,
-    Frenetic.Topo,
     Nettle.Ethernet.AddressResolutionProtocol,
     Nettle.Ethernet.EthernetFrame,
     Nettle.IPv4.IPAddress,

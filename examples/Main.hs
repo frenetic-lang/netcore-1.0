@@ -17,7 +17,9 @@ import qualified KitchenSink
 import qualified BaseCon
 import qualified PacketOut
 import qualified ReserveWeb
+import qualified OneRes
 import qualified ShortestPath
+
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
 import System.Log.Handler.Simple
@@ -61,6 +63,8 @@ argSpec =
       "reserve Web"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
   , Option [ ] ["basecon"] (NoArg (Example BaseCon.main)) "Basic Connectivty and Monitoring"
+  , Option [] ["oneres"] (NoArg (Example OneRes.main)) 
+      "Constructs a one resiliant routing policy for a network"
   ]
 
 init [Help] = putStrLn (usageInfo "Usage Info" argSpec)
