@@ -29,10 +29,12 @@ initCounters callbacks = do
         return (Map.insert x ref counters)
   foldM mk Map.empty (Map.keys callbacks)
 
-mkFlowMod :: (Match, ActionSequence)
+deleteAllFlows = FlowMod (DeleteFlows matchAny Nothing)
+
+mkAddFlow :: (Match, ActionSequence)
           -> Priority
           -> CSMessage
-mkFlowMod (pat, acts) pri = FlowMod AddFlow {
+mkAddFlow (pat, acts) pri = FlowMod AddFlow {
   match=pat,
   priority=pri,
   actions=acts,
@@ -181,7 +183,7 @@ handleSwitch nettle callbacks counters switch pol kill msgChan = do
   debugM "controller" $ "flow table is " ++ show flowTbl
   killMVar' <- runQueryOnSwitch nettle switch classifier counters callbacks
   -- Priority 65535 is for microflow rules from reactive-specialization
-  let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
+  let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
   mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
   killOrMsg <- select killChan msgChan
   forever $ do
