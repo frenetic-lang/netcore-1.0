@@ -2,9 +2,7 @@ module Main where
 
 import Data.List
 import System.Environment
-
-import Tests.Frenetic.NetCore.TestCompiler
-import Tests.Frenetic.NetCore.TestNetCore
+import qualified Semantics
 import Tests.Frenetic.Slices.TestCompile
 import Tests.Frenetic.Slices.TestEndToEnd
 import Tests.Frenetic.Slices.TestSlice
@@ -22,9 +20,7 @@ main = do
   defaultMainWithArgs ourTests args'
 
 mainTests =
-  [
-    compilerTests
-  , netCoreTests
+  [ Semantics.tests
   , testGroup "Slice tests" [ sliceCompileTests
                             , sliceTests
                             , sliceVerificationTests

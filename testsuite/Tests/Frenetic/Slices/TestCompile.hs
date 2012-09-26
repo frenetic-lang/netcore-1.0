@@ -1,6 +1,6 @@
 module Tests.Frenetic.Slices.TestCompile where
 
-import Frenetic.NetCore.Semantics
+import Frenetic.NetCore.Semantics hiding (isForward)
 import Test.Framework
 import Test.Framework.TH
 import Test.Framework.Providers.QuickCheck2

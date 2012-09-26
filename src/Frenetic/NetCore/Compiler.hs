@@ -13,16 +13,16 @@ import Nettle.OpenFlow.Match
 import qualified Nettle.OpenFlow as OF
 import Frenetic.Switches.OpenFlow
 import Prelude hiding (pred)
-import           Frenetic.Pattern
-import           Frenetic.Common
-import           Frenetic.NetCore.Types
-import           Frenetic.NetCore.Semantics
-import           Frenetic.NetCore.Short
-import           Data.Dynamic
-import qualified Data.List            as List
-import           Data.Maybe
-import qualified Data.Set             as Set
-import qualified Data.Map             as Map
+import Frenetic.Pattern
+import Frenetic.Common
+import Frenetic.NetCore.Types
+import Frenetic.NetCore.Semantics
+import Frenetic.NetCore.Short
+import Data.Dynamic
+import qualified Data.List as List
+import Data.Maybe
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 compilePredicate :: Switch
                  -> Predicate
@@ -79,8 +79,8 @@ minimizeShadowing getPat rules = reverse $ f $ reverse rules
             Nothing -> False
             Just p3 -> match p1 p3
 
-minimizeClassifier :: Classifier ActionImpl
-                   -> Classifier ActionImpl
+minimizeClassifier :: Classifier a
+                   -> Classifier a
 minimizeClassifier rules = minimizeShadowing fst rules
 
 {-| Each rule of the intermediate form is called a Bone. -}
@@ -155,29 +155,29 @@ pred sw pr = case pr of
   Not pr -> skelMap not (pred sw pr) ++ [Bone matchAny True]
 
 {-| Compile a policy to intermediate form -}
-compilePolicy :: Switch -> Policy -> Skeleton [Action]
-compilePolicy _ PoBottom = []
-compilePolicy s (PoBasic po as) =
+compilePolicy :: Switch -> Pol -> Skeleton [Act]
+compilePolicy _ PolEmpty = []
+compilePolicy s (PolProcessIn po as) =
     skelMap f $ pred s po
       where f True = as
-            f False = dropPkt
-compilePolicy s (PoUnion po1 po2) =
+            f False = []
+compilePolicy s (PolUnion po1 po2) =
    skelMinimize $ skel12' ++ skel1' ++ skel2'
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
             (skel12', skel1', skel2') = skelCart (<+>) skel1 skel2
-compilePolicy _ (Restrict (SendPackets _) _) = []
-compilePolicy _ (SendPackets _) = []
-compilePolicy s (Restrict pol pred) =
-  compilePolicy s (synthRestrict pol pred)
+compilePolicy _ (PolRestrict (PolGenPacket _) _) = []
+compilePolicy _ (PolGenPacket _) = []
+compilePolicy s (PolRestrict pol pred) =
+  compilePolicy s (synthRestrictPol pol pred)
 
 {-| Compile a policy to a classifier. -}
 compile :: Switch
-        -> Policy
-        -> Classifier ActionImpl
+        -> Pol
+        -> Classifier [Act]
 compile s po = map f skel
   where
-    f (Bone sptrn actn) = (sptrn, actnTranslate actn)
+    f (Bone sptrn actn) = (sptrn, actn)
     skel = compilePolicy s po
 
 useInPort (Just pt) (OF.SendOutPort (OF.PhysicalPort pt'))
@@ -185,6 +185,7 @@ useInPort (Just pt) (OF.SendOutPort (OF.PhysicalPort pt'))
   | otherwise = OF.SendOutPort (OF.PhysicalPort pt')
 useInPort _ act = act
 
+toFlowTable :: Classifier [Act] -> [(OF.Match, OF.ActionSequence)]
 toFlowTable classifier =
-  map (\(m, a) -> (m, map (useInPort (OF.inPort m)) $ fromOFAct a)) 
+  map (\(m, a) -> (m, map (useInPort (OF.inPort m)) $ actnTranslate a))
       classifier
