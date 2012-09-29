@@ -219,7 +219,7 @@ handleSwitch nettle callbacks counters switch pol kill msgChan = do
                            flowStatsByteCount
           let ins = map mkIn stats
           let outs = concatMap (evalPol pol) ins
-          debugM "controller" $ show (pol, stats, ins, outs)
+          debugM "controller" $ show (stats, ins, outs)
           mapM_ (processOut nettle callbacks counters) outs
         PacketIn (pk@(PacketInfo {receivedOnPort=inPort, 
                                   reasonSent=reason,
