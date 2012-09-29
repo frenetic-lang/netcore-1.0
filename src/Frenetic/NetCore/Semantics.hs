@@ -87,7 +87,6 @@ instance Show Callback where
 
 type Callbacks = Map Id Callback
 
-
 isGetPacket (ActGetPkt{}) = True
 isGetPacket _ = False
 
@@ -99,7 +98,7 @@ isQuery :: Act -> Bool
 isQuery act = case act of
   ActQueryPktCounter {} -> True
   ActQueryByteCounter {} -> True
-  ActGetPkt {} -> False
+  ActGetPkt {} -> True
   ActFwd {} -> False
   ActMonSwitch {} -> True
 

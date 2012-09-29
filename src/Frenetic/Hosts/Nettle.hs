@@ -178,7 +178,9 @@ handleSwitch nettle callbacks counters switch pol kill msgChan = do
   killThreadId <- forkIO $ do
     v <- takeMVar kill
     writeChan killChan v
+  debugM "controller" $ "policy is " ++ show pol
   let classifier = compile (handle2SwitchID switch) pol
+  debugM "controller" $ "classifier is " ++ show classifier
   let flowTbl = toFlowTable classifier
   debugM "controller" $ "flow table is " ++ show flowTbl
   killMVar' <- runQueryOnSwitch nettle switch classifier counters callbacks
