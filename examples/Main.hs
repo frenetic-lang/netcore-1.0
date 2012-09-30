@@ -65,6 +65,8 @@ argSpec =
   , Option [ ] ["basecon"] (NoArg (Example BaseCon.main)) "Basic Connectivty and Monitoring"
   , Option [] ["oneres"] (NoArg (Example OneRes.main)) 
       "Constructs a one resiliant routing policy for a network"
+  , Option [] ["sp"] (NoArg (Example ShortestPath.main))
+      "runs the shortest path algorithm"
   ]
 
 init [Help] = putStrLn (usageInfo "Usage Info" argSpec)
