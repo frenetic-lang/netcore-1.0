@@ -176,7 +176,7 @@ toPacket pkt = do
 
 -- The ToController action needs to come last. If you reorder, it will not
 -- work. Observed with the usermode switch.
-actnTranslate act = ofFwd ++ toCtrl
+actnTranslate act = acts
   where acts  = if hasUnimplementableMods $ map (\(ActFwd _ m) -> m) fwd
                 then [SendOutPort (ToController maxBound)]
                 else ofFwd ++ toCtrl

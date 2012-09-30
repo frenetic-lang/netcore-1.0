@@ -29,10 +29,12 @@ initCounters callbacks = do
         return (Map.insert x ref counters)
   foldM mk Map.empty (Map.keys callbacks)
 
-mkFlowMod :: (Match, ActionSequence)
+deleteAllFlows = FlowMod (DeleteFlows matchAny Nothing)
+
+mkAddFlow :: (Match, ActionSequence)
           -> Priority
           -> CSMessage
-mkFlowMod (pat, acts) pri = FlowMod AddFlow {
+mkAddFlow (pat, acts) pri = FlowMod AddFlow {
   match=pat,
   priority=pri,
   actions=acts,
@@ -176,12 +178,14 @@ handleSwitch nettle callbacks counters switch pol kill msgChan = do
   killThreadId <- forkIO $ do
     v <- takeMVar kill
     writeChan killChan v
+  debugM "controller" $ "policy is " ++ show pol
   let classifier = compile (handle2SwitchID switch) pol
+  debugM "controller" $ "classifier is " ++ show classifier
   let flowTbl = toFlowTable classifier
   debugM "controller" $ "flow table is " ++ show flowTbl
   killMVar' <- runQueryOnSwitch nettle switch classifier counters callbacks
   -- Priority 65535 is for microflow rules from reactive-specialization
-  let flowMods = zipWith mkFlowMod flowTbl  [65534, 65533 ..]
+  let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
   mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
   killOrMsg <- select killChan msgChan
   forever $ do
@@ -215,7 +219,7 @@ handleSwitch nettle callbacks counters switch pol kill msgChan = do
                            flowStatsByteCount
           let ins = map mkIn stats
           let outs = concatMap (evalPol pol) ins
-          debugM "controller" $ show (pol, stats, ins, outs)
+          debugM "controller" $ show (stats, ins, outs)
           mapM_ (processOut nettle callbacks counters) outs
         PacketIn (pk@(PacketInfo {receivedOnPort=inPort, 
                                   reasonSent=reason,

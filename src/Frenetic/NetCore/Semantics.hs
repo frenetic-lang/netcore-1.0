@@ -79,8 +79,13 @@ data Callback
   | CallbackGetPkt ((Loc, Packet) -> IO ())
   | CallbackMonSwitch (SwitchEvent -> IO ())
 
-type Callbacks = Map Id Callback
+instance Show Callback where
+  show (CallbackByteCounter n _) = "CallbackByteCounter " ++ show n
+  show (CallbackPktCounter n _) = "CallbackPktCounter " ++ show n
+  show (CallbackGetPkt _) = "CallbackGetPkt"
+  show (CallbackMonSwitch _) = "CallbackMonSwitch"
 
+type Callbacks = Map Id Callback
 
 isGetPacket (ActGetPkt{}) = True
 isGetPacket _ = False
@@ -93,7 +98,7 @@ isQuery :: Act -> Bool
 isQuery act = case act of
   ActQueryPktCounter {} -> True
   ActQueryByteCounter {} -> True
-  ActGetPkt {} -> False
+  ActGetPkt {} -> True
   ActFwd {} -> False
   ActMonSwitch {} -> True
 
@@ -132,6 +137,20 @@ pol (PolGenPacket x) inp = case inp of
   InGenPkt y sw pt pkt raw -> 
     if x == y then [OutPkt sw pt pkt (Right raw)] else []
   otherwise -> []
+
+-- JNF: I don't understand how this code is supposed to work. We map
+-- StatsReply messages to InCounters actions. But this function maps
+-- them to Out*SetCounter. So if we ever receive multiple StatsReplies
+-- for a given channel, won't the responses clobber each other?
+--
+-- It seems like a more sophiticated counter structure is needed: one
+-- that keeps track of an association between installed rules and
+-- their last-observed values. Then Out*SetCounter clobbers the entry
+-- for a given rule, and all of the entries on a channel are summed up
+-- to give the final result.
+-- 
+-- Not editing for now as I might have missed something fundamental
+-- about how the back-end for queries works.
 
 action :: Act -> In -> Out
 action (ActFwd pt mods) (InPkt (Loc sw _) hdrs maybePkt) = case maybePkt of
@@ -258,7 +277,7 @@ insDelayStream delay evt [] = [Right delay, Left evt]
 insDelayStream delay evt (Right delay' : rest) =
   let delay'' = delay - delay'
     in if delay'' > 0 then
-         (Right delay) : (insDelayStream (delay - delay') evt rest)
+         (Right delay') : (insDelayStream delay'' evt rest)
        else if delay'' == 0 then
          (Right delay) : (Left evt) : rest
        else {- delay'' < 0 -}

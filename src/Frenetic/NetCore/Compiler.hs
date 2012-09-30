@@ -186,6 +186,5 @@ useInPort (Just pt) (OF.SendOutPort (OF.PhysicalPort pt'))
 useInPort _ act = act
 
 toFlowTable :: Classifier [Act] -> [(OF.Match, OF.ActionSequence)]
-toFlowTable classifier =
-  map (\(m, a) -> (m, map (useInPort (OF.inPort m)) $ actnTranslate a))
-      classifier
+toFlowTable classifier = map f classifier 
+  where f (m, a) = (m, map (useInPort (OF.inPort m)) $ actnTranslate a)
