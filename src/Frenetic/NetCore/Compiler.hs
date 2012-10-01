@@ -176,7 +176,7 @@ compilePolicy s (PolRestrict pol pred) =
 compile :: Switch
         -> Pol
         -> Classifier [Act]
-compile s po = map f skel
+compile s po = map f skel ++ [(matchAny, [])]
   where
     f (Bone sptrn actn) = (sptrn, actn)
     skel = compilePolicy s po
