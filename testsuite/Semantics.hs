@@ -67,5 +67,11 @@ prop_compileOK = do
           False
     Just acts -> 
       printTestCase
-        (show (pol,sw,pt,classifier,pkt,expected,acts)) 
-        $ label "OK" (expected == (map (\a -> evalAct a inp) acts))
+        ("Policy: " ++ show  pol ++ 
+         "\n\nClassifier: " ++ show classifier ++
+         "\n\nSwitch: " ++ show sw ++
+         "\n\nPort: " ++ show pt ++
+         "\n\nPacket: " ++ show pkt ++
+         "\nExpected: " ++ show expected ++
+         "\n\nBut got: " ++ show acts)
+        (expected == (map (\a -> evalAct a inp) acts))
