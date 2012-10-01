@@ -12,7 +12,8 @@ import Data.Maybe
  -  switch <-> host-ethaddr host-ethaddr ...
  -  switch <-> hosto-ethaddr .....
  -  .
- -  .
+ -  This parses a string in that format into [(switch1, [hosts...]), (switch2,
+ -  [hosts...]), ...]
  -  .
  -    -}
 topoEdgeList :: GenParser Char st [(String, [String])]
@@ -39,11 +40,15 @@ switch = many (noneOf "<->")
 neighbor :: GenParser Char st [String]
 neighbor = 
     (char ' ' >> neighbor ) --found neighbor
-    <|> (return []) --is a singleton
+    <|> (return []) --is a singleton (or at the end)
 
 eol :: GenParser Char st Char
 eol = char '\n'
 
+--to make this the type we really want should do an additional map:
+--to pick off index [1] of all of the strings in the return type of
+--parseTopo and cast that to an int (i.e. to a node)
 parseTopo :: String -> Either ParseError [(String, [String])]
 parseTopo t = parse topoEdgeList "(unknown)" t
+
 
