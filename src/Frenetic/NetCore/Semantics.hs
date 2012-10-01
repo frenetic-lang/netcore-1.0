@@ -404,6 +404,7 @@ matchPkt (Match {..}) pktInPort (Packet{..}) =
   pktDlVlan' `matchHdr` vLANID &&
   pktDlVlanPcp `matchHdr` vLANPriority &&
   pktDlTyp `matchHdr` ethFrameType &&
+  pktNwProto `matchHdr` matchIPProtocol &&
   pktNwTos `matchHdr` ipTypeOfService &&
   pktNwSrc `matchIP` srcIPAddress &&
   pktNwDst `matchIP` dstIPAddress &&
