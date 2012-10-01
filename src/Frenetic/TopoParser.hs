@@ -16,26 +16,29 @@ import Data.Maybe
  -  [hosts...]), ...]
  -  .
  -    -}
-topoEdgeList :: GenParser Char st [(String, [String])]
+topoEdgeList :: GenParser Char st [(Int, [String])]
 topoEdgeList = 
      do result <- many topoLine
         eof
         return result 
 
-topoLine :: GenParser Char st (String, [String])
+topoLine :: GenParser Char st (Int, [String])
 topoLine =
     do result <- host
        eol 
        return result
 
-host :: GenParser Char st (String, [String]) 
+host :: GenParser Char st (Int, [String]) 
 host = 
   do first <- switch
+     string "<->"
      next <- neighbor
      return (first, next)
 
-switch :: GenParser Char st String 
-switch = many (noneOf "<->")
+switch :: GenParser Char st Int
+switch = do
+  d <- many1 digit
+  return (read d)
 
 neighbor :: GenParser Char st [String]
 neighbor = 
@@ -48,7 +51,7 @@ eol = char '\n'
 --to make this the type we really want should do an additional map:
 --to pick off index [1] of all of the strings in the return type of
 --parseTopo and cast that to an int (i.e. to a node)
-parseTopo :: String -> Either ParseError [(String, [String])]
+parseTopo :: String -> Either ParseError [(Int, [String])]
 parseTopo t = parse topoEdgeList "(unknown)" t
 
 
