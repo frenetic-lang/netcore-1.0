@@ -52,12 +52,13 @@ cartMap f c (x:xs) ys =
 type Classifier a = [(Match, a)]
 
 classify :: Switch
-         -> PacketInfo
+         -> Port
+         -> Packet
          -> Classifier actn
          -> Maybe actn
-classify switch pkt rules = foldl f Nothing rules where
+classify switch pt pkt rules = foldl f Nothing rules where
     f (Just a) (ptrn, actn) = Just a
-    f Nothing (ptrn, actn) = if ptrnMatchPkt pkt ptrn
+    f Nothing (ptrn, actn) = if matchPkt ptrn pt pkt
                              then Just actn
                              else Nothing
 

@@ -11,7 +11,7 @@ module Common
   ) where
 
 import Text.Printf
-import Test.QuickCheck
+import Test.QuickCheck hiding (classify)
 import Test.HUnit hiding (Testable, Test)
 import Test.Framework
 import Test.Framework.TH

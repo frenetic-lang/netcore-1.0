@@ -12,11 +12,13 @@ module Frenetic.NetCore.Semantics
   , callbackDelayStream
   , callbackInterval
   , evalPol
+  , evalAct
   , desugarPolicy
   , synthRestrictPol
   , isForward
   , isGetPacket
   , isQuery
+  , matchPkt
   )  where
 
 import Prelude hiding (pred)
@@ -125,6 +127,7 @@ inPacket (InCounters _ _ _ _ _) = Nothing
 inPacket (InSwitchEvt _) = Nothing
 
 evalPol = pol
+evalAct = action
 
 pol :: Pol -> In -> [Out]
 pol PolEmpty _ = []
@@ -383,3 +386,32 @@ evalProgram prog = (M.fromListWith (++) queues, pol)
             Just (n, qs) ->
               let q = Queue sw pt (n+1) rate
                 in eval (M.insert (sw,pt) (n+1, q : qs) qMap) (fn q)
+
+matchHdr :: Eq a => a -> Maybe a -> Bool
+matchHdr _ Nothing = True
+matchHdr v (Just v') = v == v'
+
+matchNwHdr :: Eq a => Maybe a -> Maybe a -> Bool
+matchNwHdr _ Nothing = True
+matchNwHdr Nothing (Just _) = False
+matchNwHdr (Just v) (Just v') = v == v'
+
+matchPkt :: Match -> Port -> Packet -> Bool
+matchPkt (Match {..}) pktInPort (Packet{..}) =
+  pktInPort `matchHdr` inPort &&
+  pktDlSrc `matchHdr` srcEthAddress &&
+  pktDlDst `matchHdr` dstEthAddress &&
+  pktDlVlan' `matchHdr` vLANID &&
+  pktDlVlanPcp `matchHdr` vLANPriority &&
+  pktDlTyp `matchHdr` ethFrameType &&
+  pktNwTos `matchHdr` ipTypeOfService &&
+  pktNwSrc `matchIP` srcIPAddress &&
+  pktNwDst `matchIP` dstIPAddress &&
+  pktTpSrc `matchNwHdr` srcTransportPort &&
+  pktTpDst `matchNwHdr` dstTransportPort
+    where pktDlVlan' = case pktDlVlan of
+            Just v -> v
+            Nothing -> 0xffff
+          matchIP Nothing (IPAddressPrefix _ 0) = True
+          matchIP Nothing (IPAddressPrefix _ _) = False
+          matchIP (Just ip) prefix = elemOfPrefix ip prefix
