@@ -12,11 +12,13 @@ module Frenetic.NetCore.Semantics
   , callbackDelayStream
   , callbackInterval
   , evalPol
+  , evalAct
   , desugarPolicy
   , synthRestrictPol
   , isForward
   , isGetPacket
   , isQuery
+  , matchPkt
   )  where
 
 import Prelude hiding (pred)
@@ -87,7 +89,6 @@ instance Show Callback where
 
 type Callbacks = Map Id Callback
 
-
 isGetPacket (ActGetPkt{}) = True
 isGetPacket _ = False
 
@@ -99,7 +100,7 @@ isQuery :: Act -> Bool
 isQuery act = case act of
   ActQueryPktCounter {} -> True
   ActQueryByteCounter {} -> True
-  ActGetPkt {} -> False
+  ActGetPkt {} -> True
   ActFwd {} -> False
   ActMonSwitch {} -> True
 
@@ -126,6 +127,7 @@ inPacket (InCounters _ _ _ _ _) = Nothing
 inPacket (InSwitchEvt _) = Nothing
 
 evalPol = pol
+evalAct = action
 
 pol :: Pol -> In -> [Out]
 pol PolEmpty _ = []
@@ -138,6 +140,20 @@ pol (PolGenPacket x) inp = case inp of
   InGenPkt y sw pt pkt raw -> 
     if x == y then [OutPkt sw pt pkt (Right raw)] else []
   otherwise -> []
+
+-- JNF: I don't understand how this code is supposed to work. We map
+-- StatsReply messages to InCounters actions. But this function maps
+-- them to Out*SetCounter. So if we ever receive multiple StatsReplies
+-- for a given channel, won't the responses clobber each other?
+--
+-- It seems like a more sophiticated counter structure is needed: one
+-- that keeps track of an association between installed rules and
+-- their last-observed values. Then Out*SetCounter clobbers the entry
+-- for a given rule, and all of the entries on a channel are summed up
+-- to give the final result.
+-- 
+-- Not editing for now as I might have missed something fundamental
+-- about how the back-end for queries works.
 
 action :: Act -> In -> Out
 action (ActFwd pt mods) (InPkt (Loc sw _) hdrs maybePkt) = case maybePkt of
@@ -370,3 +386,33 @@ evalProgram prog = (M.fromListWith (++) queues, pol)
             Just (n, qs) ->
               let q = Queue sw pt (n+1) rate
                 in eval (M.insert (sw,pt) (n+1, q : qs) qMap) (fn q)
+
+matchHdr :: Eq a => a -> Maybe a -> Bool
+matchHdr _ Nothing = True
+matchHdr v (Just v') = v == v'
+
+matchNwHdr :: Eq a => Maybe a -> Maybe a -> Bool
+matchNwHdr _ Nothing = True
+matchNwHdr Nothing (Just _) = False
+matchNwHdr (Just v) (Just v') = v == v'
+
+matchPkt :: Match -> Port -> Packet -> Bool
+matchPkt (Match {..}) pktInPort (Packet{..}) =
+  pktInPort `matchHdr` inPort &&
+  pktDlSrc `matchHdr` srcEthAddress &&
+  pktDlDst `matchHdr` dstEthAddress &&
+  pktDlVlan' `matchHdr` vLANID &&
+  pktDlVlanPcp `matchHdr` vLANPriority &&
+  pktDlTyp `matchHdr` ethFrameType &&
+  pktNwProto `matchHdr` matchIPProtocol &&
+  pktNwTos `matchHdr` ipTypeOfService &&
+  pktNwSrc `matchIP` srcIPAddress &&
+  pktNwDst `matchIP` dstIPAddress &&
+  pktTpSrc `matchNwHdr` srcTransportPort &&
+  pktTpDst `matchNwHdr` dstTransportPort
+    where pktDlVlan' = case pktDlVlan of
+            Just v -> v
+            Nothing -> 0xffff
+          matchIP Nothing (IPAddressPrefix _ 0) = True
+          matchIP Nothing (IPAddressPrefix _ _) = False
+          matchIP (Just ip) prefix = elemOfPrefix ip prefix

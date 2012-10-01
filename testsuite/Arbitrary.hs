@@ -20,6 +20,45 @@ arbGenPktId = oneof [ return 900, return 901, return 902 ]
 arbCountersId :: Gen Id
 arbCountersId = oneof [ return 500, return 501, return 502 ]
 
+arbGetPktId :: Gen Id
+arbGetPktId = oneof [ return 600, return 601, return 602 ]
+
+arbMonSwitchId :: Gen Id
+arbMonSwitchId = oneof [ return 700, return 701, return 702 ]
+
+instance Arbitrary Act where
+  arbitrary = oneof
+    [ liftM2 ActFwd arbitrary arbitrary
+    , liftM ActQueryPktCounter arbCountersId
+    , liftM ActQueryByteCounter arbCountersId
+    , liftM ActGetPkt arbGetPktId
+    , liftM ActMonSwitch arbMonSwitchId
+    ]
+
+instance Arbitrary Modification where
+  arbitrary = frequency [ (2, return unmodified), (1, mod) ]
+    where mod = do
+            a1 <- arbitrary
+            a2 <- arbitrary
+            a3 <- arbitrary
+            a4 <- arbitrary
+            a5 <- arbitrary
+            a6 <- arbitrary
+            a7 <- arbitrary
+            a8 <- arbitrary
+            a9 <- arbitrary
+            return (Modification a1 a2 a3 a4 a5 a6 a7 a8 a9)
+
+instance Arbitrary Pol where
+  arbitrary = sized $ \s -> case s of
+    0 -> return PolEmpty
+    otherwise -> oneof 
+      [ liftM2 PolProcessIn (resize (s-1) arbitrary) (resize (s-1) arbitrary)
+      , liftM2 PolUnion (resize (s-1) arbitrary) (resize (s-1) arbitrary)
+      , liftM2 PolRestrict (resize (s-1) arbitrary) (resize (s-1) arbitrary)
+      , liftM PolGenPacket (resize (s-1) arbGenPktId)
+      ]
+
 instance Arbitrary Predicate where
   arbitrary = sized $ \s -> 
     let small = 

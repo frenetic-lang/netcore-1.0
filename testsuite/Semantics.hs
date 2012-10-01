@@ -2,7 +2,10 @@ module Semantics where
 
 import qualified Data.Map as M
 import Common
+import Nettle.OpenFlow (PacketInfo (..))
+import Frenetic.Switches.OpenFlow (toPacket)
 import Frenetic.NetCore.Semantics
+import Frenetic.NetCore.Compiler
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Reduce (isEmptyPredicate)
 
@@ -47,3 +50,28 @@ case_callbackDelayStream2 = do
                  ]
   let stream = take (length expected) (simplCallbackDelayStream cbs)
   assertEqual "should be equal" expected stream
+
+prop_compileOK = do
+  pol <- arbitrary
+  pkt <- arbitrary
+  sw <- arbitrary
+  pt <- arbitrary
+  bufferID <- arbitrary
+  let inp = InPkt (Loc sw pt) pkt bufferID
+  let expected = evalPol pol inp
+  let classifier = compile sw pol
+  case classify sw pt pkt classifier of
+    Nothing -> 
+      printTestCase "classifier was not total" $
+        printTestCase (show (pol,sw,pt,classifier,pkt,expected)) $
+          False
+    Just acts -> 
+      printTestCase
+        ("Policy: " ++ show  pol ++ 
+         "\n\nClassifier: " ++ show classifier ++
+         "\n\nSwitch: " ++ show sw ++
+         "\n\nPort: " ++ show pt ++
+         "\n\nPacket: " ++ show pkt ++
+         "\nExpected: " ++ show expected ++
+         "\n\nBut got: " ++ show acts)
+        (expected == (map (\a -> evalAct a inp) acts))

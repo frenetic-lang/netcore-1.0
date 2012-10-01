@@ -18,7 +18,7 @@ Description:
 Library
   build-depends:
     base >= 4 && < 5,
-    containers >= 0.4.2.1,
+    containers,
     mtl >= 2.0.1.0,
     ansi-wl-pprint,
     fgl,
@@ -28,7 +28,6 @@ Library
     hslogger == 1.2.*,
     binary == 0.5.1.*,
     bytestring == 0.9.*,
-    binary-strict == 0.4.*,
     parsec == 3.1.*,
     syb == 0.3.*,
     bimap == 0.2.*,
@@ -88,7 +87,7 @@ benchmark frenetic-benchmark
   cpp-options: "-DOPENFLOW_VERSION=1"
   type:          exitcode-stdio-1.0
   build-depends: base >= 4 && < 5,
-                 containers >= 0.4.2.1,
+                 containers,
                  ansi-wl-pprint,
                  fgl,
                  mtl >= 2.0.1.0,
@@ -98,7 +97,6 @@ benchmark frenetic-benchmark
                  hslogger == 1.2.*,
                  binary == 0.5.1.*,
                  bytestring == 0.9.*,
-                 binary-strict == 0.4.*,
                  parsec == 3.1.*,
                  syb == 0.3.*,
                  bimap == 0.2.*,
@@ -135,7 +133,6 @@ Test-Suite frenetic-tests
     hslogger == 1.2.*,
     binary == 0.5.1.*,
     bytestring == 0.9.*,
-    binary-strict == 0.4.*,
     parsec == 3.1.*,
     syb == 0.3.*,
     bimap == 0.2.*,

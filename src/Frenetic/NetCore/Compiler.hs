@@ -52,12 +52,13 @@ cartMap f c (x:xs) ys =
 type Classifier a = [(Match, a)]
 
 classify :: Switch
-         -> PacketInfo
+         -> Port
+         -> Packet
          -> Classifier actn
          -> Maybe actn
-classify switch pkt rules = foldl f Nothing rules where
+classify switch pt pkt rules = foldl f Nothing rules where
     f (Just a) (ptrn, actn) = Just a
-    f Nothing (ptrn, actn) = if ptrnMatchPkt pkt ptrn
+    f Nothing (ptrn, actn) = if matchPkt ptrn pt pkt
                              then Just actn
                              else Nothing
 
@@ -175,7 +176,7 @@ compilePolicy s (PolRestrict pol pred) =
 compile :: Switch
         -> Pol
         -> Classifier [Act]
-compile s po = map f skel
+compile s po = map f skel ++ [(matchAny, [])]
   where
     f (Bone sptrn actn) = (sptrn, actn)
     skel = compilePolicy s po
@@ -186,6 +187,5 @@ useInPort (Just pt) (OF.SendOutPort (OF.PhysicalPort pt'))
 useInPort _ act = act
 
 toFlowTable :: Classifier [Act] -> [(OF.Match, OF.ActionSequence)]
-toFlowTable classifier =
-  map (\(m, a) -> (m, map (useInPort (OF.inPort m)) $ actnTranslate a))
-      classifier
+toFlowTable classifier = map f classifier 
+  where f (m, a) = (m, map (useInPort (OF.inPort m)) $ actnTranslate a)
