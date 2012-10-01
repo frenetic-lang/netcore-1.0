@@ -16,6 +16,9 @@ import Frenetic.TopoGen
 --topo = mkGraph ns es
 --
 
+--right now DFS doesn't work, mainly because I don't need DFS
+--for lONE closing, I need something slightly different
+--this is to help me debug/identify what I really need
 testDFS :: Int -> LNode Int -> [Node]
 testDFS n m = Frenetic.Topo.dfs (linearHosts n) m
 
