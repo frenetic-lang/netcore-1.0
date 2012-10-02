@@ -7,6 +7,7 @@ import Text.ParserCombinators.Parsec
 import Data.Graph.Inductive.Graph
 import Data.Graph.Inductive.Tree
 import Data.Maybe
+import Frenetic.NetCore.Types
 
 {- A topology is represented by mininet as a string of the following format:
  -  switch <-> host-ethaddr host-ethaddr ...
@@ -16,13 +17,13 @@ import Data.Maybe
  -  [hosts...]), ...]
  -  .
  -    -}
-topoEdgeList :: GenParser Char st [(Node, [Node])]
+topoEdgeList :: GenParser Char st [(Node, [LNode Char])]
 topoEdgeList = 
      do result <- many topoLine
         eof
         return result 
 
-topoLine :: GenParser Char st (Node, [Node])
+topoLine :: GenParser Char st (Node, [LNode Char])
 topoLine =
     do s <- switch 
        string " <-> "
@@ -36,19 +37,19 @@ switch = do
   d <- many1 digit
   return (read d)
 
-nbsl :: GenParser Char st [Node]
+nbsl :: GenParser Char st [LNode Char]
 nbsl = 
   do first <- fneighbor
      next <- neighbor
      return (first : next)
 
-fneighbor :: GenParser Char st Node
+fneighbor :: GenParser Char st (LNode Char)
 fneighbor = 
-  do ((string "s") <|> (string "h"))
+  do l <- satisfy (\x -> x == 'h' || x == 's') 
      d <- many1 digit
-     return (read d)
+     return ((read d), l)
 
-neighbor :: GenParser Char st [Node]
+neighbor :: GenParser Char st [LNode Char]
 neighbor = 
   do string "-eth"
      many1 digit
@@ -61,7 +62,15 @@ eol = char '\n'
 --to make this the type we really want should do an additional map:
 --to pick off index [1] of all of the strings in the return type of
 --parseTopo and cast that to an int (i.e. to a node)
-parseTopo :: String -> Either ParseError [(Node, [Node])]
+parseTopo :: String -> Either ParseError [(Node, [LNode Char])]
 parseTopo t = parse topoEdgeList "(unknown)" t
+
+--makeEdgeList :: [(Node, [Node])] -> [(Node, Port), (Node, Port)]
+
+sList :: (Node, [Node]) -> [((Node, Port), (Node, Port))]
+sList (s, ns) = fst (foldl (\x -> \y -> ( ((s, snd x), (y, -2)) : (fst x) , (snd x) +1)) ([], 1) ns)
+ 
+
+
 
 

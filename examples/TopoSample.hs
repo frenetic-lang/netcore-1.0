@@ -24,7 +24,7 @@ import Text.ParserCombinators.Parsec
 testDFS :: Int -> LNode Int -> [Node]
 testDFS n m = Frenetic.Topo.dfs (linearHosts n) m
 
-testParse :: Either ParseError [(Node, [Node])]
+testParse :: Either ParseError [(Node, [LNode Char])]
 testParse = parseTopo "s5 <-> s6-eth3 s7-eth3\ns6 <-> h1-eth0 h2-eth0 s5-eth1\ns7 <-> h3-eth0 h4-eth0 s5-eth2\n"
 
 
