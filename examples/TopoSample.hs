@@ -1,9 +1,14 @@
-module TopoSample (testDFS) where
+module TopoSample 
+  (testDFS
+   , testMakeE
+  ) where
 
 import Data.Graph.Inductive
+import Data.Either
 import Frenetic.Topo
 import Frenetic.TopoGen
 import Frenetic.TopoParser
+import Frenetic.NetCore
 import Text.ParserCombinators.Parsec
 
 --s = (0,-2)
@@ -24,7 +29,16 @@ import Text.ParserCombinators.Parsec
 testDFS :: Int -> LNode Int -> [Node]
 testDFS n m = Frenetic.Topo.dfs (linearHosts n) m
 
-testParse :: Either ParseError [(Node, [LNode Char])]
+testParse :: Either ParseError [(LNode Char, [LNode Char])]
 testParse = parseTopo "s5 <-> s6-eth3 s7-eth3\ns6 <-> h1-eth0 h2-eth0 s5-eth1\ns7 <-> h3-eth0 h4-eth0 s5-eth2\n"
 
+testMakeE :: Either ParseError [((Node, Port), (Node, Port))]
+testMakeE = case testParse of 
+            Right b -> Right (makeEdgeList b)
+            Left a -> Left a
+
+testMakeTop :: Either ParseError Topo
+testMakeTop = case testMakeE of
+              Right b -> Right (buildGraph b)
+              Left a -> Left a
 
