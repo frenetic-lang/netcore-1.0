@@ -3,6 +3,8 @@ module TopoSample (testDFS) where
 import Data.Graph.Inductive
 import Frenetic.Topo
 import Frenetic.TopoGen
+import Frenetic.TopoParser
+import Text.ParserCombinators.Parsec
 
 --s = (0,-2)
 --h1 = (1, -2)
@@ -22,5 +24,7 @@ import Frenetic.TopoGen
 testDFS :: Int -> LNode Int -> [Node]
 testDFS n m = Frenetic.Topo.dfs (linearHosts n) m
 
+testParse :: Either ParseError [(Node, [Node])]
+testParse = parseTopo "s5 <-> s6-eth3 s7-eth3\ns6 <-> h1-eth0 h2-eth0 s5-eth1\ns7 <-> h3-eth0 h4-eth0 s5-eth2\n"
 
 

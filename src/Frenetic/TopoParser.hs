@@ -1,5 +1,5 @@
 module Frenetic.TopoParser
-  ( 
+  ( parseTopo 
 
   ) where
 
@@ -16,34 +16,44 @@ import Data.Maybe
  -  [hosts...]), ...]
  -  .
  -    -}
-topoEdgeList :: GenParser Char st [(Int, [String])]
+topoEdgeList :: GenParser Char st [(Node, [Node])]
 topoEdgeList = 
      do result <- many topoLine
         eof
         return result 
 
-topoLine :: GenParser Char st (Int, [String])
+topoLine :: GenParser Char st (Node, [Node])
 topoLine =
-    do result <- host
+    do s <- switch 
+       string " <-> "
+       nbs <- nbsl
        eol 
-       return result
+       return (s, nbs) 
 
-host :: GenParser Char st (Int, [String]) 
-host = 
-  do first <- switch
-     string "<->"
-     next <- neighbor
-     return (first, next)
-
-switch :: GenParser Char st Int
+switch :: GenParser Char st Node
 switch = do
+  string "s"
   d <- many1 digit
   return (read d)
 
-neighbor :: GenParser Char st [String]
+nbsl :: GenParser Char st [Node]
+nbsl = 
+  do first <- fneighbor
+     next <- neighbor
+     return (first : next)
+
+fneighbor :: GenParser Char st Node
+fneighbor = 
+  do ((string "s") <|> (string "h"))
+     d <- many1 digit
+     return (read d)
+
+neighbor :: GenParser Char st [Node]
 neighbor = 
-    (char ' ' >> neighbor ) --found neighbor
-    <|> (return []) --is a singleton (or at the end)
+  do string "-eth"
+     many1 digit
+     ((char ' ' >> nbsl)
+      <|> (return [])) --is a singleton (or at the end)
 
 eol :: GenParser Char st Char
 eol = char '\n'
@@ -51,7 +61,7 @@ eol = char '\n'
 --to make this the type we really want should do an additional map:
 --to pick off index [1] of all of the strings in the return type of
 --parseTopo and cast that to an int (i.e. to a node)
-parseTopo :: String -> Either ParseError [(Int, [String])]
+parseTopo :: String -> Either ParseError [(Node, [Node])]
 parseTopo t = parse topoEdgeList "(unknown)" t
 
 
