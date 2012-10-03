@@ -69,7 +69,7 @@ dfs gr a =
                       |  otherwise -> 
                         let n_path = i : path in
                         let edges = labNodes (filterGr (\x -> isJust (getEdgeLabel gr i (fst x))) gr) in
-                          foldl (\x -> \y ->  x  ++ explore n_path visited y) [] edges 
+                          foldl (\x -> \y ->  x  ++ explore n_path (i : visited) y) [] edges 
   in explore [] [] a
 
 -- | Get the subgraph only containing nodes

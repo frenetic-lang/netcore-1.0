@@ -21,13 +21,16 @@ import Text.ParserCombinators.Parsec
 --
 --topo :: Gr N ()
 --topo = mkGraph ns es
+
+topol :: Int -> Topo
+topol n = linearHosts n 
 --
 
 --right now DFS doesn't work, mainly because I don't need DFS
 --for lONE closing, I need something slightly different
 --this is to help me debug/identify what I really need
-testDFS :: Int -> LNode Int -> [Node]
-testDFS n m = Frenetic.Topo.dfs (linearHosts n) m
+testDFS :: Topo -> LNode Int -> [Node]
+testDFS t m = Frenetic.Topo.dfs t m
 
 testParse :: Either ParseError [(LNode Char, [LNode Char])]
 testParse = parseTopo "s5 <-> s6-eth3 s7-eth3\ns6 <-> h1-eth0 h2-eth0 s5-eth1\ns7 <-> h3-eth0 h4-eth0 s5-eth2\n"
