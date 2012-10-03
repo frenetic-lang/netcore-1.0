@@ -210,7 +210,7 @@ pktHeaderIs inp sel v = case inPacket inp of
 tpPktHeaderIs :: Eq a => In -> (Packet -> Maybe a) -> a -> Bool
 tpPktHeaderIs inp sel v = case inPacket inp of
   Just pkt -> case sel pkt of
-    Nothing -> True
+    Nothing -> False
     Just v' -> v' == v
   Nothing -> nonPktDefault
 
