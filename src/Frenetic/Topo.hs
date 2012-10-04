@@ -3,7 +3,7 @@ module Frenetic.Topo
   , buildGraph
   , getEdgeLabel
   , getEdge
-  , dfs
+  , leveling
   , reverseLoc
   , subgraph
   , isHost
@@ -53,7 +53,7 @@ filterGr pred gr = delNodes badNodes gr where
 -- By definition, these are the nodes incident to no cycle in the topology
 lOne :: (Graph gr) => gr a b -> gr a b 
 lOne gr = 
-  let inCycle (v, label) = (foldl (\x -> \y -> if y == v then x+1 else x) 0 (dfs gr (v, label))) > 1 
+  let inCycle (v, label) = (foldl (\x -> \y -> if y == v then x+1 else x) 0 (leveling gr (v, label))) > 1 
   in filterGr inCycle gr 
 
 lOneClose :: (Graph gr) => gr a b -> [Node] -> [Node]
