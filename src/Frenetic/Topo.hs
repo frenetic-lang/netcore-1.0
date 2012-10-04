@@ -60,8 +60,8 @@ lOneClose :: (Graph gr) => gr a b -> [Node] -> [Node]
 lOneClose g nodes = nodes
 
 
-dfs :: (Graph gr) => gr a b -> LNode a -> [Node]
-dfs gr a = 
+leveling :: (Graph gr) => gr a b -> LNode a -> [Node]
+leveling gr a = 
   let explore path visited (i,l) = 
         case () of  _ 
                       |  (isJust (List.find (\x -> i == x) path)) -> i : visited 
