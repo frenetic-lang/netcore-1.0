@@ -17,7 +17,8 @@ Executable frenetic-example-suite
     binary,
     bimap,
     array,
-    fgl
+    fgl,
+    parsec == 3.1.*
   Extensions:
     ScopedTypeVariables,
     TypeFamilies,

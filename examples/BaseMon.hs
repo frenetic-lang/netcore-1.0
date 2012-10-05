@@ -41,8 +41,8 @@ mkMonitorPolicy fwd g =
         ==> [GetPacket 0 (monitorCallback e)]) `PoUnion` acc) PoBottom (hosts g)  in
      controller (fwd `PoUnion` p)
 
-myMain :: IO ()
-myMain = mkMonitorPolicy (Repeater.policy) topo
+--myMain :: IO ()
+--myMain = mkMonitorPolicy (OneRes.policy) topo
 
 main = do
   mkMonitorPolicy (Repeater.policy) topo
