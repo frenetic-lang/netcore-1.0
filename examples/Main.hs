@@ -5,6 +5,7 @@ import System.Console.GetOpt
 import System.Environment
 import Control.Monad
 import qualified Arp
+import qualified ArpSpoof
 import qualified Internet
 import qualified MacLearning
 import qualified Query1
@@ -19,6 +20,7 @@ import qualified PacketOut
 import qualified ReserveWeb
 import qualified OneRes
 import qualified ShortestPath
+import qualified TransparentCache
 
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
@@ -39,6 +41,8 @@ argSpec =
       "sets the verbosity of the log"
   , Option ['a'] ["arp"] (NoArg (Example Arp.main))
       "an interesting controller-based ARP cache"
+  , Option [] ["arpspoof"] (NoArg (Example ArpSpoof.main))
+      "respond to arp requests for 10.0.0.101 with a fake mac address."
   , Option [] ["monitor"] (NoArg (Example Monitor.main))
       "monitor traffic from source IPs"
   , Option ['r'] ["repeater"] (NoArg (Example Repeater.main))
@@ -67,6 +71,8 @@ argSpec =
       "Constructs a one resiliant routing policy for a network"
   , Option [] ["sp"] (NoArg (Example ShortestPath.main))
       "runs the shortest path algorithm"
+  , Option [] ["tc"] (NoArg (Example TransparentCache.main))
+      "Configures a single switch to divert traffic to a transparent cache."
   ]
 
 init [Help] = putStrLn (usageInfo "Usage Info" argSpec)
