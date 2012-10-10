@@ -29,6 +29,12 @@ monitorHeartbeats targetIPs = do
   -- heartbeat messages in the channel.  Any host that sent a message is
   -- still alive.
   let loop ports = do
+      -- TODO: remove
+      writeSV svar $ Set.fromList [3,4]
+      threadDelay heartbeatDelay
+      loop $ Set.fromList [3,4]
+
+      -- Unreachable for testing ...
       isEmpty <- isEmptyChan pktChan
       case isEmpty of
         False -> do
@@ -91,6 +97,7 @@ balance livePortsSV = do
             Just ip -> 
               if Map.member ip ip2port then loop livePorts portList ip2port
               else do
+                  infoM "balance" $ "sending " ++ show ip ++ " to " ++ show nextPort
                   let ip2port' = Map.insert ip nextPort ip2port
                   writeChan polChan $ genPol ip2port' ipAct
                   loop livePorts portTail ip2port'
