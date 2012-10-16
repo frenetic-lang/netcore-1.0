@@ -1,11 +1,13 @@
 module Frenetic.NetCore.Compiler
   ( compile
+  , compilePolicy
   , toFlowTable
   , compilePredicate
   , Bone (..) -- TODO(arjun): do not export
   , Classifier
   , classify
   , minimizeClassifier
+  , classifierActions
   ) where
 
 import Nettle.OpenFlow.Packet
@@ -95,6 +97,14 @@ type Skeleton actn = [Bone actn]
 skelMap :: (a -> b) -> Skeleton a -> Skeleton b
 skelMap f bones = map (\(Bone ptrn actns) -> Bone ptrn (f actns)) bones
 
+inter :: (a -> a -> a) -> Skeleton a -> Skeleton a -> Skeleton a
+inter f cf1 cf2 = cf3
+  where (cf3, _, _) = skelCart f cf1 cf2
+
+union :: (a -> a -> a) -> Skeleton a -> Skeleton a -> Skeleton a
+union f cf1 cf2 = skelMinimize $ cf12 ++ cf1' ++ cf2'
+  where (cf12, cf1', cf2') = skelCart f cf1 cf2
+
 {-| Cartesian combine two skeletons given a combination function for the actions. -}
 skelCart :: (actn -> actn -> actn)
          -> Skeleton actn
@@ -153,7 +163,11 @@ pred sw pr = case pr of
     where skel1 = pred sw pr1
           skel2 = pred sw pr2
           (skel12', skel1', skel2') = skelCart (||) skel1 skel2
-  Not pr -> skelMap not (pred sw pr) ++ [Bone matchAny True]
+  Not pr -> skelMinimize $ skelMap not (pred sw pr) ++ [Bone matchAny True]
+
+classifierActions :: Skeleton [Act] -> [Act]
+classifierActions cl = concatMap f cl
+  where f (Bone _ acts) = acts
 
 {-| Compile a policy to intermediate form -}
 compilePolicy :: Switch -> Pol -> Skeleton [Act]
@@ -167,10 +181,23 @@ compilePolicy s (PolUnion po1 po2) =
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
             (skel12', skel1', skel2') = skelCart (<+>) skel1 skel2
+compilePolicy sw (PolSeq pol1 pol2) = skelMinimize cf3
+  where cf1 = compilePolicy sw pol1
+        cf2 = compilePolicy sw pol2
+        acts1 = classifierActions cf1
+        cf2Preimages = map (\act1 -> mapMaybe (mkPreimg act1) cf2) acts1
+        mkPreimg act1 (Bone pat2 acts2) = case preimgOfAct act1 pat2 of
+          Just pat2' -> Just (Bone pat2' (catMaybes (map (seqAct act1) acts2)))
+          Nothing -> Nothing
+        cf1cf2 = map (inter (\_ rhs -> rhs) cf1) cf2Preimages
+        cf3 = case cf1cf2 of
+          [] -> []
+          (x:xs) -> foldr (union (<+>)) x xs
 compilePolicy _ (PolRestrict (PolGenPacket _) _) = []
 compilePolicy _ (PolGenPacket _) = []
 compilePolicy s (PolRestrict pol pred) =
   compilePolicy s (synthRestrictPol pol pred)
+
 
 {-| Compile a policy to a classifier. -}
 compile :: Switch

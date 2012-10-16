@@ -19,6 +19,9 @@ module Frenetic.NetCore.Semantics
   , isGetPacket
   , isQuery
   , matchPkt
+  , actOnMatch
+  , preimgOfAct
+  , seqAct
   )  where
 
 import Prelude hiding (pred)
@@ -51,6 +54,7 @@ data Pol
   | PolUnion Pol Pol
   | PolRestrict Pol Predicate
   | PolGenPacket Id
+  | PolSeq Pol Pol
   deriving (Show, Eq, Data, Typeable)
 
 data Act
@@ -93,6 +97,29 @@ instance Show Callback where
 
 type Callbacks = Map Id Callback
 
+seqAct :: Act -> Act -> Maybe Act
+seqAct (ActFwd _ mods1) (ActFwd p mods2) = Just (ActFwd p mods3)
+  where mods3 = Modification
+                  (modifyDlSrc mods2 `ifLeft` modifyDlSrc mods1)
+                  (modifyDlDst mods2 `ifLeft` modifyDlDst mods1)
+                  (modifyDlVlan mods2 `ifLeft` modifyDlVlan mods1)
+                  (modifyDlVlanPcp mods2 `ifLeft` modifyDlVlanPcp mods1)
+                  (modifyNwSrc mods2 `ifLeft` modifyNwSrc mods1)
+                  (modifyNwDst mods2 `ifLeft` modifyNwDst mods1)
+                  (modifyNwTos mods2 `ifLeft` modifyNwTos mods1)
+                  (modifyTpSrc mods2 `ifLeft` modifyTpSrc mods1)
+                  (modifyTpDst mods2 `ifLeft` modifyTpDst mods1)
+seqAct _ _ = Nothing
+
+
+outToIn :: Out -> Maybe In
+-- TODO(arjun): pol1;pol2 doesn't work if pol1 emits to a pseudoport?
+outToIn (OutPkt sw (Physical pt) pk (Left buf)) = 
+  Just (InPkt (Loc sw pt) pk (Just buf))
+-- TODO(arjun): perhaps Out should carry the channel ID
+-- outToIn (OutPkt sw pt pk (Right bytes)) = Just (InGenPkt ??? sw pt pk bytes)
+outToIn _ = Nothing
+
 isGetPacket (ActGetPkt{}) = True
 isGetPacket _ = False
 
@@ -117,6 +144,8 @@ synthRestrictPol pol pred = case pol of
     PolProcessIn (And pred' pred) acts
   PolUnion pol1 pol2 ->
     PolUnion (synthRestrictPol pol1 pred) (synthRestrictPol pol2 pred)
+  PolSeq pol1 pol2 ->
+    PolSeq (synthRestrictPol pol1 pred) pol2 -- No need to restrict pol2!
   PolRestrict (PolGenPacket chan) pred' -> 
     PolRestrict (PolGenPacket chan) (And pred pred')
   PolRestrict pol pred' -> 
@@ -144,6 +173,7 @@ pol (PolGenPacket x) inp = case inp of
   InGenPkt y sw pt pkt raw -> 
     if x == y then [OutPkt sw pt pkt (Right raw)] else []
   otherwise -> []
+pol (PolSeq p1 p2) inp = concatMap (pol p2) (mapMaybe outToIn (pol p1 inp))
 
 -- JNF: I don't understand how this code is supposed to work. We map
 -- StatsReply messages to InCounters actions. But this function maps
@@ -191,6 +221,69 @@ action (ActMonSwitch x) (InSwitchEvt evt) = OutSwitchEvt x evt
 action (ActMonSwitch _) (InPkt _ _ _) = OutNothing
 action (ActMonSwitch _) (InGenPkt _ _ _ _ _) = OutNothing
 action (ActMonSwitch _) (InCounters _ _ _ _ _) = OutNothing
+
+ifLeft :: Maybe a -> Maybe a -> Maybe a
+ifLeft (Just x) _ = Just x
+ifLeft Nothing y = y
+
+eqIfJust :: Eq a => Maybe a -> Maybe a -> Maybe (Maybe a)
+eqIfJust (Just x) (Just y) = if x == y then Just Nothing else Nothing
+eqIfJust (Just x) Nothing = Just Nothing
+eqIfJust Nothing rhs = Just rhs
+
+eqIfJustIP :: Maybe IPAddress 
+           -> IPAddressPrefix 
+           -> Maybe IPAddressPrefix
+eqIfJustIP (Just x) y = 
+  if x `elemOfPrefix` y then Just (IPAddressPrefix (IPAddress 0) 0) else Nothing
+eqIfJustIP Nothing rhs = Just rhs
+
+preimgOfAct :: Act -> Match -> Maybe Match
+preimgOfAct (ActFwd (Physical pt) (Modification{..})) (Match{..}) = do
+  inPort <- eqIfJust (Just pt) inPort
+  srcEthAddress <- eqIfJust modifyDlSrc srcEthAddress
+  dstEthAddress <- eqIfJust modifyDlDst dstEthAddress
+  let unvlan Nothing = 0xffff
+      unvlan (Just v) = v
+  vLANID <- eqIfJust (fmap unvlan modifyDlVlan) vLANID
+  vLANPriority <- eqIfJust modifyDlVlanPcp vLANPriority
+  ipTypeOfService <- eqIfJust modifyNwTos ipTypeOfService
+  srcIPAddress <- eqIfJustIP modifyNwSrc srcIPAddress
+  dstIPAddress <- eqIfJustIP modifyNwDst dstIPAddress
+  srcTransportPort <- eqIfJust modifyTpSrc srcTransportPort
+  dstTransportPort <- eqIfJust modifyTpDst dstTransportPort
+  return $ Match inPort srcEthAddress dstEthAddress vLANID vLANPriority
+                 ethFrameType ipTypeOfService matchIPProtocol srcIPAddress 
+                 dstIPAddress srcTransportPort dstTransportPort
+preimgOfAct _ _ = Nothing
+
+actOnMatch :: Act -> Match -> Maybe Match
+actOnMatch (ActFwd (Physical pt) (Modification{..})) (Match{..}) =
+  Just $ Match (Just pt)
+           (modifyDlSrc `ifLeft` srcEthAddress)
+           (modifyDlDst `ifLeft` dstEthAddress)
+           (case modifyDlVlan of
+              Just Nothing -> Just 0xffff
+              Just (Just vlan) -> Just vlan
+              Nothing -> vLANID)
+           (modifyDlVlanPcp `ifLeft` vLANPriority)
+           ethFrameType
+           (modifyNwTos `ifLeft` ipTypeOfService)
+           matchIPProtocol
+           (case modifyNwSrc of
+              Just ip -> IPAddressPrefix ip 32
+              Nothing -> srcIPAddress)
+           (case modifyNwDst of
+              Just ip -> IPAddressPrefix ip 32
+              Nothing -> dstIPAddress)
+           (modifyTpSrc `ifLeft` srcTransportPort)
+           (modifyTpDst `ifLeft` dstTransportPort)
+actOnMatch (ActFwd AllPorts _) _ = Nothing
+actOnMatch (ActFwd (ToQueue _) _) _ = Nothing -- TODO(arjun): easy IMO
+actOnMatch (ActQueryPktCounter _) _ = Nothing
+actOnMatch (ActQueryByteCounter _) _ = Nothing
+actOnMatch (ActGetPkt _) _ = Nothing
+actOnMatch (ActMonSwitch _) _ = Nothing
 
 -- |When a packet-specific predicate is applied to a non-packet input, we
 -- produce this default value. 

@@ -26,27 +26,34 @@ arbGetPktId = oneof [ return 600, return 601, return 602 ]
 arbMonSwitchId :: Gen Id
 arbMonSwitchId = oneof [ return 700, return 701, return 702 ]
 
+arbFwd :: Gen Act
+arbFwd = liftM2 ActFwd arbitrary arbitrary
+
+arbFwds :: Gen [Act]
+arbFwds = oneof [ liftM2 (:) arbFwd arbFwds, return [] ]
+
 instance Arbitrary Act where
   arbitrary = oneof
-    [ liftM2 ActFwd arbitrary arbitrary
+    [ arbFwd
     , liftM ActQueryPktCounter arbCountersId
     , liftM ActQueryByteCounter arbCountersId
     , liftM ActGetPkt arbGetPktId
     , liftM ActMonSwitch arbMonSwitchId
     ]
 
+
 instance Arbitrary Modification where
-  arbitrary = frequency [ (2, return unmodified), (1, mod) ]
-    where mod = do
-            a1 <- arbitrary
-            a2 <- arbitrary
-            a3 <- arbitrary
-            a4 <- arbitrary
-            a5 <- arbitrary
-            a6 <- arbitrary
-            a7 <- arbitrary
-            a8 <- arbitrary
-            a9 <- arbitrary
+  arbitrary = sized $ \s -> frequency [ (2, return unmodified), (1, mod s) ]
+    where mod s = do
+            a1 <- if s < 1 then return Nothing else arbitrary
+            a2 <- if s < 2 then return Nothing else arbitrary
+            a3 <- if s < 3 then return Nothing else arbitrary
+            a4 <- if s < 4 then return Nothing else arbitrary
+            a5 <- if s < 5 then return Nothing else arbitrary
+            a6 <- if s < 6 then return Nothing else arbitrary
+            a7 <- if s < 7 then return Nothing else arbitrary
+            a8 <- if s < 8 then return Nothing else arbitrary
+            a9 <- if s < 9 then return Nothing else arbitrary
             return (Modification a1 a2 a3 a4 a5 a6 a7 a8 a9)
 
 instance Arbitrary Pol where
@@ -55,6 +62,7 @@ instance Arbitrary Pol where
     otherwise -> oneof 
       [ liftM2 PolProcessIn (resize (s-1) arbitrary) (resize (s-1) arbitrary)
       , liftM2 PolUnion (resize (s-1) arbitrary) (resize (s-1) arbitrary)
+      , liftM2 PolSeq (resize (s-1) arbitrary) (resize (s-1) arbitrary)
       , liftM2 PolRestrict (resize (s-1) arbitrary) (resize (s-1) arbitrary)
       , liftM PolGenPacket (resize (s-1) arbGenPktId)
       ]
