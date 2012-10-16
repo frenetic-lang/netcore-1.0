@@ -33,22 +33,19 @@ monitorHeartbeats targetIPs = do
   -- heartbeat messages in the channel.  Any host that sent a message is
   -- still alive.
   let loop ports = do
-      -- TODO: remove
-      writeSV svar $ Set.fromList [3,4]
-      threadDelay heartbeatDelay
-      loop $ Set.fromList [3,4]
-
       -- Unreachable for testing ...
       isEmpty <- isEmptyChan pktChan
       case isEmpty of
         False -> do
             ((Loc switch port), heartbeatPkt) <- readChan pktChan
+            infoM "heartbeat" $ "packet in: " ++ show heartbeatPkt
             case pktNwSrc heartbeatPkt of
               Nothing -> loop ports
               Just ip
                 | Set.member ip targetIPs -> loop $ Set.insert port ports
                 | otherwise -> loop ports
         True -> do
+            infoM "heartbeat" $ "writing live ports: " ++ show ports
             writeSV svar ports
             threadDelay heartbeatDelay
             loop Set.empty
@@ -78,12 +75,16 @@ balance livePortsSV = do
           loop livePorts' (Set.toList livePorts') ip2port
 
       -- If the portList is empty, refresh it.
-      loop livePorts [] ip2port | not $ Set.null livePorts = 
+      loop livePorts [] ip2port | not $ Set.null livePorts = do
+          let newPorts = Set.toList livePorts
+          infoM "balance" $ "Reset live ports: " ++ show newPorts
           loop livePorts (Set.toList livePorts) ip2port
 
       -- Otherwise, proceed normally.
       loop livePorts portList@(nextPort:portTail) ip2port 
         | not $ Set.null livePorts = do
+          infoM "balance" $ "next port: " ++ show nextPort
+          infoM "balance" $ "port tail: " ++ show portTail
           -- Before taking any action, check whether the live TC's changed.
           svIsEmpty <- isEmptySV livePortsSV
           if not svIsEmpty then do
@@ -92,6 +93,8 @@ balance livePortsSV = do
               -- dead ports.
               let portList' = filter (\p -> Set.member p livePorts') portList
               let ip2port' = Map.filter (\p -> Set.member p livePorts') ip2port
+              infoM "balance" $ "livePorts': " ++ show livePorts'
+              infoM "balance" $ "portList': " ++ show portList'
               loop livePorts' portList' ip2port'
           else return ()
           -- Otherwise, wait for a new flow.
