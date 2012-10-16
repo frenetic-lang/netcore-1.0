@@ -38,6 +38,7 @@ import Nettle.Ethernet.EthernetAddress
 import Nettle.IPv4.IPAddress
 import Nettle.OpenFlow (SwitchFeatures)
 import qualified Nettle.OpenFlow as OF
+import Data.Generics
 
 -- |A switch's unique identifier.
 type Switch = Word64
@@ -50,7 +51,7 @@ type QueueID = Word32
 
 -- |'Loc' uniquely identifies a port at a switch.
 data Loc = Loc Switch Port
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Data, Typeable)
 
 type LocPacket = (Loc, Packet)
 
@@ -59,7 +60,7 @@ data PseudoPort
   = Physical Port
   | AllPorts
   | ToQueue Queue
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Data, Typeable)
 
 -- |VLAN tags. Only the lower 12-bits are used.
 type Vlan = Word16
@@ -77,7 +78,7 @@ data Packet = Packet {
   pktNwTos :: Word8, -- ^IP TOS field
   pktTpSrc :: Maybe Word16, -- ^source port for IP packets
   pktTpDst :: Maybe Word16 -- ^destination port for IP packets
-} deriving (Show, Eq, Ord)
+} deriving (Show, Eq, Ord, Data, Typeable)
 
 -- |Predicates to match packets.
 data Predicate
@@ -99,7 +100,7 @@ data Predicate
   | Not Predicate -- ^Not P matches packets that do not match P.
   | Any -- ^Matches all packets
   | None -- ^Matches no packets
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Data, Typeable)
 
 {-| Policies denote functions from (switch, packet) to packets. -}
 data Policy
@@ -114,7 +115,7 @@ data Policy
   deriving (Eq)
 
 data Queue = Queue Switch Port QueueID Word16
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Data, Typeable)
 
 data Program
   = Policy Policy
@@ -133,7 +134,7 @@ data Modification = Modification {
   modifyNwTos :: Maybe Word8,
   modifyTpSrc :: Maybe Word16,
   modifyTpDst :: Maybe Word16
-} deriving (Ord, Eq)
+} deriving (Ord, Eq, Data, Typeable)
 
 instance Show Modification where
   show (Modification{..}) = case catMaybes strs of
@@ -167,7 +168,7 @@ data SwitchEvent
   = SwitchConnected Switch SwitchFeatures
   | SwitchDisconnected Switch
   | PortEvent Switch Port OF.PortStatusUpdateReason OF.Port
-  deriving (Eq)
+  deriving (Eq, Data, Typeable)
 
 instance Show SwitchEvent where
   show (SwitchConnected sw _) = "SwitchConnected " ++ show sw

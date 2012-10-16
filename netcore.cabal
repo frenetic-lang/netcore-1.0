@@ -31,7 +31,8 @@ Library
     parsec == 3.1.*,
     syb == 0.3.*,
     bimap == 0.2.*,
-    network == 2.3.*
+    network == 2.3.*,
+    json >= 0.4.3
   exposed-modules:
     Nettle.Ethernet.EthernetAddress,
     Frenetic.Common,
@@ -75,7 +76,8 @@ Library
     Nettle.Servers.Server
   Extensions:
     ScopedTypeVariables, FlexibleInstances,
-    FlexibleContexts, DoAndIfThenElse, RecordWildCards
+    FlexibleContexts, DoAndIfThenElse, RecordWildCards,
+    DeriveDataTypeable
   ghc-options:
     -fwarn-incomplete-patterns
   hs-source-dirs:
@@ -100,9 +102,11 @@ benchmark frenetic-benchmark
                  parsec == 3.1.*,
                  syb == 0.3.*,
                  bimap == 0.2.*,
-                 network == 2.3.*
+                 network == 2.3.*,
+                 json >= 0.4.3
   Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
-    FlexibleContexts, DoAndIfThenElse, RecordWildCards
+    FlexibleContexts, DoAndIfThenElse, RecordWildCards,
+    DeriveDataTypeable
   ghc-options:
     -fwarn-incomplete-patterns
   hs-source-dirs: src
@@ -136,12 +140,14 @@ Test-Suite frenetic-tests
     parsec == 3.1.*,
     syb == 0.3.*,
     bimap == 0.2.*,
-    network == 2.3.*
+    network == 2.3.*,
+    json >= 0.4.3
   ghc-options:
     -fwarn-incomplete-patterns
   Extensions:
     ScopedTypeVariables, TypeFamilies, FlexibleInstances,
-    FlexibleContexts, TemplateHaskell, DoAndIfThenElse, RecordWildCards
+    FlexibleContexts, TemplateHaskell, DoAndIfThenElse, RecordWildCards,
+    DeriveDataTypeable
   hs-source-dirs:
     testsuite,
     src,

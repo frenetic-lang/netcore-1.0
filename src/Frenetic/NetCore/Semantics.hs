@@ -34,6 +34,10 @@ import qualified Data.ByteString.Lazy as BS
 import Control.Monad.State
 import qualified Data.Map as M
 
+import Data.Generics
+
+{-# LANGUAGE DeriveDataTypeable #-}
+
 type Id = Int
 
 data Prog
@@ -47,7 +51,7 @@ data Pol
   | PolUnion Pol Pol
   | PolRestrict Pol Predicate
   | PolGenPacket Id
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data Act
   = ActFwd PseudoPort Modification
@@ -55,14 +59,14 @@ data Act
   | ActQueryByteCounter Id
   | ActGetPkt Id
   | ActMonSwitch Id
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data In
   = InPkt Loc Packet (Maybe BufferID)
   | InGenPkt Id Switch PseudoPort Packet ByteString
   | InCounters Id Switch Predicate Integer {- packets -} Integer {- bytes -}
   | InSwitchEvt SwitchEvent
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data Out
   = OutPkt Switch PseudoPort Packet (Either BufferID ByteString)
@@ -73,7 +77,7 @@ data Out
   | OutGetPkt Id Loc Packet
   | OutNothing
   | OutSwitchEvt Id SwitchEvent
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data Callback
   = CallbackByteCounter Int ((Switch, Integer) -> IO ())
