@@ -9,6 +9,10 @@ import Frenetic.NetCore
 import Frenetic.NetworkFrames (arpReply)
 import System.Log.Logger
 
+-- TODO: 
+--   MAC rewriting
+--   simplify!
+
 
 -- Heartbeat --
 -- For now, ping request packets count as the heartbeat.
@@ -151,4 +155,6 @@ transparentCache = do
 main = do
   allChan <- transparentCache
   dynController allChan
+
+
 
