@@ -19,6 +19,7 @@ import Frenetic.Switches.OpenFlow
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx
 import qualified Frenetic.NetCore.Types as NetCore
+import qualified Text.JSON as JSON
 
 type Counters = Map Int (IORef (Integer, Map Switch Integer))
 
@@ -137,8 +138,9 @@ handlePolicyOutputs :: Nettle
                     -> Pol 
                     -> [(Int, Chan (Loc, ByteString))]
                     -> MVar () 
+                    -> NettleServerOpts
                     -> IO ()
-handlePolicyOutputs nettle callbacks counters pol gens kill = do
+handlePolicyOutputs nettle callbacks counters pol gens kill opts = do
   mergedChan <- newChan
   let mkOutput (x, chan) = forkIO $ forever $ do
         v <- readChan chan
@@ -149,7 +151,9 @@ handlePolicyOutputs nettle callbacks counters pol gens kill = do
     case parsePkt pt rawPkt of
       Nothing -> warningM "controller" "dropping unparsable packet"
       Just pkt -> do
-        let outs = evalPol pol (InGenPkt x sw (Physical pt) pkt rawPkt)
+        let inGenPkt = InGenPkt x sw (Physical pt) pkt rawPkt
+        tryLogIO opts inGenPkt
+        let outs = evalPol pol inGenPkt
         mapM_ (processOut nettle callbacks counters) outs
   takeMVar kill
   mapM_ killThread (writeThread:readThreads)
@@ -163,8 +167,9 @@ handleSwitch :: Nettle
              -> Pol
              -> MVar ()
              -> Chan (Maybe (TransactionID, SCMessage))
+             -> NettleServerOpts
              -> IO ()
-handleSwitch nettle callbacks counters switch pol kill msgChan = do
+handleSwitch nettle callbacks counters switch pol kill msgChan opts = do
   -- 1. Clear the flow table
   -- 2. In parallel:
   --    a. Receive a message from the switch
@@ -199,12 +204,14 @@ handleSwitch nettle callbacks counters switch pol kill msgChan = do
         killThread tid
       Right Nothing -> do
         let evt = InSwitchEvt (SwitchDisconnected switchID)
+        tryLogIO opts evt
         let outs = evalPol pol evt
         mapM_ (processOut nettle callbacks counters) outs
         writeChan killChan ()
       Right (Just (xid, msg)) ->  case msg of
         PortStatus (reason, ofPort@Port{..}) -> do
           let evt = InSwitchEvt (PortEvent switchID portID reason ofPort)
+          tryLogIO opts evt
           let outs = evalPol pol evt
           mapM_ (processOut nettle callbacks counters) outs      
         StatsReply (FlowStatsReply _ stats) -> do
@@ -218,6 +225,7 @@ handleSwitch nettle callbacks counters switch pol kill msgChan = do
                            flowStatsPacketCount 
                            flowStatsByteCount
           let ins = map mkIn stats
+          units <- mapM (tryLogIO opts) ins
           let outs = concatMap (evalPol pol) ins
           debugM "controller" $ show (stats, ins, outs)
           mapM_ (processOut nettle callbacks counters) outs
@@ -235,6 +243,7 @@ handleSwitch nettle callbacks counters switch pol kill msgChan = do
                           -- we are ignoring the bufferID if it is present!
                           NotMatched -> bufferID
               let inp = InPkt loc pkt buf
+              tryLogIO opts inp
               mapM_ (processOut nettle callbacks counters) (evalPol pol inp)
 
         otherwise -> return () -- ignore all other messages 
@@ -264,8 +273,24 @@ deleteQueuesForSwitch :: Nettle
 deleteQueuesForSwitch nettle qMap switch =
   mapM_ (deleteQueue nettle) (Map.findWithDefault [] switch qMap)
 
-nettleServer :: Chan Program -> IO ()
-nettleServer policyChan = do
+-- |Configuration options that tweak the operation of the Nettle server.
+data NettleServerOpts = NettleServerOpts
+  { logIO :: Maybe (Chan String) 
+    -- ^Output JSON representations of policies and packets to deploy
+    -- and incoming packets and stats.
+  }
+
+defaultNettleServerOpts :: NettleServerOpts
+defaultNettleServerOpts = NettleServerOpts { logIO = Nothing }
+
+tryLogIO :: JSON.JSON a => NettleServerOpts -> a -> IO ()
+tryLogIO NettleServerOpts{..} val =
+  case logIO of
+    Just chan -> writeChan chan $ JSON.encode val
+    _ -> return ()
+
+nettleServer :: NettleServerOpts -> Chan Program -> IO ()
+nettleServer opts policyChan = do
   server <- startOpenFlowServerEx Nothing 6633
   switchChan <- makeSwitchChan server
   switchPolicyChan <- select switchChan policyChan
@@ -285,9 +310,11 @@ nettleServer policyChan = do
         noticeM "controller" $ "switch " ++ show switchId ++ " connected"
         kill <- newEmptyMVar
         forkIO (handleSwitch server callbacks counters switch pol
-                             kill msgChan)
+                             kill msgChan opts)
         createQueuesForSwitch server queues switchId -- TODO: del existing qs?
-        let outs = evalPol pol (InSwitchEvt $ SwitchConnected switchId features)
+        let inSwitchEvt = (InSwitchEvt $ SwitchConnected switchId features)
+        tryLogIO opts inSwitchEvt
+        let outs = evalPol pol inSwitchEvt
         mapM_ (processOut server callbacks counters) outs
         debugM "controller" $ "waiting for program/switch after new switch."
         next <- readChan switchPolicyChan
@@ -297,6 +324,7 @@ nettleServer policyChan = do
         debugM "controller" $ "recv new NetCore program"
         let (queues', sugaredPolicy) = evalProgram program
         let (callbacks, generators, pol) = desugarPolicy sugaredPolicy
+        tryLogIO opts pol
         let killVars = killMVars ++ (map (\(_,_,k) -> k) switches)
         mapM_ (\k -> putMVar k ()) killVars
         mapM_ takeMVar killVars -- wait for termination
@@ -308,12 +336,12 @@ nettleServer policyChan = do
         let handle (switch, msgChan, _) = do
               kill <- newEmptyMVar
               forkIO (handleSwitch server callbacks counters switch 
-                                   pol kill msgChan)
+                                   pol kill msgChan opts)
               return (switch, msgChan, kill)
         switches' <- mapM handle switches
         killOutputs' <- newEmptyMVar
         forkIO (handlePolicyOutputs server callbacks counters pol generators
-                                    killOutputs')
+                                    killOutputs' opts)
         killCallbackInvokers' <- invokeCallbacksOnTimers counters callbacks
         debugM "controller" $ "waiting for program/switch after new program."
         next <- readChan switchPolicyChan

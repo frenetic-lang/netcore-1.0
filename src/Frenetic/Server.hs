@@ -21,7 +21,7 @@ dynController polChan = do
   forkIO $ forever $ do
     pol <- readChan polChan
     writeChan chan (Policy pol)
-  nettleServer chan
+  nettleServer defaultNettleServerOpts chan
 
 -- |Starts an OpenFlow controller that runs a static NetCore policy.
 controller :: Policy -> IO ()
@@ -35,4 +35,16 @@ controller policy = do
 -- Unlike policies, which only specify the forwarding behavior of the network,
 -- programs can also configure queues.
 controllerProgram :: Chan Program -> IO ()
-controllerProgram = nettleServer
+controllerProgram = nettleServer defaultNettleServerOpts
+
+-- |Identical to @dynController@, except that the controller logs
+-- policies and packets deployed to the network, as well as incoming
+-- packets and queries from the network, to @logChan@.
+debugController :: Chan String -> Chan Policy -> IO ()
+debugController logChan polChan = do
+  chan <- newChan
+  forkIO $ forever $ do
+    pol <- readChan polChan
+    writeChan chan (Policy pol)
+  nettleServer (NettleServerOpts { logIO = Just logChan }) chan
+
