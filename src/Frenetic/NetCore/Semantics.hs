@@ -76,8 +76,8 @@ data Out
   = OutPkt Switch PseudoPort Packet (Either BufferID ByteString)
   | OutIncrPktCounter Id
   | OutIncrByteCounter Id Integer
-  | OutSetPktCounter Id Switch Integer
-  | OutSetByteCounter Id Switch Integer
+  | OutUpdPktCounter Id Switch Predicate Integer
+  | OutUpdByteCounter Id Switch Predicate Integer
   | OutGetPkt Id Loc Packet
   | OutNothing
   | OutSwitchEvt Id SwitchEvent
@@ -175,20 +175,6 @@ pol (PolGenPacket x) inp = case inp of
   otherwise -> []
 pol (PolSeq p1 p2) inp = concatMap (pol p2) (mapMaybe outToIn (pol p1 inp))
 
--- JNF: I don't understand how this code is supposed to work. We map
--- StatsReply messages to InCounters actions. But this function maps
--- them to Out*SetCounter. So if we ever receive multiple StatsReplies
--- for a given channel, won't the responses clobber each other?
---
--- It seems like a more sophiticated counter structure is needed: one
--- that keeps track of an association between installed rules and
--- their last-observed values. Then Out*SetCounter clobbers the entry
--- for a given rule, and all of the entries on a channel are summed up
--- to give the final result.
--- 
--- Not editing for now as I might have missed something fundamental
--- about how the back-end for queries works.
-
 action :: Act -> In -> Out
 action (ActFwd pt mods) (InPkt (Loc sw _) hdrs maybePkt) = case maybePkt of
   Just pkt -> OutPkt sw pt hdrs (Left pkt)
@@ -196,17 +182,17 @@ action (ActFwd pt mods) (InPkt (Loc sw _) hdrs maybePkt) = case maybePkt of
 action (ActFwd _ _) (InGenPkt _ _ _ _ _) = OutNothing
 action (ActFwd _ _) (InCounters _ _ _ _ _) = OutNothing
 action (ActFwd _ _) (InSwitchEvt _) = OutNothing
-action (ActQueryPktCounter x) (InCounters y sw _ numPkts _) =
+action (ActQueryPktCounter x) (InCounters y sw pred numPkts _) =
   if x == y then
-    OutSetPktCounter x sw numPkts
+    OutUpdPktCounter x sw pred numPkts
   else
     OutNothing
 action (ActQueryPktCounter _) (InPkt _ _ _) = OutNothing
 action (ActQueryPktCounter x) (InGenPkt _ _ _ _ _) = OutIncrPktCounter x
 action (ActQueryPktCounter _) (InSwitchEvt _) = OutNothing
-action (ActQueryByteCounter x) (InCounters y sw _ _ numBytes) =
+action (ActQueryByteCounter x) (InCounters y sw pred _ numBytes) =
   if x == y then
-    OutSetByteCounter x sw numBytes
+    OutUpdByteCounter x sw pred numBytes
   else
     OutNothing
 action (ActQueryByteCounter _) (InPkt _ _ _) = OutNothing

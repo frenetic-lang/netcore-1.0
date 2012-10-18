@@ -17,10 +17,10 @@ import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Data.List (nub, find, intersperse)
-import Frenetic.NettleEx
+import Frenetic.NettleEx hiding (Id)
 import qualified Frenetic.NetCore.Types as NetCore
 
-type Counters = Map Int (IORef (Integer, Map Switch Integer))
+type Counters = Map Id (IORef (Integer, Map (Switch,Predicate) (Integer,Integer)))
 
 initCounters :: Callbacks -> IO Counters
 initCounters callbacks = do
@@ -77,16 +77,22 @@ processOut _ callbacks _ (OutGetPkt x loc hdrs) = case Map.lookup x callbacks of
   Just cb -> case cb of
     CallbackGetPkt procM -> procM (loc,hdrs)
     otherwise -> errorM "controller" ("expected GetPkt callback for " ++ show x)
-processOut _ _ counters (OutSetPktCounter x sw numPkts) = 
+processOut _ _ counters (OutUpdPktCounter x sw pred numPkts) = 
   case Map.lookup x counters of
     Nothing -> errorM "controller" "counter not found"
     Just mapRef -> atomicModifyIORef mapRef 
-                     (\(n,m) -> ((n, Map.insert sw numPkts m), ()))
-processOut _ _ counters (OutSetByteCounter x sw numBytes) = 
+                     (\(n,m) -> 
+                       let (curr,last) = Map.findWithDefault (0,0) (sw,pred) m in
+                       let d = numPkts - last in 
+                       ((n, Map.insert (sw,pred) (d + curr,numPkts) m), ()))
+processOut _ _ counters (OutUpdByteCounter x sw pred numBytes) = 
   case Map.lookup x counters of
     Nothing -> errorM "controller" "counter not found"
     Just mapRef -> atomicModifyIORef mapRef 
-                     (\(n,m) -> ((n, Map.insert sw numBytes m), ()))
+                     (\(n,m) ->
+                          let (curr,last) = Map.findWithDefault (0,0) (sw,pred) m in 
+                          let d = numBytes - last in 
+                          ((n, Map.insert (sw,pred) (d + curr,numBytes) m), ()))
 processOut _ callbacks _ (OutSwitchEvt x evt) = case Map.lookup x callbacks of
   Nothing -> do
     errorM "controller" ("unknown callback " ++ show x)
@@ -115,7 +121,7 @@ invokeCallbacksOnTimers counters callbacks = do
         Nothing -> errorM "controller" "invokeCallbacksOnTimers: counter?"
         Just ref -> do
           (localCount, countersPerSwitch) <- readIORef ref
-          let v = localCount + sum (Map.elems countersPerSwitch)
+          let v = localCount + sum (map fst $ Map.elems countersPerSwitch)
           case cb of
             CallbackByteCounter _ procM -> procM (0, v)
             CallbackPktCounter _ procM -> procM (0, v)
