@@ -20,7 +20,7 @@ import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx hiding (Id)
 import qualified Frenetic.NetCore.Types as NetCore
 
-type Counters = Map Id (IORef (Integer, Map (Switch,Predicate) (Integer,Integer)))
+type Counters = Map Id (IORef (Integer, Map (Switch,Predicate) Integer))
 
 initCounters :: Callbacks -> IO Counters
 initCounters callbacks = do
@@ -82,17 +82,17 @@ processOut _ _ counters (OutUpdPktCounter x sw pred numPkts) =
     Nothing -> errorM "controller" "counter not found"
     Just mapRef -> atomicModifyIORef mapRef 
                      (\(n,m) -> 
-                       let (curr,last) = Map.findWithDefault (0,0) (sw,pred) m in
-                       let d = numPkts - last in 
-                       ((n, Map.insert (sw,pred) (d + curr,numPkts) m), ()))
+                       let last = Map.findWithDefault 0 (sw,pred) m
+                           d = numPkts - last in
+                       ((n + d, Map.insert (sw,pred) numPkts m), ()))
 processOut _ _ counters (OutUpdByteCounter x sw pred numBytes) = 
   case Map.lookup x counters of
     Nothing -> errorM "controller" "counter not found"
     Just mapRef -> atomicModifyIORef mapRef 
                      (\(n,m) ->
-                          let (curr,last) = Map.findWithDefault (0,0) (sw,pred) m in 
-                          let d = numBytes - last in 
-                          ((n, Map.insert (sw,pred) (d + curr,numBytes) m), ()))
+                          let last = Map.findWithDefault 0 (sw,pred) m  
+                              d = numBytes - last in
+                          ((n + d, Map.insert (sw,pred) numBytes m), ()))
 processOut _ callbacks _ (OutSwitchEvt x evt) = case Map.lookup x callbacks of
   Nothing -> do
     errorM "controller" ("unknown callback " ++ show x)
@@ -121,7 +121,7 @@ invokeCallbacksOnTimers counters callbacks = do
         Nothing -> errorM "controller" "invokeCallbacksOnTimers: counter?"
         Just ref -> do
           (localCount, countersPerSwitch) <- readIORef ref
-          let v = localCount + sum (map fst $ Map.elems countersPerSwitch)
+          let v = localCount 
           case cb of
             CallbackByteCounter _ procM -> procM (0, v)
             CallbackPktCounter _ procM -> procM (0, v)
