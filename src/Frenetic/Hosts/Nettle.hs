@@ -19,7 +19,7 @@ import Frenetic.Switches.OpenFlow
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx hiding (Id)
 import qualified Frenetic.NetCore.Types as NetCore
-import qualified Text.JSON as JSON
+import qualified Text.JSON.Generic as JSON
 
 type Counters = Map Id (IORef (Integer, Map (Switch,Predicate) Integer))
 
@@ -289,10 +289,10 @@ data NettleServerOpts = NettleServerOpts
 defaultNettleServerOpts :: NettleServerOpts
 defaultNettleServerOpts = NettleServerOpts { logIO = Nothing }
 
-tryLogIO :: JSON.JSON a => NettleServerOpts -> a -> IO ()
+tryLogIO :: JSON.Data a => NettleServerOpts -> a -> IO ()
 tryLogIO NettleServerOpts{..} val =
   case logIO of
-    Just chan -> writeChan chan $ JSON.encode val
+    Just chan -> writeChan chan $ JSON.encodeJSON val
     _ -> return ()
 
 nettleServer :: NettleServerOpts -> Chan Program -> IO ()

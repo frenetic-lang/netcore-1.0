@@ -2,12 +2,14 @@ module TransparentCache where
 
 import Control.Concurrent
 import Control.Concurrent.MSampleVar
+import Control.Monad
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.ByteString.Lazy (ByteString)
 import Frenetic.NetCore
 import Frenetic.NetworkFrames (arpReply)
 import System.Log.Logger
+import System.IO
 
 -- TODO: 
 --   MAC rewriting
@@ -155,9 +157,21 @@ transparentCache = do
   forkIO $ loop ()
   return allChan
 
+startDebugLoop :: FilePath -> IO (Chan String)
+startDebugLoop fp = do
+  handle <- openFile fp WriteMode
+  logChan <- newChan
+  forkIO $ forever $ do
+      str <- readChan logChan
+      hPutStrLn handle str
+      hFlush handle
+  return logChan
+  
+
 main = do
   allChan <- transparentCache
-  dynController allChan
+  logChan <- startDebugLoop "transparentCacheDebugLog.log"
+  debugDynController logChan allChan
 
 
 

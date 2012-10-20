@@ -5,6 +5,8 @@ module Frenetic.NetCore
     controller
   , dynController
   , controllerProgram
+  , debugController
+  , debugDynController
   -- * Policies
   , Program (..)
   , Policy (..)

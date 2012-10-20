@@ -2,6 +2,8 @@ module Frenetic.Server
   ( controller
   , dynController
   , controllerProgram
+  , debugController
+  , debugDynController
   ) where
 
 import Frenetic.Hosts.Nettle
@@ -40,11 +42,19 @@ controllerProgram = nettleServer defaultNettleServerOpts
 -- |Identical to @dynController@, except that the controller logs
 -- policies and packets deployed to the network, as well as incoming
 -- packets and queries from the network, to @logChan@.
-debugController :: Chan String -> Chan Policy -> IO ()
-debugController logChan polChan = do
+debugDynController :: Chan String -> Chan Policy -> IO ()
+debugDynController logChan polChan = do
   chan <- newChan
   forkIO $ forever $ do
     pol <- readChan polChan
     writeChan chan (Policy pol)
   nettleServer (NettleServerOpts { logIO = Just logChan }) chan
+
+-- |Identical to @controller@, except that the controller logs packets
+-- injected into the network and queries gathered from the network.
+debugController :: Chan String -> Policy -> IO ()
+debugController logChan pol = do
+  ch <- newChan
+  writeChan ch pol
+  debugDynController logChan ch
 
