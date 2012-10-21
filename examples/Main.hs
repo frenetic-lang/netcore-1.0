@@ -22,6 +22,7 @@ import qualified OneRes
 import qualified ShortestPath
 import qualified TransparentCache
 import qualified WireMonitor
+import qualified ErrorDetect
 
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
@@ -76,6 +77,8 @@ argSpec =
       "Configures a single switch to divert traffic to a transparent cache."
   , Option [] ["wm"] (NoArg (Example WireMonitor.main))
     "a simple wire with monitoring"
+  , Option [] ["errordetectb"] (NoArg (Example ErrorDetect.main))
+    "Error detection for a basic, static topology"
   ]
 
 init [Help] = putStrLn (usageInfo "Usage Info" argSpec)
