@@ -24,6 +24,10 @@ topo=buildGraph [((2,0), (1,1)), ((3,0), (1,2))]
 countTable :: IORef (Map Int Int) 
 countTable = unsafePerformIO (newIORef Map.empty)
 
+--a map of query actions and channels to read to get info about the query
+monTable :: IORef (Map Int (Chan (Switch, Integer), [Action]))
+monTable = unsafePerformIO (newIORef Map.empty)
+
 
 buildCTable :: IO ()
 buildCTable = do --build the node counter map and initialize counters to 0
@@ -32,20 +36,34 @@ buildCTable = do --build the node counter map and initialize counters to 0
   writeIORef countTable ((Prelude.foldl (\acc x -> insert x 0 acc)) t (nodes topo))
   readIORef countTable >>= print
 
+insertMonTable :: (Int,IO (Chan (Switch, Integer), [Action])) -> IO ()
+insertMonTable (ind,c) = do
+  (channel, qa) <- c
+  modifyIORef monTable (insert ind (channel, qa))
+  return ()
+
+buildMonTable :: [Int] -> IO ()
+buildMonTable ns = 
+  case ns of 
+               (x:xs) -> do 
+                              insertMonTable (x,(countPkts 1000))
+                              buildMonTable xs
+               [] -> do return () 
+  
 
 main = do
   buildCTable
-  let chanl = (Prelude.foldl (\acc x -> (countPkts 1000) : acc) [] (nodes topo))
-  --let p = Prelude.foldl (\acc x -> PoUnion acc (DlDst (ethernetAddress 0 0 0 0 0 x) ==> 
-  --        (snd (chanl !! (x-1))))) PoBottom (nodes.topo) --agh monads!
-  --make this a fold to create channels reading counters for all nodes
-  (c, qa) <- countPkts 1000
-  let p = DlDst (ethernetAddress 0 0 0 0 0 2) ==> qa
-
-  --todo: make this a check for predicates on counters
+  let ns = (nodes topo)
+  buildMonTable ns
+  t <- readIORef monTable
+  (c, q) <- countPkts 1000
+  let p = Prelude.foldl (\acc x -> PoUnion acc 
+          (DlDst (ethernetAddress 0 0 0 0 0 (fromIntegral x)) ==> 
+            snd (findWithDefault (c,q) x t))) PoBottom (nodes topo) 
+  --todo: make this a check for predicates on counter for error detection
   forkIO $ forever $ do 
-    (sw, n) <- readChan c
-    putStrLn ("Packts to h2: " ++ show n)
+    (sw, n) <- readChan (fst (findWithDefault (c,q) 2 t))
+    putStrLn ("Packts to " ++ show sw ++ ": " ++  show n)
     hFlush stdout
   controller (Repeater.policy `PoUnion` p)
 
