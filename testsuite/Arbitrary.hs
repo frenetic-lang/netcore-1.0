@@ -5,8 +5,10 @@ import qualified Data.ByteString.Lazy as BS
 import Frenetic.Common
 import Control.Monad
 import Nettle.Arbitrary
-import Frenetic.NetCore.Types
+import Frenetic.NetCore.Types hiding (Switch)
+import qualified Frenetic.NetCore.Types as NetCore
 import Frenetic.NetCore.Semantics
+import Frenetic.Topo
 
 arbPort :: Gen Port
 arbPort = oneof [ return n | n <- [1 .. 5] ]
@@ -82,7 +84,7 @@ instance Arbitrary Predicate where
           , liftM TpSrcPort arbitrary
           , liftM TpDstPort arbitrary 
           , liftM IngressPort arbPort
-          , liftM Switch arbSwitch
+          , liftM NetCore.Switch arbSwitch
           , return None
           , return Any
           ]

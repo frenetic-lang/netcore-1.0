@@ -1,5 +1,6 @@
 module Frenetic.Topo
   ( Graph
+  , Node  
   , buildGraph
   , Link
   , LLink
@@ -22,6 +23,8 @@ module Frenetic.Topo
   , filterElements
   , filterNodes
   , getElement
+  , getSwitch
+  , getHost
   , getPort
   , getEdge
   , subgraph  
@@ -142,6 +145,16 @@ ports topo = map snd . lPorts topo
 getElement :: Graph -> Node -> Maybe Element
 getElement topo n = lab topo n 
                     
+getSwitch :: Graph -> Node -> Maybe Switch
+getSwitch topo n = case lab topo n of
+                     Just (Switch s) -> Just s  
+                     _ -> Nothing
+
+getHost :: Graph -> Node -> Maybe Host
+getHost topo n = case lab topo n of
+                     Just (Host h) -> Just h
+                     _ -> Nothing
+
 -- | Maybe get the label of the edge from n1 to n2
 getPort :: Graph -> Node -> Node -> Maybe Port
 getPort topo n1 n2 = lookup n2 (lsuc topo n1)
