@@ -17,6 +17,7 @@ import Frenetic.Switches.OpenFlow
 import Prelude hiding (pred)
 import Frenetic.Pattern
 import Frenetic.Common
+import Frenetic.Topo (Switch,Port,Loc)
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Short

@@ -67,7 +67,7 @@ module Frenetic.NetCore
   -- * Slices
   , Slice(..)
   -- ** Topology constructors
-  , Topo
+  , Graph
   , buildGraph
   -- ** Slice constructors
   , internalSlice

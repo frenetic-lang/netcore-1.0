@@ -10,7 +10,7 @@ import qualified Data.Set as Set
 import Frenetic.NetCore.Short
 import Frenetic.NetCore.Types
 import Frenetic.Slices.Slice
-import Frenetic.Topo
+import qualified Frenetic.Topo as Topo
 import Frenetic.Common
 
 maxVlan :: Vlan
@@ -25,7 +25,7 @@ sequential combined =
 
 type Edge = (Loc, Loc)
 
-edge :: Topo -> [(Slice, Policy)] -> [(Map.Map Loc Vlan, (Slice, Policy))]
+edge :: Topo.Graph -> [(Slice, Policy)] -> [(Map.Map Loc Vlan, (Slice, Policy))]
 edge topo slices = paired  where
   indexedSlices :: [(Int, Slice, Policy)]
   indexedSlices = zipWith (\n (s,p) -> (n,s,p)) [0 .. ] slices
@@ -37,7 +37,7 @@ edge topo slices = paired  where
   -- Slice and policy at each edge (switch,port) --- (switch,port)
   edgeUse :: Map Edge (Map Int (Slice, Policy))
   -- getEdge returns the normal form (smallest first)
-  edgeUse = Map.mapKeysWith Map.union (getEdge topo) locUse
+  edgeUse = Map.mapKeysWith Map.union (Topo.getEdge topo) locUse
   -- It is safe to use Map.union above. Any conflict between keys will be
   -- spurious, since a key always indexes the same slice.
 

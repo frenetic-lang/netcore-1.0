@@ -31,6 +31,7 @@ module Frenetic.NetCore.Short
   , modTpDst
   ) where
 
+import Frenetic.Topo (Switch,Port)
 import Data.Word
 import qualified Data.List as List
 import Frenetic.Pattern

@@ -1,12 +1,10 @@
 module Frenetic.TopoParser
   ( parseTopo 
-    , makeEdgeList
-
+  , makeEdgeList
   ) where
 
 import Text.ParserCombinators.Parsec
-import Data.Graph.Inductive.Graph
-import Data.Graph.Inductive.Tree
+import Frenetic.Topo
 import Data.List
 import Data.Maybe
 import Data.Word

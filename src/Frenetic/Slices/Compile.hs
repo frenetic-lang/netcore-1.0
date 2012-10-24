@@ -15,7 +15,7 @@ import Control.Monad
 import Frenetic.Common
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Frenetic.NetCore.Types
+import Frenetic.NetCore.Types 
 import Frenetic.NetCore.Util
 import Frenetic.NetCore.Short
 import Frenetic.Pattern
@@ -67,7 +67,7 @@ transform combined = mconcat policies
 
 -- |Produce the combined policy by compiling a list of slices and policies with
 -- the edge compiler
-transformEdge :: Topo -> [(Slice, Policy)] -> Policy
+transformEdge :: Graph -> [(Slice, Policy)] -> Policy
 transformEdge topo combined = mconcat policies where
   tagged = edge topo combined
   policies = map (\(assignment, (slice, policy)) ->
@@ -274,7 +274,7 @@ setVlan vlan loc (SendPackets chan) = SendPackets chan
 
 -- |Determine if a predicate can match any packets on a switch (overapproximate)
 matchesSwitch :: Switch -> Predicate -> Bool
-matchesSwitch s1 (Switch s2)          = s1 == s2
+matchesSwitch s1 (Frenetic.NetCore.Types.Switch s2)          = s1 == s2
 matchesSwitch s (Or p1 p2)     = matchesSwitch s p1 || matchesSwitch s p2
 matchesSwitch s (And p1 p2) = matchesSwitch s p1 && matchesSwitch s p2
 matchesSwitch s (Not _)        = True

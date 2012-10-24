@@ -11,17 +11,16 @@ module Frenetic.Slices.Slice
   ) where
 
 import Frenetic.Common
-import Data.Graph.Inductive.Graph
+import Frenetic.Topo
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import Data.Word
 import Frenetic.NetCore.Short
-import Frenetic.NetCore.Types
+import Frenetic.NetCore.Types 
 import Frenetic.NetCore.Util
 import Frenetic.Pattern
-import Frenetic.Topo
 
 -- |A slice represents a subgraph of the network for the purposes of isolating
 -- programs from each other.
@@ -46,26 +45,23 @@ data Slice = Slice {
   -- |External ports, and restrictions on outbound packets.
 , egress  :: Map.Map Loc Predicate } deriving (Eq, Ord, Show)
 
-linkToLoc (n, _, p) = Loc (fromIntegral n) p
-
 -- |Produce a slice that exactly covers the given topology, with no ingress or
 -- egress ports.
-internalSlice :: Topo -> Slice
-internalSlice topo = Slice locations Map.empty Map.empty where
-  locations = Set.fromList . map linkToLoc . labEdges $ topo
+internalSlice :: Graph -> Slice
+internalSlice topo = Slice locations Map.empty Map.empty where  
+  locations = Set.fromList . map linkToLoc . links $ filterElements isSwitch topo
 
 -- |Produce a slice with all the switches in topo, and predicate applied to all
 -- in- and out-bound connections to hosts
-simpleSlice :: Topo -> Predicate -> Slice
+simpleSlice :: Graph -> Predicate -> Slice
 simpleSlice topo pred = Slice int (Map.fromList $ zip ext (repeat pred))
                                   (Map.fromList $ zip ext (repeat pred))
   where
-  links = labEdges topo
   -- Only get links coming from switches, and segregate based on pointing to a
   -- host or not.
-  (intLinks, extLinks) = partition (\(_, n2, _) -> not $ isHost topo n2) .
-                         filter (\(_, _, p) -> p /= 0) $
-                         links
+  (intLinks, extLinks) = partition (\ (_, e, _) -> isSwitch e) $
+                         filter (\ (e, _, p) -> isSwitch e) $
+                         links topo
   int = Set.fromList $ map linkToLoc intLinks
   ext = map linkToLoc extLinks
 
@@ -80,7 +76,7 @@ localize slice policy = case policy of
   PoUnion p1 p2 -> localize slice p1 <+> localize slice p2
   PoBasic pred act ->
     let ss = Set.toList (switchesOfPredicate switches pred) in
-    mconcat [localizeMods (pred' <&&> Switch s) act
+    mconcat [localizeMods (pred' <&&> Frenetic.NetCore.Types.Switch s) act
                               (Map.findWithDefault Set.empty s ports)
                 | s <- ss]
     where
@@ -128,12 +124,12 @@ localizeMods pred actions ports =
 -- |Starting with a set of switches, get the switches the predicate might match.
 switchesOfPredicate :: Set.Set Switch -> Predicate -> Set.Set Switch
 switchesOfPredicate switches pred = case pred of
-  Switch s            -> Set.intersection switches (Set.singleton s)
-  Or p1 p2     -> Set.union (switchesOfPredicate switches p1)
+  Frenetic.NetCore.Types.Switch s -> Set.intersection switches (Set.singleton s)
+  Or p1 p2 -> Set.union (switchesOfPredicate switches p1)
                            (switchesOfPredicate switches p2)
   And p1 p2 -> Set.intersection (switchesOfPredicate switches p1)
                                         (switchesOfPredicate switches p2)
-  Not _        -> switches
+  Not _ -> switches
   otherwise -> switches
 
 -- |Determine if a policy ever matches on or sets VLAN tags.
@@ -147,7 +143,6 @@ poUsesVlans (SendPackets _) = False
 -- |Determine if a predicate matches on VLAN tags
 prUsesVlans :: Predicate -> Bool
 prUsesVlans (DlVlan (Just _)) = True
-prUsesVlans (Switch _) = False
 prUsesVlans (Or p1 p2) = prUsesVlans p1 || prUsesVlans p2
 prUsesVlans (And p1 p2) = prUsesVlans p1 || prUsesVlans p2
 prUsesVlans (Not p) = prUsesVlans p

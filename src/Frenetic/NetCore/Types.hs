@@ -1,8 +1,6 @@
 module Frenetic.NetCore.Types
   ( -- * Basic types
-    Switch
-  , Port
-  , Queue (..)
+    Queue (..)
   , Vlan
   , Loc (..)
   , PseudoPort (..)
@@ -26,11 +24,11 @@ module Frenetic.NetCore.Types
   ) where
 
 import Frenetic.Common
+import Frenetic.Topo
 import Data.Bits
 import Data.IORef
 import qualified Data.List as List
 import qualified Data.Set as Set
-import Data.Word
 import Frenetic.Pattern
 import System.IO.Unsafe
 import Data.Maybe (catMaybes)
@@ -40,18 +38,8 @@ import Nettle.OpenFlow (SwitchFeatures)
 import qualified Nettle.OpenFlow as OF
 import Data.Generics
 
--- |A switch's unique identifier.
-type Switch = Word64
-
--- |The number of a physical port.
-type Port = Word16
-
 -- |The identifier of a queue at a port.
 type QueueID = Word32
-
--- |'Loc' uniquely identifies a port at a switch.
-data Loc = Loc Switch Port
-  deriving (Eq, Ord, Show, Data, Typeable)
 
 type LocPacket = (Loc, Packet)
 

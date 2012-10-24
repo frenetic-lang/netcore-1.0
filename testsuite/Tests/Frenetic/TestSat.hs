@@ -36,13 +36,13 @@ case_testBasic = do
   (Nothing) @=? result
 
 -- 1--2--3--4
-topo = buildGraph [ ((1, 1), (2, 1))
-                  , ((2, 2), (3, 1))
-                  , ((3, 2), (4, 1))
+topo = buildGraph [ ((Topo.Switch 1, 1), (Topo.Switch 2, 1))
+                  , ((Topo.Switch 2, 2), (Topo.Switch 3, 1))
+                  , ((Topo.Switch 3, 2), (Topo.Switch 4, 1))
                   ]
 
-smallTopo = buildGraph [ ((1, 1), (2, 1))
-                       , ((1, 2), (1, 2)) ]
+smallTopo = buildGraph [ ((Topo.Switch 1, 1), (Topo.Switch 2, 1))
+                       , ((Topo.Switch 1, 2), (Topo.Switch 1, 2)) ]
 
 basicSlice = Slice (Set.fromList [ Loc 1 1
                                  , Loc 2 1, Loc 2 2
@@ -128,9 +128,9 @@ case_testBreaksForwards = do
   assertBool "set vlans rev" (not result)
 
 case_testBreaksForwardsFlood = do
-  let topo' = buildGraph [ ((1, 0), (9, 1))
-                         , ((2, 0), (9, 2))
-                         , ((3, 0), (9, 3))
+  let topo' = buildGraph [ ((Topo.Switch 1, 0), (Topo.Switch 9, 1))
+                         , ((Topo.Switch 2, 0), (Topo.Switch 9, 2))
+                         , ((Topo.Switch 3, 0), (Topo.Switch 9, 3))
                          ]
   let o = Switch 9 ==> allPorts unmodified
   let r = (inport 9 1 ==> forward [2, 3]) <+>
