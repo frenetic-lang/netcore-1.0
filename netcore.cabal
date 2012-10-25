@@ -50,7 +50,6 @@ Library
     Frenetic.TopoGen
 --    Frenetic.TopoParser
   other-modules:
-    Frenetic.Update
     Frenetic.Hosts.Nettle,
     Frenetic.NetCore.Compiler,
     Frenetic.NetCore.Pretty,
