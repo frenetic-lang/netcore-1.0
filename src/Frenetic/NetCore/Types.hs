@@ -100,7 +100,7 @@ data Predicate
   | Not Predicate -- ^Not P matches packets that do not match P.
   | Any -- ^Matches all packets
   | None -- ^Matches no packets
-  deriving (Eq, Ord, Show, Data, Typeable)
+  deriving (Eq, Ord, Data, Typeable)
 
 {-| Policies denote functions from (switch, packet) to packets. -}
 data Policy
@@ -200,7 +200,7 @@ instance Eq Action where
   q1 == q2 = idOfQuery q1 == idOfQuery q2
 
 instance Show Action where
-  show (Forward p m) = show p ++ show m
+  show (Forward p m) = show p ++ "; " ++ show m
   show (CountBytes{..}) = 
     "CountBytes (interval=" ++ show queryInterval ++ "ms, id=" ++
        show idOfQuery ++ ")"
@@ -210,12 +210,32 @@ instance Show Action where
   show (GetPacket{..}) = "GetPacket(id=" ++ show idOfQuery ++  ")"
   show (MonitorSwitch{..}) = "MonitorSwitch{..}"
 
+instance Show Predicate where
+  show (DlSrc eth) = "DlSrc = " ++ show eth
+  show (DlDst eth) = "DlDst = " ++ show eth
+  show (DlTyp v) = "DlTyp = " ++ show v
+  show (DlVlan v) = "DlVlan = " ++ show v
+  show (DlVlanPcp v) = "DlVlanPcp = " ++ show v
+  show (NwSrc v) = "NwSrc = " ++ show v
+  show (NwDst v) = "NwDst = " ++ show v
+  show (NwProto v) = "NwProto = " ++ show v
+  show (NwTos v) = "NwTos = " ++ show v
+  show (TpSrcPort v) = "TpSrcPort = " ++ show v
+  show (TpDstPort v) = "TpDstPort = " ++ show v
+  show (IngressPort v) = "IngressPort = " ++ show v
+  show (Switch v) = "Switch = " ++ show v
+  show (Or p1 p2) = "(" ++ show p1 ++ " <||> " ++ show p2 ++ ")"
+  show (And p1 p2) = "(" ++ show p1 ++ " <&&> " ++ show p2 ++ ")"
+  show (Not p) = "-(" ++ show p ++ ")"
+  show Any = "Any"
+  show None = "None"
+
 instance Show Policy where
   show pol = case pol of
     PoBottom -> "PoBottom"
-    PoBasic pred acts -> "PoBasic " ++ show pred ++ " " ++ show acts
-    PoUnion pol1 pol2 -> "PoUnion (" ++ show pol1 ++ ") (" ++ show pol2 ++ ")"
-    Restrict pol' pred -> "Restrict (" ++ show pol' ++ ") (" ++ show pred ++ ")"
+    PoBasic pred acts -> "(" ++ show pred ++ " ==> " ++ show acts ++ ")"
+    PoUnion pol1 pol2 -> show pol1 ++ " <+> " ++ show pol2
+    Restrict pol' pred -> "(" ++ show pol' ++ ")" ++ " <%> " ++ "(" ++ show pred ++ ")"
     SendPackets _ -> "SendPackets"
 
 -- |Periodically polls the network to counts the number of packets received.
