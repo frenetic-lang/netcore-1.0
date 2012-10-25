@@ -24,7 +24,7 @@ module Frenetic.NetCore.Types
   ) where
 
 import Frenetic.Common
-import Frenetic.Topo
+import Frenetic.Topo hiding (Element(..))
 import Data.Bits
 import Data.IORef
 import qualified Data.List as List
