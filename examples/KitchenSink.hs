@@ -9,10 +9,11 @@ import Data.ByteString.Lazy (ByteString)
 import qualified Data.Set as Set
 
 import Frenetic.NetCore
+import qualified Frenetic.Topo as Topo
 
 -- This is the default topology when you start mininet without parameters
-topo = buildGraph [ ((2, 0), (1, 1))
-                  , ((3, 0), (1, 2)) ]
+topo = buildGraph [ ((Topo.Switch 2, 0), (Topo.Switch 1, 1))
+                  , ((Topo.Switch 3, 0), (Topo.Switch 1, 2)) ]
 
 spy = do
   spyChan <- newChan
