@@ -1,5 +1,3 @@
-
-
 module Campus where
 
 import Frenetic.NetCore
