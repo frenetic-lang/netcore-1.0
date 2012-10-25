@@ -46,7 +46,7 @@ getConsts packets ints = map (\pkt -> DeclConst (ConstPacket pkt)) packets ++
                          map (\int -> DeclConst (ConstInt int)) ints
 
 -- | Verify that source has compiled correctly to target under topo and slice.
-compiledCorrectly :: Topo -> Slice -> Policy -> Policy -> IO Bool
+compiledCorrectly :: Graph -> Slice -> Policy -> Policy -> IO Bool
 compiledCorrectly topo slice source target = do
   fmap not failure where
   slice' = realSlice slice
@@ -67,7 +67,7 @@ compiledCorrectly topo slice source target = do
   failure = fmap or . mapM checkBool $ cases
 
 -- |Verify that the two policies are separated from each other.
-separate :: Topo -> Policy -> Policy -> IO Bool
+separate :: Graph -> Policy -> Policy -> IO Bool
 separate topo p1 p2 = do
   fmap not failure where
   cases = [ sharedIO topo p1 p2
@@ -79,7 +79,7 @@ separate topo p1 p2 = do
           ]
   failure = fmap or . mapM checkBool $ cases
 
-unsharedPortals :: Topo -> Policy -> Policy -> IO Bool
+unsharedPortals :: Graph -> Policy -> Policy -> IO Bool
 unsharedPortals topo p1 p2 = fmap not failure where
   cases = [ sharedTransit topo p1 p2 ]
   failure = fmap or . mapM checkBool $ cases
@@ -104,7 +104,7 @@ realSlice (Slice int ing egr) = Slice int ing' egr' where
 
 -- | Try to find some packets outside the interior or ingress of the slice that
 -- the policy forwards or observes.
-unconfinedDomain :: Topo -> Slice -> Policy -> IO (Maybe String)
+unconfinedDomain :: Graph -> Slice -> Policy -> IO (Maybe String)
 unconfinedDomain topo slice policy = doCheck consts assertions where
   consts = getConsts [p, p'] []
   assertions = [ onTopo topo p, onTopo topo p'
@@ -112,7 +112,7 @@ unconfinedDomain topo slice policy = doCheck consts assertions where
 
 -- | Try to find some packets outside the interior or egress of the slice that
 -- the policy produces
-unconfinedRange :: Topo -> Slice -> Policy -> IO (Maybe String)
+unconfinedRange :: Graph -> Slice -> Policy -> IO (Maybe String)
 unconfinedRange topo slice policy = doCheck consts assertions where
   consts = getConsts [p, p'] []
   assertions = [ onTopo topo p, onTopo topo p'
@@ -122,7 +122,7 @@ unconfinedRange topo slice policy = doCheck consts assertions where
 -- packets on (either forwarding or observing), and another packet
 -- produced over the same edge (in the same direction) that uses a different
 -- VLAN
-multipleVlanEdge :: Topo -> Policy -> IO (Maybe String)
+multipleVlanEdge :: Graph -> Policy -> IO (Maybe String)
 multipleVlanEdge topo policy = doCheck consts assertions  where
   consts = getConsts [p, p', q, q', r, r'] []
 
@@ -141,7 +141,7 @@ multipleVlanEdge topo policy = doCheck consts assertions  where
 
 -- |Try to find a packet that produces an observation for which no equivalent
 -- packet prodcues an observation in the other policy.
-breaksObserves :: Topo -> Maybe Slice -> Policy -> Policy -> IO (Maybe String)
+breaksObserves :: Graph -> Maybe Slice -> Policy -> Policy -> IO (Maybe String)
 breaksObserves topo mSlice a b = doCheck consts assertions where
   consts = getConsts [p] [v, qid]
 
@@ -156,7 +156,7 @@ breaksObserves topo mSlice a b = doCheck consts assertions where
 -- | Try to find a pair of packets that a forwards for which there are no two
 -- VLAN-equivalent packets that b also forwards.  If we can't, this is one-hop
 -- simulation.  Maybe only consider packets within a slice.
-breaksForwards :: Topo -> Maybe Slice -> Policy -> Policy -> IO (Maybe String)
+breaksForwards :: Graph -> Maybe Slice -> Policy -> Policy -> IO (Maybe String)
 breaksForwards topo mSlice a b = doCheck consts assertions where
   consts = getConsts [p, p'] [v, v']
 
@@ -174,7 +174,7 @@ breaksForwards topo mSlice a b = doCheck consts assertions where
 
 -- | Try to find a two-hop forwarding path in a for which there isn't a
 -- vlan-equivalent path in b.  If we can't, this is two-hop simulation.
-breaksForwards2 :: Topo -> Maybe Slice -> Policy -> Policy -> IO (Maybe String)
+breaksForwards2 :: Graph -> Maybe Slice -> Policy -> Policy -> IO (Maybe String)
 breaksForwards2 topo mSlice a b = doCheck consts assertions where
   consts = getConsts [p, p', q, q'] [v, v', v'']
 
@@ -197,7 +197,7 @@ breaksForwards2 topo mSlice a b = doCheck consts assertions where
                ]
 
 -- | Try to find a packet that p1 produces that p2 does something with
-sharedIO :: Topo -> Policy -> Policy -> IO (Maybe String)
+sharedIO :: Graph -> Policy -> Policy -> IO (Maybe String)
 sharedIO topo p1 p2 = doCheck consts assertions where
   consts = getConsts [p, p', q, q'] []
 
@@ -222,7 +222,7 @@ sharedOutput p1 p2 = doCheck consts assertions where
   assertions = [output p1 p p'', pEgress p2 p' p'']
 
 -- | Try to find a packet at the edge of both policies
-sharedTransit :: Topo -> Policy -> Policy -> IO (Maybe String)
+sharedTransit :: Graph -> Policy -> Policy -> IO (Maybe String)
 sharedTransit topo p1 p2 = doCheck consts assertions where
   consts = getConsts [p, p', p'', q', q''] []
 

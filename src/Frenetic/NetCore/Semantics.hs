@@ -31,6 +31,7 @@ import Nettle.IPv4.IPAddress
 import Frenetic.NetCore.Reduce (isEmptyPredicate)
 import Frenetic.Pattern
 import Frenetic.Common
+import Frenetic.Topo (Switch,Port,Loc)
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 import qualified Data.ByteString.Lazy as BS

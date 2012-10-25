@@ -17,6 +17,7 @@ module Frenetic.NetCore.Util
   ) where
 
 import Frenetic.Common
+import Frenetic.Topo (Switch,Port,Loc)
 import Frenetic.NetCore.Types
 import qualified Data.List as List
 import qualified Data.Set as Set

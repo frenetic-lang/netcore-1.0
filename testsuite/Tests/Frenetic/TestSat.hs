@@ -7,14 +7,15 @@ import Test.HUnit
 import Test.Framework.Providers.HUnit
 import Tests.Frenetic.Util
 import Frenetic.Pattern
-import Frenetic.NetCore
+import Frenetic.NetCore hiding (Switch)
 import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Short
 import Frenetic.Sat
 import Frenetic.Slices.Sat
 import Frenetic.Slices.Slice
 import Frenetic.Topo
-import Frenetic.NetCore.Types
+import Frenetic.NetCore.Types hiding (Switch)
+import qualified Frenetic.NetCore.Types as NetCore
 import Frenetic.Z3
 
 import Data.Maybe
@@ -36,13 +37,13 @@ case_testBasic = do
   (Nothing) @=? result
 
 -- 1--2--3--4
-topo = buildGraph [ ((1, 1), (2, 1))
-                  , ((2, 2), (3, 1))
-                  , ((3, 2), (4, 1))
+topo = buildGraph [ ((Switch 1, 1), (Switch 2, 1))
+                  , ((Switch 2, 2), (Switch 3, 1))
+                  , ((Switch 3, 2), (Switch 4, 1))
                   ]
 
-smallTopo = buildGraph [ ((1, 1), (2, 1))
-                       , ((1, 2), (1, 2)) ]
+smallTopo = buildGraph [ ((Switch 1, 1), (Switch 2, 1))
+                       , ((Switch 1, 2), (Switch 1, 2)) ]
 
 basicSlice = Slice (Set.fromList [ Loc 1 1
                                  , Loc 2 1, Loc 2 2
@@ -85,40 +86,40 @@ case_testTransferBreaks = do
 case_testBreaksObserves = do
   (_, query1) <- countPkts 1
   (_, query2) <- countPkts 1 -- different query ID
-  let o = Switch 2 ==> query1
-  let r = Switch 2 ==> query2
+  let o = NetCore.Switch 2 ==> query1
+  let r = NetCore.Switch 2 ==> query2
   result <- checkBool $ breaksObserves topo Nothing o o
   assertBool "identical observations good." (not result)
   result <- checkBool $ breaksObserves topo Nothing o r
   assertBool "separate observations bad." (result)
   let o = Any ==> query1
-  let r = (Switch 2) ==> query1
+  let r = NetCore.Switch 2 ==> query1
   result <- checkBool $ breaksObserves topo Nothing o r
   assertBool "different predicates bad." (result)
 
 case_testBreaksForwards = do
-  let o = (Switch 2) ==> forward [1]
-  let r = (Switch 2) ==> forward [1]
+  let o = (NetCore.Switch 2) ==> forward [1]
+  let r = (NetCore.Switch 2) ==> forward [1]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "identical switch" (not result)
 
-  let o = (Switch 2) <&&> (IngressPort 2) ==> forward [1]
-  let r = (Switch 2) <&&> (IngressPort 2) ==> forward [1]
+  let o = (NetCore.Switch 2) <&&> (IngressPort 2) ==> forward [1]
+  let r = (NetCore.Switch 2) <&&> (IngressPort 2) ==> forward [1]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "identical locations" (not result)
 
-  let o = (Switch 2) <&&> (IngressPort 2) ==> forward [1]
-  let r = (Switch 2) <&&> (IngressPort 2) ==> modify [(1, modDlVlan (Just 2))]
+  let o = (NetCore.Switch 2) <&&> (IngressPort 2) ==> forward [1]
+  let r = (NetCore.Switch 2) <&&> (IngressPort 2) ==> modify [(1, modDlVlan (Just 2))]
   result <- checkBool $ breaksForwards topo Nothing o r
   assertBool "match vlans" (not result)
   result <- checkBool $ breaksForwards topo Nothing r o
   assertBool "match vlans rev" (not result)
 
-  let o = Switch 2 <&&> IngressPort 1
+  let o = NetCore.Switch 2 <&&> IngressPort 1
                    <&&> DlSrc (EthernetAddress 32432)
                    <&&> DlDst (EthernetAddress 324322)
           ==> forward [1]
-  let r = Switch 2 <&&> IngressPort 1
+  let r = NetCore.Switch 2 <&&> IngressPort 1
                      <&&> DlSrc (EthernetAddress 32432)
                      <&&> DlDst (EthernetAddress 324322)
           ==> modify [(1, modDlVlan (Just 2))]
@@ -128,11 +129,11 @@ case_testBreaksForwards = do
   assertBool "set vlans rev" (not result)
 
 case_testBreaksForwardsFlood = do
-  let topo' = buildGraph [ ((1, 0), (9, 1))
-                         , ((2, 0), (9, 2))
-                         , ((3, 0), (9, 3))
+  let topo' = buildGraph [ ((Switch 1, 0), (Switch 9, 1))
+                         , ((Switch 2, 0), (Switch 9, 2))
+                         , ((Switch 3, 0), (Switch 9, 3))
                          ]
-  let o = Switch 9 ==> allPorts unmodified
+  let o = NetCore.Switch 9 ==> allPorts unmodified
   let r = (inport 9 1 ==> forward [2, 3]) <+>
           (inport 9 2 ==> forward [1, 3]) <+>
           (inport 9 3 ==> forward [1, 2])
@@ -140,13 +141,13 @@ case_testBreaksForwardsFlood = do
   assertBool "flood semantics" (not result)
 
 case_testBreaksForwards2 = do
-  let o = ((Switch 1) ==> forward [1]) <+> ((Switch 2) ==> forward [2])
+  let o = ((NetCore.Switch 1) ==> forward [1]) <+> ((NetCore.Switch 2) ==> forward [2])
   result <- checkBool $ breaksForwards2 topo Nothing o o
   assertBool "identical switch" (not result)
 
-  let o = ((Switch 1) ==> forward [1]) <+> ((Switch 2) ==> forward [2])
-  let r = ((Switch 1) ==> modify [(1, modDlVlan (Just 2))]) <+>
-          ((Switch 2) ==> modify [(2, modDlVlan (Just 3))])
+  let o = ((NetCore.Switch 1) ==> forward [1]) <+> ((NetCore.Switch 2) ==> forward [2])
+  let r = ((NetCore.Switch 1) ==> modify [(1, modDlVlan (Just 2))]) <+>
+          ((NetCore.Switch 2) ==> modify [(2, modDlVlan (Just 3))])
   result <- checkBool $ breaksForwards2 topo Nothing o r
   assertBool "match vlans" (not result)
   result <- checkBool $ breaksForwards2 topo Nothing r o
@@ -173,7 +174,7 @@ case_testDomain = do
   let pol = inport 2 1 ==> forward [2]
   result <- checkBool $ unconfinedDomain topo basicSlice pol
   assertBool "unconfinedDomain false on confined" (not result)
-  let pol = Switch 3 ==> forward [1]
+  let pol = NetCore.Switch 3 ==> forward [1]
   result <- checkBool $ unconfinedDomain topo basicSlice pol
   assertBool "unconfinedDomain true on unconfined" result
 

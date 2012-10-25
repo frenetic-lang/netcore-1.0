@@ -8,7 +8,7 @@ module Frenetic.PolicyGen
   ) where
 
 import Frenetic.Common
-import Data.Graph.Inductive.Graph
+import Data.Graph.Inductive.Graph hiding (Graph)
 import Data.Graph.Inductive.Tree
 import Data.Graph.Inductive.Query.MST
 import Data.Graph.Inductive.Query.SP
@@ -16,17 +16,14 @@ import Data.Graph.Inductive.Internal.RootPath
 import Data.Maybe
 import qualified Data.Set as Set
 import Data.Tuple
-import Frenetic.NetCore.Types
+import Frenetic.NetCore.Types hiding (Switch)
 import Frenetic.NetCore.Short
 import Frenetic.Pattern
 import Frenetic.Topo
+import qualified Frenetic.Topo as Topo
+import qualified Frenetic.NetCore.Types as NetCore
 import System.IO.Unsafe
 import Nettle.Ethernet.EthernetAddress (EthernetAddress (..), broadcastAddress)
-
--- |Convert a topology to a graph with weight 1 on each edge, for use with
--- Data.Graph.Inductive.Query.SP's shortest path algorithms
-toUnitWeight :: Topo -> Gr Int Integer
-toUnitWeight = emap (const 1)
 
 -- |Convert a list to a list of adjacent pairs
 toHops :: [a] -> [(a, a)]
@@ -42,62 +39,62 @@ queries = do
   return (q : rest)
 
 -- | For each switch, just allPorts every packet.
-realFlood :: Topo -> Policy
+realFlood :: Graph -> Policy
 realFlood topo = mconcat policies where
   ss = switches topo
-  policies = [Switch (fromIntegral s) ==> allPorts unmodified | s <- ss]
+  policies = [NetCore.Switch (fromIntegral s) ==> allPorts unmodified | s <- ss]
 
 -- | For each switch, direct each packet to every port on that switch that's in
 -- the topology.  Different from realFlood when dealing with subgraphs because
 -- simuFlood preserves behavior when composed into a larger graph.
-simuFlood :: Topo -> Policy
+simuFlood :: Graph -> Policy
 simuFlood topo = mconcat policies where
-  ss = switches topo
-  policies = [Switch (fromIntegral s) <&&> validPort s ==>
-              modify (ports' s) | s <- ss]
-  ports' s = zip (ports topo s) (repeat unmodified)
-  validPort s = prOr . map (\p -> IngressPort p) $ ports topo s
+  ss = lSwitches topo
+  policies = [NetCore.Switch s <&&> validPort n ==>
+              modify (ports' n) | (n,s) <- ss]
+  ports' n = zip (map snd $ ports topo n) (repeat unmodified)
+  validPort n = prOr . map (\(_,p) -> IngressPort p) $ ports topo n
 
 -- |Simulate flooding, and observe all packets with query.
-simuFloodQuery :: Topo -> [Action] -> Policy
+simuFloodQuery :: Graph -> [Action] -> Policy
 simuFloodQuery topo q = mconcat policies where
-  ss = switches topo
-  policies = [Switch (fromIntegral s) <&&> validPort s ==>
-              (modify (ports' s) <+> q) | s <- ss]
-  ports' s = zip (ports topo s) (repeat unmodified)
-  validPort s = prOr . map IngressPort $ ports topo s
+  ss = lSwitches topo
+  policies = [NetCore.Switch s <&&> validPort n ==>
+              (modify (ports' n) <+> q) | (n,s) <- ss]
+  ports' n = zip (map snd $ ports topo n) (repeat unmodified)
+  validPort n = prOr . map (\(_,p) -> IngressPort p) $ ports topo n
 
 -- |Construct an all-pairs-shortest-path routing policy between hosts, using the
 -- ID of the host as the MAC address.
-shortestPath :: Topo -> Policy
+shortestPath :: Graph -> Policy
 shortestPath topo = mconcat policies where
   routingTopo = toUnitWeight topo
-  hostsSet = Set.fromList (hosts topo)
+  hostsSet = Set.fromList (lHosts topo)
   policies = map pathPolicy $ Set.toList hostsSet
-  pathPolicy h1 = mconcat policies where
-    otherHosts = Set.delete h1 hostsSet
-    paths = spTree h1 routingTopo
+  pathPolicy x@(n,h1) = mconcat policies where
+    otherHosts = Set.delete x hostsSet
+    paths = spTree n routingTopo
     policies = [ buildPath (EthernetAddress (fromIntegral h1))
                            (EthernetAddress (fromIntegral h2)) $
-                 getLPathNodes h2 paths
-               | h2 <- Set.toList otherHosts ]
+                 getLPathNodes n2 paths
+               | (n2,h2) <- Set.toList otherHosts ]
   buildPath _ _ [] = PoBottom
   buildPath _ _ [_] = PoBottom
   buildPath source dest path = mconcat policies where
     hops = toHops path
     policies = mapMaybe (buildHop source dest) $ hops
-  buildHop source dest (s1, s2) =
-    if Set.member s1 hostsSet then Nothing
-    else Just (Switch (fromIntegral s1) <&&>
+  buildHop source dest (n1,n2) =
+    if not (Set.null . Set.filter (\ (n,_) -> n == n1) $ hostsSet) then Nothing
+    else Just (NetCore.Switch (fromJust $ getSwitch topo n1) <&&>
                DlSrc source <&&> DlDst dest ==> forward [destPort])
     where
-    destPort = case getEdgeLabel topo s1 s2 of
+    destPort = case getPort topo n1 n2 of
                  Just port -> port
                  Nothing -> error "Tried to find nonexistent port."
 
 -- |Construct a policy that routes traffic to DlDst:FF:FF:FF:FF:FF:FF to all
 -- hosts except the one it came in on
-multicast :: Topo -> Policy
+multicast :: Graph -> Policy
 multicast topo = mconcat policies <%> DlDst broadcastAddress where
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (hosts topo)
@@ -107,9 +104,9 @@ multicast topo = mconcat policies <%> DlDst broadcastAddress where
          concatMap toHops .
          map (map fst) .
          map (\(LP x) -> x) $ tree
-  policies = [ buildSwitch s | s <- switches topo ]
+  policies = [ buildSwitch n | (n,_) <- lSwitches topo ]
   buildSwitch s = mconcat policies where
-    ports = Set.fromList [p | (dest, p) <- lPorts topo s,
+    ports = Set.fromList [p | (dest,(_,p)) <- lPorts topo s,
                               Set.member (s, dest) hops]
     s' = fromIntegral s
     policies = [ inport s' p ==> forward (Set.toList $ Set.delete p ports)

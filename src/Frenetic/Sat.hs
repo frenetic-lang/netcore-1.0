@@ -23,7 +23,7 @@ import Nettle.IPv4.IPAddress
 import Frenetic.Z3
 import Frenetic.NetCore.Types
 import Frenetic.Pattern hiding (match)
-import Frenetic.Topo
+import qualified Frenetic.Topo as Topo
 import Nettle.OpenFlow.Match (ofpVlanNone)
 import Data.Bits
 import qualified Data.Graph.Inductive.Graph as Graph
@@ -49,13 +49,13 @@ atLoc (Loc s p) pkt = ZAnd (Equals (switch pkt) (Primitive (fint s)))
                            (Equals (port pkt) (Primitive (fint p)))
 
 -- |Build the predicate for a packet being on the topology
-onTopo :: Topo -> Z3Packet -> BoolExp
+onTopo :: Topo.Graph -> Z3Packet -> BoolExp
 onTopo topo pkt = nOr constraints where
   constraints = map onPort (Graph.labEdges topo)
   onPort (n, _, p) = atLoc (Loc (fint n) p) pkt
 
 -- |Build the predicate for the topology transfering two packets
-transfer :: Topo -> Z3Packet -> Z3Packet -> BoolExp
+transfer :: Topo.Graph -> Z3Packet -> Z3Packet -> BoolExp
 transfer topo p q = nAnd constraints where
   -- Keep all fields the same, but move switch and port across one of the edges
   -- in the graph.
@@ -80,7 +80,7 @@ transfer topo p q = nAnd constraints where
                  $ topo
   edgeToOption (s1, s2, port1) =
     -- safe because Topo is undirected and we start from an edge
-    let Just port2 = getEdgeLabel topo s2 s1 in
+    let Just port2 = Topo.getPort topo s2 s1 in
     nAnd [ Equals (switch p) (Primitive (fint s1))
          , Equals (switch q) (Primitive (fint s2))
          , Equals (port p) (Primitive (fint port1))

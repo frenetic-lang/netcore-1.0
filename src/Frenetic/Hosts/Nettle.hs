@@ -8,6 +8,7 @@ import qualified Data.Map as Map
 import Control.Exception.Base
 import Control.Monad.State
 import System.IO
+import Frenetic.Topo (Switch,Port,Loc)
 import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Util
@@ -18,6 +19,7 @@ import Frenetic.NetCore.Compiler
 import Frenetic.Switches.OpenFlow
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx hiding (Id)
+import qualified Frenetic.Topo as Topo
 import qualified Frenetic.NetCore.Types as NetCore
 import qualified Text.JSON.Generic as JSON
 
@@ -58,7 +60,7 @@ policyOutputs (Restrict (SendPackets chan) pred) = [(chan, pred)]
 policyOutputs (Restrict pol pred) = policyOutputs (synthRestrict pol pred)
 policyOutputs (SendPackets chan) = [(chan, Any)]
 
-parsePkt :: NetCore.Port -> ByteString -> Maybe Packet
+parsePkt :: Topo.Port -> ByteString -> Maybe Packet
 parsePkt pt rawPkt = 
   let len = fromIntegral (BS.length rawPkt) -- TODO(arjun): overflow
       body = Right (decode rawPkt)

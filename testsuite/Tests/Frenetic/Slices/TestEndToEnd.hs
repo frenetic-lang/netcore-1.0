@@ -7,10 +7,11 @@ import Test.HUnit hiding (Node)
 import Test.Framework.Providers.HUnit
 import Frenetic.Pattern hiding (intersect)
 import Tests.Frenetic.Util
-import Frenetic.NetCore
+import Frenetic.NetCore hiding (Switch)
 import Frenetic.NetCore.Pretty
 import Frenetic.NetCore.Reduce
-import Frenetic.NetCore.Types
+import Frenetic.NetCore.Types hiding (Switch)
+import qualified Frenetic.NetCore.Types as NetCore
 import Frenetic.PolicyGen
 import Frenetic.Slices.Compile
 import Frenetic.Slices.Slice
@@ -19,7 +20,6 @@ import Frenetic.Slices.VlanAssignment
 import Frenetic.Topo
 import Frenetic.Z3
 
-import Data.Graph.Inductive.Graph
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -42,9 +42,9 @@ case_testBasicCompile = do
 
 case_testFloodCompile = do
   qs <- queries
-  let topo = buildGraph [ ((1, 0), (9, 1))
-                        , ((2, 0), (9, 2)) ]
-  let p = Switch 9 ==> allPorts unmodified
+  let topo = buildGraph [ ((Switch 1, 0), (Switch 9, 1))
+                        , ((Switch 2, 0), (Switch 9, 2)) ]
+  let p = NetCore.Switch 9 ==> allPorts unmodified
   let slice = Slice Set.empty (Map.fromList [(Loc 9 1, Any), (Loc 9 2, Any)])
                               (Map.fromList [(Loc 9 1, Any), (Loc 9 2, Any)])
   let c = compileSlice slice 1 p
@@ -216,14 +216,14 @@ case_testK6EdgeCompileHosts = do
 -- properties.  This speeds up testing dramatically compared to testing unary
 -- properties within the pairwise test.
 
-physSepReflex :: Topo -> [([Node], Policy)] -> Assertion
+physSepReflex :: Graph -> [([Node], Policy)] -> Assertion
 physSepReflex topo nodePolicies = sequence_ $ map test nodePolicies where
   test (ns, p) = do
     let label = "not self-isolated: " ++ show ns
     separated <- separate topo p p
     assertBool ("not self-isolated: " ++ show ns) (not separated)
 
-physSep :: Topo -> [([Node], Policy)] -> Assertion
+physSep :: Graph -> [([Node], Policy)] -> Assertion
 physSep topo nodePolicies = sequence_ $ map test policyPairs where
   policyPairs = getPairs nodePolicies
   test ((ns1, p1), (ns2, p2)) = do
@@ -236,7 +236,7 @@ physSep topo nodePolicies = sequence_ $ map test policyPairs where
 
 -- No need to repeat compilation correctness testing, so do it in the unary test
 -- version.
-compileReflex :: Topo -> [([Node], Slice, Policy, Policy)] -> Assertion
+compileReflex :: Graph -> [([Node], Slice, Policy, Policy)] -> Assertion
 compileReflex topo combined = sequence_ $ map test combined where
   test (ns, s, p, c) = do
     correct <- compiledCorrectly topo s p c
@@ -244,7 +244,7 @@ compileReflex topo combined = sequence_ $ map test combined where
     separated <- separate topo c c
     assertBool ("not self-separate of: " ++ show ns) (not separated)
 
-compile :: Topo -> [([Node], Slice, Policy, Policy)] -> Assertion
+compile :: Graph -> [([Node], Slice, Policy, Policy)] -> Assertion
 compile topo combined = sequence_ $ map test pairs where
   pairs = getPairs combined
   test ((ns1, s1, p1, c1), (ns2, s2, p2, c2)) = do
@@ -253,7 +253,7 @@ compile topo combined = sequence_ $ map test pairs where
                separated
 
 -- Need a separate test here because we don't have egress predicates.
-compileHosts :: Topo -> [([Node], Slice, Policy, Policy)] -> Assertion
+compileHosts :: Graph -> [([Node], Slice, Policy, Policy)] -> Assertion
 compileHosts topo combined = sequence_ $ map test pairs where
   pairs = getPairs combined
   test ((ns1, s1, p1, c1), (ns2, s2, p2, c2)) = do
