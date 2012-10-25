@@ -9,6 +9,8 @@ module Frenetic.Switches.OpenFlow
   ) where
 
 import Frenetic.Common
+import Data.Ord
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Frenetic.NetCore.Types as NetCore
 import Data.HList
@@ -171,28 +173,56 @@ toPacket pkt = do
 -- and forwarding out port 2.  In such situations, the action is changed to
 -- "send to controller."
 -- TODO: implement optimizations to handle special cases on the switch.
--- TODO: deploying these kinds of actions relies on the controller to forward
---       them.  will this corrupt/drop packets larger than maxBound?
+-- TODO: unimplementable actions are basically "drop" at the moment.  When
+--       the controller can handle a packet payload, then the controller
+--       should be modified to resend packets sent to the controller because
+--       of unimplementable actions.
 
 -- The ToController action needs to come last. If you reorder, it will not
 -- work. Observed with the usermode switch.
-actnTranslate act = acts
-  where acts  = if hasUnimplementableMods $ map (\(ActFwd _ m) -> m) fwd
-                then [SendOutPort (ToController maxBound)]
-                else ofFwd ++ toCtrl
-        ofFwd = concatMap (\(ActFwd pp md) -> modTranslate md
-                               ++ [physicalPortOfPseudoPort pp])
-                    fwd
-        toCtrl = case find isGetPacket queries of
-          -- sends as much of the packet as possible to the controller
-          Just _  -> [SendOutPort (ToController maxBound)]
-          Nothing -> []
-        fwd = filter isForward act
-        queries = filter isQuery act
-        hasUnimplementableMods as
-          | length as <= 1 = False
-          | otherwise =
-              let minFields = foldl (\m p -> if Set.size p < Set.size m then p else m)
-                                    (modifiedFields $ head as)
-                                    (map modifiedFields $ tail as)
-              in not $ all (\pat -> Set.isSubsetOf (modifiedFields pat) minFields) as
+
+actnTranslate :: [Act] -> ActionSequence
+actnTranslate acts =
+  let (fwdActs, qryActs)   = List.partition isForward acts
+      (noModActs, modActs) = List.partition noModifiedFields fwdActs
+      actsByModSize        = List.sortBy numFieldsModified modActs
+      haveMods             = length modActs > 0
+      mustGetPacket        = case find isGetPacket qryActs of
+                               Just _ -> True
+                               Nothing -> False
+      -- If there are both mod actions and a GetPacket query, or if
+      -- the modifications are unimplementable, then do the actions
+      -- with no modifications followed by forwarding to the controller.
+      fwds   = if (mustGetPacket && haveMods) || cannotBeDeployed modActs
+               then translateFwds noModActs
+               else translateFwds $ noModActs ++ modActs
+      toCtrl = if mustGetPacket || cannotBeDeployed modActs
+               then [SendOutPort (ToController maxBound)]
+               else [] in
+  fwds ++ toCtrl
+  where
+    -- Does the action contain modifications?
+    noModifiedFields (ActFwd _ m) = Set.null $ modifiedFields m
+    noModifiedFields _ = True
+    -- Compare two actions based on the number of modifications they make.
+    numFieldsModified (ActFwd _ m1) (ActFwd _ m2) =
+      comparing Set.size (modifiedFields m1) (modifiedFields m2)
+    numFieldsModified (ActFwd _ m1) _ =
+      comparing Set.size (modifiedFields m1) Set.empty
+    numFieldsModified _ (ActFwd _ m2) =
+      comparing Set.size Set.empty (modifiedFields m2)
+    numFieldsModified _ _ = comparing id 0 0
+    -- Can the list of actions be deployed, or do the modifications conflict?
+    cannotBeDeployed [] = False
+    cannotBeDeployed fwdActs =
+      let modSets = map (\(ActFwd _ m) -> modifiedFields m) fwdActs in
+      not . and . map (\(m1, m2) -> m1 `Set.isSubsetOf` m2) $ adjacentPairs modSets
+    -- Return a list of pairs of adjacent list elements.
+    adjacentPairs []  = []
+    adjacentPairs [a] = []
+    adjacentPairs (a:(b:tail)) = [(a,b)] ++ adjacentPairs (b:tail)
+    -- Translate a list of forward actions to OpenFlow actions.
+    translateFwds fwdActs =
+      concatMap
+        (\(ActFwd pp md) -> modTranslate md ++ [physicalPortOfPseudoPort pp])
+        fwdActs
