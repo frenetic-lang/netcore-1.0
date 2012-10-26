@@ -1,5 +1,3 @@
-
-
 module Campus where
 
 import qualified Data.Set as Set
