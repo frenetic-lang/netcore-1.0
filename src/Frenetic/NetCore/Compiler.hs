@@ -76,12 +76,14 @@ minimizeShadowing getPat rules = reverse $ f $ reverse rules
         f (x:xs) = if any (shadows x) xs
                    then f xs
                    else x:(f xs)
-        shadows a1 a2 =
+        shadows a1 a2 = 
           let p1 = getPat a1
               p2 = getPat a2
-          in case intersect p1 p2 of
-            Nothing -> False
-            Just p3 -> match p1 p3
+          in p1 == p2
+        
+--           in case intersect p1 p2 of
+--             Nothing -> False
+--             Just p3 -> match p1 p3
 
 minimizeClassifier :: Classifier a
                    -> Classifier a
