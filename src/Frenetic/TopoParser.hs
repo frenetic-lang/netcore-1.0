@@ -4,7 +4,7 @@ module Frenetic.TopoParser
   ) where
 
 import Text.ParserCombinators.Parsec
-import Frenetic.Topo
+import Frenetic.Topo as Topo
 import Data.List
 import Data.Maybe
 import Data.Word
@@ -18,13 +18,13 @@ import Frenetic.NetCore.Types
  -  [hosts...]), ...]
  -  .
  -    -}
-topoEdgeList :: GenParser Char st [(LNode Char, [LNode Char])]
+topoEdgeList :: GenParser Char st [((Int,Char), [(Int,Char)])]
 topoEdgeList = 
      do result <- many topoLine
         eof
         return result 
 
-topoLine :: GenParser Char st (LNode Char, [LNode Char])
+topoLine :: GenParser Char st ((Int,Char), [(Int,Char)])
 topoLine =
     do s <- switch 
        string " <-> "
@@ -32,25 +32,25 @@ topoLine =
        eol 
        return (s, nbs) 
 
-switch :: GenParser Char st (LNode Char)
+switch :: GenParser Char st (Int, Char)
 switch = do
   s <- satisfy (\x -> x == 's')
   d <- many1 digit
   return ((read d),s)
 
-nbsl :: GenParser Char st [LNode Char]
+nbsl :: GenParser Char st [(Int,Char)]
 nbsl = 
   do first <- fneighbor
      next <- neighbor
      return (first : next)
 
-fneighbor :: GenParser Char st (LNode Char)
+fneighbor :: GenParser Char st (Int, Char)
 fneighbor = 
   do l <- satisfy (\x -> x == 'h' || x == 's') 
      d <- many1 digit
      return ((read d), l)
 
-neighbor :: GenParser Char st [LNode Char]
+neighbor :: GenParser Char st [(Int,Char)]
 neighbor = 
   do string "-eth"
      many1 digit
@@ -63,23 +63,30 @@ eol = char '\n'
 --to make this the type we really want should do an additional map:
 --to pick off index [1] of all of the strings in the return type of
 --parseTopo and cast that to an int (i.e. to a node)
-parseTopo :: String -> Either ParseError [(LNode Char, [LNode Char])]
+parseTopo :: String -> Either ParseError [((Int,Char), [(Int,Char)])]
 parseTopo t = parse topoEdgeList "(unknown)" t
 
-makeEdgeList :: [(LNode Char, [LNode Char])] -> [((Node, Port), (Node, Port))]
+makeEdgeList :: [((Int,Char), [(Int,Char)])] -> [((Element, Port), (Element, Port))]
 makeEdgeList l = foldl (\x -> \y -> (sList y l) `union` x) [] l
 
-sList :: (LNode Char, [LNode Char]) -> [(LNode Char, [LNode Char])] -> [((Node, Port), (Node, Port))]
+sList :: ((Int,Char), [(Int,Char)]) -> [((Int,Char), [(Int,Char)])] -> [((Element, Port), (Element, Port))]
 sList (s, ns) l = fst 
   (foldl 
-  (\x -> \y -> 
-  ( ((fst s, snd x), (fst y, 
-  getPort y s ((filter (\x -> fst (fst x) == fst y) l) !! 0))) : (fst x) , (snd x) +1)) 
+    (\x y -> 
+      (((toElement s, (fromIntegral (snd x) :: Word16)), 
+        (toElement y, findPort y s ((filter (\w -> (fst w) ==  y) l) !! 0)))
+        : (fst x) , (snd x)+1))
   ([], 1) ns)
 
-getPort :: LNode Char -> LNode Char -> (LNode Char, [LNode Char]) -> Port 
-getPort a b l = if snd a == 'h' 
-                  then 0
+toElement :: (Int, Char) -> Element
+toElement (l, hors) = if hors == 'h' then Host (fromIntegral l :: Word64) 
+                                     else Topo.Switch (fromIntegral l :: Word64)
+
+--sList (s,ns) l = fst (foldl (\x y -> ((m,snd x), (fst y, port y s 
+
+findPort :: (Int,Char) -> (Int,Char) -> ((Int,Char), [(Int,Char)]) -> Port 
+findPort a b l = if snd a == 'h' 
+                  then (fromIntegral 0 :: Word16)
                   else (fromIntegral ((fromJust (elemIndex b (snd l)))+1) :: Word16)
 
 

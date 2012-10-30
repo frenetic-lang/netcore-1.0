@@ -15,10 +15,10 @@ import qualified Repeater
 import qualified Monitor
 import qualified NAT
 import qualified KitchenSink
--- import qualified BaseMon
+import qualified BaseMon
 import qualified PacketOut
 import qualified ReserveWeb
--- import qualified OneRes
+import qualified OneRes
 -- import qualified ShortestPath
 import qualified TransparentCache
 import qualified WireMonitor
@@ -70,9 +70,9 @@ argSpec =
   , Option [] ["reserve"] (NoArg (Example ReserveWeb.main))
       "reserve Web"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
---  , Option [ ] ["basemon"] (NoArg (Example BaseMon.main)) "Basic Monitoring"
---   , Option [] ["oneres"] (NoArg (Example OneRes.main)) 
---       "Constructs a one resiliant routing policy for a network"
+  , Option [ ] ["basemon"] (NoArg (Example BaseMon.main)) "Basic Monitoring"
+  , Option [] ["oneres"] (NoArg (Example OneRes.main)) 
+       "Constructs a one resiliant routing policy for a network"
 --   , Option [] ["sp"] (NoArg (Example ShortestPath.main))
 --       "runs the shortest path algorithm"
   , Option [] ["tc"] (NoArg (Example TransparentCache.main))

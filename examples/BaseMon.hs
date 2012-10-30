@@ -5,7 +5,6 @@ import Control.Monad
 import Frenetic.NetCore
 import System.IO
 import Frenetic.Topo
-import Data.Graph.Inductive
 import Repeater
 import Data.Word
 
@@ -15,30 +14,23 @@ import Data.Word
 --     /  \
 --   H2    H3
 
-data N = S Switch
-       | H EthernetAddress
-
---s = (0,S 101)
---h1 = (1,H (ethernetAddress 0 0 0 0 0 1))
---h2 = (2,H (ethernetAddress 0 0 0 0 0 2))
---h3 = (3,H (ethernetAddress 0 0 0 0 0 3))
 s = 101
 h1 = 1
 h2 = 2
 h3 = 3
 
 ns = [s,h1,h2,h3]
-el= [((101, 1),(1,0)), ((101, 2), (2,0)), ((101,3), (3,0))]
+el= [((Frenetic.Topo.Switch 101, 1),(Host 1,0)), ((Frenetic.Topo.Switch 101, 2), (Host 2,0)), ((Frenetic.Topo.Switch 101,3), (Host 3,0))]
 
-topo :: Topo
+topo :: Graph
 topo = buildGraph el
 
-mkMonitorPolicy :: Policy -> Topo -> IO ()
+mkMonitorPolicy :: Policy -> Graph -> IO ()
 mkMonitorPolicy fwd g = 
   let monitorCallback ei ( sw, n ) = do
         putStrLn ("Counter for " ++ show ei ++ " on " ++ show sw ++ " is: " ++ show n) in 
-  let p = foldl (\acc e -> (DlDst (ethernetAddress 0 0 0 0 0 (fromIntegral e :: Word8))
-        ==> [GetPacket 0 (monitorCallback e)]) `PoUnion` acc) PoBottom (hosts g)  in
+  let p = foldl (\acc h -> (DlDst (ethernetAddress 0 0 0 0 0 (fromIntegral h :: Word8))
+        ==> [GetPacket 0 (monitorCallback h)]) `PoUnion` acc) PoBottom (hosts g)  in
      controller (fwd `PoUnion` p)
 
 --myMain :: IO ()

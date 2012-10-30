@@ -48,7 +48,7 @@ Library
     Frenetic.CoFiniteSet,
     Frenetic.Topo,
     Frenetic.TopoGen
---    Frenetic.TopoParser
+    Frenetic.TopoParser
   other-modules:
     Frenetic.Hosts.Nettle,
     Frenetic.NetCore.Compiler,
