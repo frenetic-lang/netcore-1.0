@@ -12,13 +12,13 @@ import Control.Concurrent
 import Control.Monad
 
 import Frenetic.NetCore
-import Frenetic.Topo
+import Frenetic.Topo as Topo
 
 import Repeater
 
 
 --mininet's default topology
-topo=buildGraph [((2,0), (1,1)), ((3,0), (1,2))] 
+topo=buildGraph [((Host 2,0), (Topo.Switch 1,1)), ((Host 3,0), (Topo.Switch 1,2))] 
 
 --a map of counters keyed by node ids
 countTable :: IORef (Map Int Int) 
