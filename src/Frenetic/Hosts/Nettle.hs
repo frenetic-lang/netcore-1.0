@@ -194,7 +194,7 @@ handleSwitch nettle callbacks counters switch pol kill msgChan opts = do
   debugM "controller" $ "policy is " ++ show pol
   let classifier = compile (handle2SwitchID switch) pol
   debugM "controller" $ "classifier is " ++ show classifier
-  let flowTbl = toFlowTable classifier
+  flowTbl <- toFlowTable classifier
   debugM "controller" $ "flow table is " ++ show flowTbl
   killMVar' <- runQueryOnSwitch nettle switch classifier counters callbacks
   -- Priority 65535 is for microflow rules from reactive-specialization
