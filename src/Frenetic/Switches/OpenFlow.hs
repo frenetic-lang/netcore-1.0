@@ -24,6 +24,7 @@ import Frenetic.Pattern
 import Frenetic.NetCore.Types
 import Frenetic.NettleEx hiding (AllPorts)
 import qualified Frenetic.NettleEx as NettleEx
+import System.Log.Logger
 
 instance Matchable IPAddressPrefix where
   top = defaultIPPrefix
@@ -181,7 +182,7 @@ toPacket pkt = do
 -- The ToController action needs to come last. If you reorder, it will not
 -- work. Observed with the usermode switch.
 
-actnTranslate :: [Act] -> ActionSequence
+actnTranslate :: [Act] -> IO ActionSequence
 actnTranslate acts =
   let (fwdActs, qryActs)   = List.partition isForward acts
       (noModActs, modActs) = List.partition noModifiedFields fwdActs
@@ -193,13 +194,16 @@ actnTranslate acts =
       -- If there are both mod actions and a GetPacket query, or if
       -- the modifications are unimplementable, then do the actions
       -- with no modifications followed by forwarding to the controller.
-      fwds   = if (mustGetPacket && haveMods) || cannotBeDeployed modActs
-               then translateFwds noModActs
-               else translateFwds $ noModActs ++ modActs
+      fwds   = translateFwds noModActs
       toCtrl = if mustGetPacket || cannotBeDeployed modActs
                then [SendOutPort (ToController maxBound)]
                else [] in
-  fwds ++ toCtrl
+  do  fwdsWithMods <- if cannotBeDeployed modActs
+                      then do
+                          warningM "controller.switches" $ "Cannot compile actions: " ++ show acts
+                          return $ []
+                      else return $ translateFwds modActs
+      return $ fwds ++ toCtrl ++ fwdsWithMods
   where
     -- Does the action contain modifications?
     noModifiedFields (ActFwd _ m) = Set.null $ modifiedFields m
