@@ -40,11 +40,7 @@ trustedSlice =
                                   , (Loc 2 3, Any) ] }
 
 trustedPols :: IO (Chan Policy)
--- trustedPols = learningSwitch
-trustedPols = do
-    ch <- newChan
-    writeChan ch $ Any ==> allPorts unmodified
-    return ch
+trustedPols = learningSwitch
 
 -- The untrusted slice is:
 --
@@ -57,22 +53,28 @@ trustedPols = do
 --                    (3) h
 --                    (4) h
 --                    (5) h
+--
+-- where incoming/outgoing traffic is restricted to ARP traffic,
+-- ICMP traffic, or IP traffic on port 80.
+
+untrustedFilter :: Predicate
+untrustedFilter =  
+  DlTyp 0x0806 <||> (DlTyp 0x0800 <&&> (NwProto 1 <||> TpDstPort 80))
+
 untrustedSlice :: Slice
 untrustedSlice =
   Slice { internal = Set.fromList [Loc 2 2, Loc 3 2]
-        , ingress  = Map.fromList [ (Loc 1 3, Any)
-                                  , (Loc 1 4, Any)
-                                  , (Loc 2 3, Any) ]
-        , egress   = Map.fromList [ (Loc 1 3, Any)
-                                  , (Loc 1 4, Any)
-                                  , (Loc 2 3, Any) ] }
+        , ingress  = Map.fromList [ (Loc 3 3, untrustedFilter)
+                                  , (Loc 3 4, untrustedFilter)
+                                  , (Loc 3 5, untrustedFilter)
+                                  , (Loc 2 3, untrustedFilter) ]
+        , egress   = Map.fromList [ (Loc 3 3, untrustedFilter)
+                                  , (Loc 3 4, untrustedFilter)
+                                  , (Loc 3 5, untrustedFilter)
+                                  , (Loc 2 3, untrustedFilter) ] }
 
 untrustedPols :: IO (Chan Policy)
--- untrustedPols = learningSwitch
-untrustedPols = do
-    ch <- newChan
-    writeChan ch $ Any ==> allPorts unmodified
-    return ch
+untrustedPols = learningSwitch
 
 -- The admin slice is:
 --
@@ -96,7 +98,9 @@ adminPols = do
     (adminChan, adminQuery) <- getPkts
     forkIO $ forever $ do
         (Loc sw port, pkt) <- readChan adminChan
-        putStrLn $ "Admin(" ++ show sw ++ ", " ++ show port ++ "): saw packet: " ++ show pkt
+        infoM "controller.admin" $ 
+              "Admin(" ++ show sw ++ ", " ++ show port ++ 
+              "): saw packet: " ++ show pkt
     writeChan polChan $ Any ==> adminQuery
     return polChan
 
@@ -107,27 +111,6 @@ main = do
   let slices = [ (trustedSlice, trustedPolChan)
                , (untrustedSlice, untrustedPolChan)
                , (adminSlice, adminPolChan) ]
-  let slices = [(trustedSlice, trustedPolChan)]
---   polChan <- dynTransform slices
---   dynController polChan
---   let pol = (((Switch 1 <&&> IngressPort 3) ==> [ 
---                 Forward (Physical 4) unmodified
---               , Forward (Physical 1) unmodified { modifyDlVlan = Just (Just 1) }])
---          <+> ((Switch 1 <&&> IngressPort 4) ==> [
---                 Forward (Physical 3) unmodified
---               , Forward (Physical 1) unmodified { modifyDlVlan = Just (Just 1) }])
---          <+> (Switch 1 <&&> IngressPort 1 <&&> DlVlan (Just 1)) ==> [
---                 Forward (Physical 3) unmodified { modifyDlVlan = Just Nothing }
---               , Forward (Physical 4) unmodified { modifyDlVlan = Just Nothing }]
---          <+> (Switch 2 <&&> IngressPort 3) ==> [
---               Forward (Physical 1) unmodified { modifyDlVlan = Just (Just 1) }]
---          <+> (Switch 2 <&&> IngressPort 1 <&&> DlVlan (Just 1)) ==> [
---               Forward (Physical 3) unmodified { modifyDlVlan = Just Nothing }])
-  let pol = (((Switch 1 <&&> IngressPort 3) ==> 
-               [Forward (Physical 1) unmodified { modifyDlVlan = Just (Just 1) } ])
-         <+> ((Switch 2 <&&> DlVlan (Just 1)) ==>
-               [Forward (Physical 3) unmodified { modifyDlVlan = Just Nothing } ])
-         <+> ((Switch 2 <&&> DlVlan Nothing) ==>
-               [Forward (Physical 2) unmodified]))
-  controller pol
+  polChan <- dynTransform slices
+  dynController polChan
 

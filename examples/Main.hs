@@ -23,7 +23,7 @@ import qualified OneRes
 import qualified TransparentCache
 import qualified WireMonitor
 import qualified ErrorDetect
--- import qualified Campus
+import qualified Campus
 import qualified VlanBug
 
 import System.Log.Logger
@@ -81,8 +81,8 @@ argSpec =
       "a simple wire with monitoring"
   , Option [] ["errordetectb"] (NoArg (Example ErrorDetect.main))
       "Error detection for a basic, static topology"
---   , Option [] ["campus"] (NoArg (Example Campus.main))
---       "A small example of a campus network with several slices."
+  , Option [] ["campus"] (NoArg (Example Campus.main))
+      "A small example of a campus network with several slices."
   , Option [] ["vlanbug"] (NoArg (Example VlanBug.main))
       "Demonstrate a bug with how OpenVSwitch handles VLAN tags."
   ]
