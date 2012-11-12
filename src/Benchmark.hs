@@ -5,7 +5,7 @@ import Control.Monad
 import qualified Data.Map as Map
 import Frenetic.NetCore
 import Frenetic.NetCore.Pretty
-import Frenetic.NetCore.Types (size)
+import Frenetic.NetCore.Util (size)
 import Frenetic.TopoGen
 import Frenetic.PolicyGen
 import Frenetic.Slices.Compile
