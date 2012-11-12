@@ -17,7 +17,8 @@ Description:
 
 Library
   build-depends:
-    base >= 4 && < 5,
+    base >= 4,
+    binary-strict >= 0.4.0,
     containers,
     mtl >= 2.0.1.0,
     ansi-wl-pprint,
@@ -31,7 +32,7 @@ Library
     parsec == 3.1.*,
     syb == 0.3.*,
     bimap == 0.2.*,
-    network == 2.3.*,
+    network >= 2.3,
     json >= 0.4.3
   exposed-modules:
     Nettle.Ethernet.EthernetAddress,
@@ -102,7 +103,7 @@ benchmark frenetic-benchmark
                  parsec == 3.1.*,
                  syb == 0.3.*,
                  bimap == 0.2.*,
-                 network == 2.3.*,
+                 network >= 2.3,
                  json >= 0.4.3
   Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
     FlexibleContexts, DoAndIfThenElse, RecordWildCards,
@@ -140,7 +141,7 @@ Test-Suite frenetic-tests
     parsec == 3.1.*,
     syb == 0.3.*,
     bimap == 0.2.*,
-    network == 2.3.*,
+    network >= 2.3,
     json >= 0.4.3
   ghc-options:
     -fwarn-incomplete-patterns
