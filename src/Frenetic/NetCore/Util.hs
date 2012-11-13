@@ -11,6 +11,7 @@ module Frenetic.NetCore.Util
   , poUnUnion
   , poDom
   , size
+  , getVlans
   , isForward
   , isGetPacket
   , isQuery
@@ -97,6 +98,27 @@ prSize (And p1 p2) = prSize p1 + prSize p2 + 1
 prSize (Not p) = prSize p + 1
 prSize _ = 1
 
+getVlans :: Policy -> Set (Maybe Vlan)
+getVlans PoBottom = Set.empty
+getVlans (PoBasic pred acts) = Set.unions $
+  (getPrVlans pred) : (map getActVlans acts)
+getVlans (PoUnion p1 p2) = Set.union (getVlans p1) (getVlans p2)
+getVlans (Restrict pol pred) = Set.union (getVlans pol) (getPrVlans pred)
+getVlans (SendPackets _) = Set.empty
+
+getPrVlans :: Predicate -> Set (Maybe Vlan)
+getPrVlans (Or p1 p2) = Set.union (getPrVlans p1) (getPrVlans p2)
+getPrVlans (And p1 p2) = Set.union (getPrVlans p1) (getPrVlans p2)
+getPrVlans (Not p) = getPrVlans p
+getPrVlans (DlVlan mv) = Set.singleton mv
+getPrVlans _ = Set.empty
+
+getActVlans :: Action -> Set (Maybe Vlan)
+getActVlans (Forward _ mod) = case modifyDlVlan mod of
+  Just mv -> Set.singleton mv
+  Nothing -> Set.empty
+getActVlans _ = Set.empty
+
 -- |A predicate that exactly matches a packet's headers.
 exactMatch :: LocPacket -> Predicate
 exactMatch (Loc sw pt, Packet{..}) = foldl f locPred lst
@@ -147,4 +169,3 @@ isQuery act = case act of
   GetPacket {} -> True
   Forward {} -> False
   MonitorSwitch {} -> True
-  

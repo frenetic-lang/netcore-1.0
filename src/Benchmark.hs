@@ -3,12 +3,13 @@ module Main (main) where
 import Prelude hiding (init)
 import Control.Monad
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Frenetic.NetCore
 import Frenetic.NetCore.Pretty
-import Frenetic.NetCore.Util (size)
+import Frenetic.NetCore.Util (size, getVlans)
 import Frenetic.TopoGen
 import Frenetic.PolicyGen
-import Frenetic.Slices.Compile
+import Frenetic.Slices.Compile hiding (setVlan)
 import Frenetic.Slices.VlanAssignment
 import Frenetic.Slices.Slice
 import Frenetic.Slices.Sat
@@ -25,6 +26,7 @@ data Options = Options {
   optEdge :: Bool
 , optAST :: Bool
 , optTime :: Bool
+, optVlan :: Bool
 , optIso :: Bool
 , optComp :: Bool
 , optGraph :: GraphType
@@ -37,12 +39,13 @@ defaultOptions :: Options
 defaultOptions = Options {
   optEdge = False
 , optAST = False
-, optTime = True
+, optVlan = False
+, optTime = False
 , optIso = False
 , optComp = False
 , optGraph = Smallworld
 , optPolicy = ShortestPath
-, optNodes = 20
+, optNodes = 12
 , optHosts = 1
 }
 
@@ -53,6 +56,7 @@ options =
 
   , Option ['a'] ["ast"] (NoArg setAST) "Measure AST size"
   , Option ['l'] ["time"] (NoArg setTime) "Time compilation"
+  , Option ['v'] ["vlan"] (NoArg setVlan) "Count vlans used"
   , Option ['i'] ["isolation"] (NoArg setIso) "Time isolation validation"
   , Option ['c'] ["compilation"] (NoArg setComp) "Time compilation validation"
 
@@ -74,6 +78,9 @@ setAST opt = return opt { optAST = True }
 
 setTime :: Options -> IO Options
 setTime opt = return opt { optTime = True }
+
+setVlan :: Options -> IO Options
+setVlan opt = return opt { optVlan = True }
 
 setIso :: Options -> IO Options
 setIso opt = return opt { optIso = True }
@@ -146,10 +153,15 @@ start options = do
     finish <- getCPUTime
     let diff = (fromIntegral (finish - start)) / (10^12)
     printf "Compilation time: %0.3f sec\n" (diff :: Double)
+  -- Make sure that we've forced compilation by this point
+  (size compiled1) `seq` (size compiled2) `seq` return ()
   let pSize = size policy
   let cSize = size compiled1
   when (optAST options) $
     putStrLn $ "AST Size: " ++ show pSize ++ " -> " ++ show cSize
+  when (optVlan options) $
+    putStrLn $ "Distinct vlans: " ++
+      (show $ Set.size (getVlans $ compiled1 <+> compiled2))
   when (optIso options) $ do
     start <- getCPUTime
     sep <- separate g compiled1 compiled2
