@@ -59,6 +59,7 @@ Library
     Frenetic.Slices.Slice,
     Frenetic.Slices.VlanAssignment,
     Frenetic.Switches.OpenFlow,
+    Frenetic.Update,
     Nettle.Ethernet.AddressResolutionProtocol,
     Nettle.Ethernet.EthernetFrame,
     Nettle.IPv4.IPAddress,
@@ -74,7 +75,7 @@ Library
     Nettle.OpenFlow.Port,
     Nettle.OpenFlow.Statistics,
     Nettle.OpenFlow.Switch,
-    Nettle.Servers.Server
+    Nettle.Servers.Server    
   Extensions:
     ScopedTypeVariables, FlexibleInstances,
     FlexibleContexts, DoAndIfThenElse, RecordWildCards,
