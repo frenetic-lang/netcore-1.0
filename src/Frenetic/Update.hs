@@ -5,8 +5,6 @@ import Nettle.OpenFlow.Match
 import Frenetic.NetCore.Compiler
 import Frenetic.NetCore.Types
 
--- type PortMap = Switch -> [Port]
-
 explode_all_ports ver m all_ports edge_ports =
   map (\ p -> (case (p `elem` edge_ports) of
                   True -> Forward (Physical p) (m {modifyDlVlan = Just Nothing})
@@ -22,9 +20,6 @@ version_acts (Forward (Physical p') m : actions) version all_ports edge_ports =
 version_acts (Forward AllPorts m : actions) version all_ports edge_ports =                
   explode_all_ports version m all_ports edge_ports ++ version_acts actions version all_ports edge_ports
               
--- version_acts (GetPacket a b : actions) version all_ports edge_ports =
---   GetPacket a b : version_acts actions version all_ports edge_ports
-
 version_internal_pol (PoUnion p1 p2) ver sw all_ports ext_ports =
   PoUnion (version_internal_pol p1 ver sw all_ports ext_ports) (version_internal_pol p2 ver sw all_ports ext_ports)
 version_internal_pol (PoBasic pr acts) ver sw all_ports ext_ports = 
