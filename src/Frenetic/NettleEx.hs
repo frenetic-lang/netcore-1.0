@@ -30,6 +30,7 @@ import Nettle.Ethernet.EthernetFrame
 import Nettle.Ethernet.AddressResolutionProtocol
 import Prelude hiding (catch)
 import Control.Exception
+import System.IO
 
 data Nettle = Nettle {
   server :: OpenFlowServer,
@@ -82,10 +83,14 @@ acceptSwitch nettle = do
           Nothing -> writeChan switchMessages Nothing
           Just (xid, msg) -> do
             handlers <- readIORef (txHandlers nettle)
-            debugM "nettle" $ "received message xid=" ++ show xid
+            debugM "nettle" $ "received message xid=" ++ show (xid,msg)
             case Map.lookup xid handlers of
               Just handler -> handler msg
-              Nothing      -> writeChan switchMessages (Just (xid, msg))
+              Nothing      -> 
+                do 
+                  putStrLn ("### 1 " ++ show msg)
+                  hFlush stdout
+                  writeChan switchMessages (Just (xid, msg))
             loop
   threadId <- forkIO $ loop
   return (switch, switchFeatures, switchMessages)

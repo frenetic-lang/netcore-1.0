@@ -6,36 +6,35 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Maybe
-import Frenetic.NetCore
+import Frenetic.NetCore hiding (Switch)
+import qualified Frenetic.NetCore
 import Frenetic.NetCore.Semantics
 import Frenetic.Topo
-import Frenetic.TopoParser
 
-type Node = Int
-
-adjacent :: Topo -> Node -> Node -> Bool
+adjacent :: Graph -> Node -> Node -> Bool
 adjacent gr n1 n2 =
-  Data.Maybe.isJust (getEdgeLabel gr n1 n2)
+  Data.Maybe.isJust (getPort gr n1 n2)
 
-set_up_distances :: Topo -> Map.Map (Node, Node) (Maybe Int)
+set_up_distances :: Graph -> Map.Map (Node, Node) (Maybe Int)
 set_up_distances graph =
-  let nodes = switches graph in
-  foldl (\m n1 -> foldl (\m n2 ->
+  let switchLst = lSwitches graph in
+  foldl (\m (n1, s1) -> foldl (\m (n2, s2) ->
                           let val =
                                 if n1 == n2 then Just 0 else
                                   if adjacent graph n1 n2 then Just 1 else
                                     Nothing in
-                          Map.insert (n1, n2) val m) m nodes)
-  Map.empty nodes
+                          Map.insert (n1, n2) val m) m switchLst)
+  Map.empty switchLst
   
-set_up_nexts :: Topo -> Map.Map (Node, Node) (Maybe Node)
+set_up_nexts :: Graph -> Map.Map (Node, Node) (Maybe Node)
 set_up_nexts graph =
-  let nodes = switches graph in
-  foldl (\m n1 ->
-          foldl (\m n2 ->
-                  Map.insert (n1, n2) Nothing m) m nodes) Map.empty nodes
+  let switchLst = lSwitches graph in
+  foldl (\m (n1, s1) ->
+          foldl (\m (n2, s2) ->
+                  Map.insert (n1,n2) Nothing m) m switchLst) Map.empty switchLst
 
-floydWarshall :: Topo -> (Map.Map (Node, Node) (Maybe Int), Map.Map (Node, Node) (Maybe Node))
+floydWarshall :: Graph -> (Map.Map (Node, Node) (Maybe Int),
+                          Map.Map (Node, Node) (Maybe Node))
 floydWarshall graph =
   let innerLoop (dists, nexts, knode, inode) jnode =
         --Note that the default case below should never hapen
@@ -60,17 +59,17 @@ floydWarshall graph =
         let (dists2, nexts2, knode2) =
               foldl middleLoop (dists, nexts, knode) nodes in
         (dists2, nexts2)
-      nodes = switches graph in
+      nodes = map (\(n, s) -> n) (lSwitches graph) in
   foldl outerLoop (set_up_distances graph, set_up_nexts graph) nodes
 
 {- Finds the shortest path from one node to another using the results
    of the floydWarshall methdod.  The path is a maybe list of
    the next node to go to and the port to get there.
 -}
-findPath :: Topo ->
-                 (Map.Map (Node,Node) (Maybe Int),
-                  Map.Map (Node,Node) (Maybe Node))
-                 -> Node -> Node-> Maybe [(Node, Port)]
+findPath :: Graph ->
+                 (Map.Map (Node, Node) (Maybe Int),
+                  Map.Map (Node, Node) (Maybe Node))
+                 -> Node -> Node -> Maybe [(Node, Port)]
 findPath graph (dists, nexts) fromNode toNode = 
   if Data.Maybe.isNothing (Map.findWithDefault Nothing (fromNode, toNode) dists)
   then Nothing else
@@ -83,46 +82,54 @@ findPathHelper nexts fromNode toNode =
               (findPathHelper nexts n toNode) 
     Nothing -> [toNode]
                
-processPath :: Topo -> Node -> [Node] -> [(Node, Port)]
-processPath graph start nodeList =
-  let (newLst, _) = foldl (\(lst, prev) node ->
-                            case getEdgeLabel graph prev node of
-            Just b -> ((prev, b):lst, node)
-            Nothing -> ([], node) --Shoudn't happen, all edges should exist
-        ) ([], start) nodeList in
+processPath :: Graph -> Node -> [Node] -> [(Node, Port)]
+processPath graph start switchLst =
+  let (newLst, _) = foldl (\(lst, prev) switch ->
+                            case getPort graph prev switch of
+                              Just p -> ((prev, p):lst, switch)
+                              Nothing -> ([], switch)
+                              --Above shoudn't happen, all edges should exist
+        ) ([], start) switchLst in
   reverse newLst
 
 --Assumes that hosts have exactly one port, port 0, as definined in Topo.
-makePolicy :: Topo -> Policy
+makePolicy :: Graph -> Policy
 makePolicy graph =
   let (dists, nexts) = floydWarshall graph
-      hostList = hosts graph
-      updateList lst host ((s, p):t) = 
-        case getEdgeLabel graph s host of
-          Just port -> (host,s,port):lst
+      hostList = lHosts graph
+      updateList lst (hNode, host) ((sNode, ((Switch sNum), p)):t) = 
+        case getPort graph sNode hNode of
+          Just port -> (host,sNode,sNum,port):lst
           _ -> lst
+      updateList lst (hNode, host) ((sNode, (_, p)):t) =
+        updateList lst (hNode, host) t
       updateList lst host [] = lst
       hostSwitchList =
-        foldl (\lst h -> updateList lst h (lPorts graph h)) [] hostList in
-  let pol = foldl (\policy (h1, n1, p1) ->
-          foldl (\policy (h2, n2, p2) ->
-                  if n1 == n2 then policy else
-                    let path = findPath graph (dists, nexts) n1 n2 in
-                    case path of
-                      Nothing -> policy
-                      Just p->
-                        foldl (\policy (ni, pi) ->
-                                PoBasic
-                                (DlSrc (EthernetAddress (fromIntegral h1)) `And`
-                                 DlDst (EthernetAddress (fromIntegral h2)) `And`
-                                 Switch (fromIntegral ni))
-                                [Forward (Physical pi) unmodified]
-                                `PoUnion` policy)
-                        policy p) policy hostSwitchList)
+        foldl (\lst (n, h) -> updateList lst (n, h) (lPorts graph n)) [] hostList in
+  let updatePolicy pol path h1 h2 =
+        foldl (\policy (ni, pi) ->
+                case getSwitch graph ni of
+                  Nothing -> policy --Shouldn't happen
+                  Just sNum ->
+                    PoBasic
+                    (DlSrc (EthernetAddress h1) `And`
+                     DlDst (EthernetAddress h2) `And`
+                     Frenetic.NetCore.Switch sNum)
+                    [Forward (Physical pi) unmodified]
+                    `PoUnion` policy)
+        pol path in
+  let pol = foldl (\policy (h1, n1, s1, p1) ->
+                    foldl (\policy (h2, n2, s1, p2) ->
+                            if n1 == n2 then policy else
+                              let path = findPath graph (dists, nexts) n1 n2 in
+                              case path of
+                                Nothing -> policy
+                                Just p-> updatePolicy policy p h1 h2)
+                    policy hostSwitchList)
             PoBottom hostSwitchList in
-  foldl (\policy (host, node, port) ->
-          PoBasic (DlDst (EthernetAddress (fromIntegral host))
-                   `And` Switch (fromIntegral node))
+  foldl (\policy (host, sNode, sNum,  port) ->
+          PoBasic (DlDst (EthernetAddress (host))
+                   `And` (Frenetic.NetCore.Switch (sNum)))
           [Forward (Physical port) unmodified]
           `PoUnion` policy) pol hostSwitchList
 
@@ -132,9 +139,8 @@ netOutput = "s5 <-> s6-eth3 s7-eth3\n" ++
             "s6 <-> h1-eth0 h2-eth0 s5-eth1\n" ++
             "s7 <-> h3-eth0 h4-eth0 s5-eth2"
 
---If the network could not be parsed, make an empty graph
-buildTopo (Left(error)) = buildGraph []
-buildTopo (Right(list)) = buildGraph (makeEdgeList list)
+sampleTopo :: [((Element, Port), (Element, Port))]
+sampleTopo = [((Host(1), 0), (Switch(106), 1)), ((Host(2), 0), (Switch(106), 2)), ((Host(3), 0), (Switch(107), 1)),
+              ((Host(4), 0), (Switch(107), 2)), ((Switch(105), 1), (Switch(106), 3)), ((Switch(105), 2), (Switch(107), 3))]
   
-  
-main = controller (makePolicy (buildTopo (parseTopo netOutput)))
+main = controller (makePolicy (buildGraph sampleTopo))

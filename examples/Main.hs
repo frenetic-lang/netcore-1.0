@@ -19,7 +19,8 @@ import qualified BaseMon
 import qualified PacketOut
 import qualified ReserveWeb
 import qualified OneRes
--- import qualified ShortestPath
+import qualified ShortestPath
+import qualified Multicast
 import qualified TransparentCache
 import qualified WireMonitor
 import qualified ErrorDetect
@@ -73,8 +74,10 @@ argSpec =
   , Option [ ] ["basemon"] (NoArg (Example BaseMon.main)) "Basic Monitoring"
   , Option [] ["oneres"] (NoArg (Example OneRes.main)) 
        "Constructs a one resiliant routing policy for a network"
---   , Option [] ["sp"] (NoArg (Example ShortestPath.main))
---       "runs the shortest path algorithm"
+  , Option [] ["sp"] (NoArg (Example ShortestPath.main))
+       "runs the shortest path algorithm"
+  , Option [] ["multicast"] (NoArg (Example Multicast.main))
+      "Makes a multicast tree, hosts can send add requests or messages to tree"
   , Option [] ["tc"] (NoArg (Example TransparentCache.main))
       "Configures a single switch to divert traffic to a transparent cache."
   , Option [] ["wm"] (NoArg (Example WireMonitor.main))

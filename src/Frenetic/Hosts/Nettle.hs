@@ -242,6 +242,8 @@ handleSwitch nettle callbacks counters switch pol kill msgChan opts = do
                                   bufferID=bufferID,    
                                   enclosedFrame=Right frame})) -> do
           let loc = Loc switchID inPort
+          putStrLn ("Handle Switch " ++ (show pk))
+          hFlush stdout
           case toPacket pk of
             Nothing -> return ()
             Just pkt -> do

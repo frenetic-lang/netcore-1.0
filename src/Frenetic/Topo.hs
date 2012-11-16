@@ -2,6 +2,7 @@ module Frenetic.Topo
   ( Graph
   , Node  
   , buildGraph
+  , buildGraphExplicitNodes
   , Link
   , LLink
   , Element(Switch,Host)
@@ -11,6 +12,8 @@ module Frenetic.Topo
   , Loc(Loc)  
   , isHost
   , isSwitch
+  , lElements
+  , elements
   , lHosts
   , hosts  
   , lSwitches
@@ -94,6 +97,22 @@ buildGraph links = mkGraph nodes edges where
                        let (n1,n2) = (getUid e1, getUid e2) in 
                        Set.insert (n1,n2,p1) (Set.insert (n2,n1,p2) s)) Set.empty links
 
+-- | Build a graph from list of undirected edges labeled with their ports
+-- Ensures that the resulting graph is undirected-equivalent, and labels each
+-- "directed" edge with the appropriate port to send a packet over that edge
+-- from the source switch.
+buildGraphExplicitNodes :: [Element] -> [((Element,Port), (Element,Port))] -> Graph
+buildGraphExplicitNodes elements links = mkGraph nodes edges where  
+  nodes = zip [0..] elements  
+  getUid e = case lookup e (map swap nodes) of 
+    Just n -> n
+    Nothing -> error ("buildGraph: Missing uid for " ++ show e)
+  edges = Set.toList $
+          foldl (\ s ((e1,p1), (e2, p2)) -> 
+                       let (n1,n2) = (getUid e1, getUid e2) in 
+                       Set.insert (n1,n2,p1) (Set.insert (n2,n1,p2) s)) Set.empty links
+
+
 lElements :: Graph -> [(Node,Element)]
 lElements topo = labNodes topo
   
@@ -104,25 +123,25 @@ lHosts :: Graph -> [(Node,Host)]
 lHosts topo = foldr f [] l
   where l = labNodes topo
         f (n,Host h) l = (n,h):l
-        f e _ = error ("lHosts: " ++ show e)
+        f e l = l
 
 hosts :: Graph -> [Host]
 hosts topo = foldr f [] l
   where l = labNodes topo  
         f (_,Host h) l = h:l
-        f e _ = error ("lHosts: " ++ show e)
+        f e l = l
                 
 lSwitches :: Graph -> [(Node,Switch)]
 lSwitches topo = foldr f [] l
   where l = labNodes topo
         f (n,Switch s) l = (n,s):l
-        f e _ = error ("lSwitches: " ++ show e)
+        f e l = l
 
 switches :: Graph -> [Switch]
 switches topo = foldr f [] l
   where l = labNodes topo  
         f (_,Switch s) l = s:l
-        f e _ = error ("switches: " ++ show e)
+        f e l = l
 
 links :: Graph -> [Link]
 links topo = map f l 
