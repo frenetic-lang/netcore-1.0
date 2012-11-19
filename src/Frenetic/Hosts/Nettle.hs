@@ -22,6 +22,8 @@ import Frenetic.NettleEx hiding (Id)
 import qualified Frenetic.Topo as Topo
 import qualified Frenetic.NetCore.Types as NetCore
 import qualified Text.JSON.Generic as JSON
+import Prelude hiding (catch)
+import Control.Exception
 
 type Counters = Map Id (IORef (Integer, Map (Switch,Predicate) Integer))
 
@@ -66,11 +68,11 @@ parsePkt pt rawPkt =
       body = Right (decode rawPkt)
     in toPacket (PacketInfo Nothing len pt ExplicitSend rawPkt body)
 
-processOut :: Nettle -> Callbacks -> Counters -> Out -> IO ()
-processOut nettle _ _ (OutPkt sw pt hdrs pkt) = do
+processOut :: OpenFlowServer -> Callbacks -> Counters -> Out -> IO ()
+processOut server _ _ (OutPkt sw pt hdrs pkt) = do
   let msg = PacketOut (PacketOutRecord pkt Nothing 
                                        [physicalPortOfPseudoPort pt])
-  sendToSwitchWithID nettle sw (0, msg)
+  sendToSwitchWithID server sw (0, msg)
 processOut _ _ _ OutNothing = do
   return ()
 -- The errors below should *never* occur; if they do, we have a bug.
@@ -140,7 +142,7 @@ invokeCallbacksOnTimers counters callbacks = do
   return killMVar
 
 
-handlePolicyOutputs :: Nettle 
+handlePolicyOutputs :: OpenFlowServer 
                     -> Callbacks
                     -> Counters
                     -> Pol 
@@ -148,7 +150,7 @@ handlePolicyOutputs :: Nettle
                     -> MVar () 
                     -> NettleServerOpts
                     -> IO ()
-handlePolicyOutputs nettle callbacks counters pol gens kill opts = do
+handlePolicyOutputs server callbacks counters pol gens kill opts = do
   mergedChan <- newChan
   let mkOutput (x, chan) = forkIO $ forever $ do
         v <- readChan chan
@@ -162,13 +164,13 @@ handlePolicyOutputs nettle callbacks counters pol gens kill opts = do
         let inGenPkt = InGenPkt x sw (Physical pt) pkt rawPkt
         tryLogIO opts inGenPkt
         let outs = evalPol pol inGenPkt
-        mapM_ (processOut nettle callbacks counters) outs
+        mapM_ (processOut server callbacks counters) outs
   takeMVar kill
   mapM_ killThread (writeThread:readThreads)
   putMVar kill ()
 
 -- |Installs the static portion of the policy, then react.
-handleSwitch :: Nettle
+handleSwitch :: OpenFlowServer
              -> Callbacks
              -> Counters
              -> SwitchHandle
@@ -177,7 +179,7 @@ handleSwitch :: Nettle
              -> Chan (Maybe (TransactionID, SCMessage))
              -> NettleServerOpts
              -> IO ()
-handleSwitch nettle callbacks counters switch pol kill msgChan opts = do
+handleSwitch server callbacks counters switch pol kill msgChan opts = do
   -- 1. Clear the flow table
   -- 2. In parallel:
   --    a. Receive a message from the switch
@@ -196,7 +198,7 @@ handleSwitch nettle callbacks counters switch pol kill msgChan opts = do
   debugM "controller" $ "classifier is " ++ show classifier
   flowTbl <- toFlowTable classifier
   debugM "controller" $ "flow table is " ++ show flowTbl
-  killMVar' <- runQueryOnSwitch nettle switch classifier counters callbacks
+  killMVar' <- runQueryOnSwitch server switch classifier counters callbacks
   -- Priority 65535 is for microflow rules from reactive-specialization
   let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
   mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
@@ -214,14 +216,14 @@ handleSwitch nettle callbacks counters switch pol kill msgChan opts = do
         let evt = InSwitchEvt (SwitchDisconnected switchID)
         tryLogIO opts evt
         let outs = evalPol pol evt
-        mapM_ (processOut nettle callbacks counters) outs
+        mapM_ (processOut server callbacks counters) outs
         writeChan killChan ()
       Right (Just (xid, msg)) ->  case msg of
         PortStatus (reason, ofPort@Port{..}) -> do
           let evt = InSwitchEvt (PortEvent switchID portID reason ofPort)
           tryLogIO opts evt
           let outs = evalPol pol evt
-          mapM_ (processOut nettle callbacks counters) outs      
+          mapM_ (processOut server callbacks counters) outs      
         StatsReply (FlowStatsReply _ stats) -> do
           -- xid is the ID of the counter
           let counterId = fromIntegral xid
@@ -236,7 +238,7 @@ handleSwitch nettle callbacks counters switch pol kill msgChan opts = do
           units <- mapM (tryLogIO opts) ins
           let outs = concatMap (evalPol pol) ins
           debugM "controller" $ show (stats, ins, outs)
-          mapM_ (processOut nettle callbacks counters) outs
+          mapM_ (processOut server callbacks counters) outs
         PacketIn (pk@(PacketInfo {receivedOnPort=inPort, 
                                   reasonSent=reason,
                                   bufferID=bufferID,    
@@ -252,34 +254,34 @@ handleSwitch nettle callbacks counters switch pol kill msgChan opts = do
                           NotMatched -> bufferID
               let inp = InPkt loc pkt buf
               tryLogIO opts inp
-              mapM_ (processOut nettle callbacks counters) (evalPol pol inp)
+              mapM_ (processOut server callbacks counters) (evalPol pol inp)
 
         otherwise -> return () -- ignore all other messages 
 
-deleteQueue :: Nettle -> Queue -> IO ()
-deleteQueue nettle (Queue switch port queue _) = do
-  sendToSwitchWithID nettle switch
+deleteQueue :: OpenFlowServer -> Queue -> IO ()
+deleteQueue server (Queue switch port queue _) = do
+  sendToSwitchWithID server switch
     (0, ExtQueueDelete port [QueueConfig queue []])
 
-createQueue :: Nettle -> Queue -> IO ()
-createQueue nettle (Queue switch port queue minRate) = do
+createQueue :: OpenFlowServer -> Queue -> IO ()
+createQueue server (Queue switch port queue minRate) = do
   let cfg = MinRateQueue (Enabled minRate)
-  sendToSwitchWithID nettle switch
+  sendToSwitchWithID server switch
     (0, ExtQueueModify port [QueueConfig queue [cfg]])
 
-createQueuesForSwitch :: Nettle 
+createQueuesForSwitch :: OpenFlowServer 
                       -> Map Switch [Queue]
                       -> Switch
                       -> IO ()
-createQueuesForSwitch nettle qMap switch =
-  mapM_ (createQueue nettle) (Map.findWithDefault [] switch qMap)
+createQueuesForSwitch server qMap switch =
+  mapM_ (createQueue server) (Map.findWithDefault [] switch qMap)
 
-deleteQueuesForSwitch :: Nettle 
+deleteQueuesForSwitch :: OpenFlowServer 
                       -> Map Switch [Queue]
                       -> Switch
                       -> IO ()
-deleteQueuesForSwitch nettle qMap switch =
-  mapM_ (deleteQueue nettle) (Map.findWithDefault [] switch qMap)
+deleteQueuesForSwitch server qMap switch =
+  mapM_ (deleteQueue server) (Map.findWithDefault [] switch qMap)
 
 -- |Configuration options that tweak the operation of the Nettle server.
 data NettleServerOpts = NettleServerOpts
@@ -297,9 +299,40 @@ tryLogIO NettleServerOpts{..} val =
     Just chan -> writeChan chan $ JSON.encodeJSON val
     _ -> return ()
 
+makeSwitchChan :: OpenFlowServer
+               -> IO (Chan (SwitchHandle, SwitchFeatures, 
+                            Chan (Maybe (TransactionID, SCMessage))))
+makeSwitchChan server = do
+  chan <- newChan
+  forkIO $ forever $ do
+    v <- acceptSwitchRetry server
+    writeChan chan v
+  return chan
+
+acceptSwitchRetry :: OpenFlowServer
+             -> IO (SwitchHandle,
+                    SwitchFeatures,
+                    Chan (Maybe (TransactionID, SCMessage)))
+acceptSwitchRetry server = do
+  let exnHandler (e :: SomeException) = do
+        infoM "nettle" $ "could not accept switch " ++ show e
+        accept
+      accept = do
+        (acceptSwitch server) `catches`
+          [ Handler (\(e :: AsyncException) -> throw e), -- handles ^C and such
+            Handler exnHandler ]
+  (switch, switchFeatures) <- accept
+  switchMessages <- newChan
+  let loop = do
+        m <- receiveFromSwitch switch
+        writeChan switchMessages m
+        loop
+  threadId <- forkIO $ loop
+  return (switch, switchFeatures, switchMessages)
+
 nettleServer :: NettleServerOpts -> Chan Program -> IO ()
 nettleServer opts policyChan = do
-  server <- startOpenFlowServerEx Nothing 6633
+  server <- startOpenFlowServer Nothing 6633
   switchChan <- makeSwitchChan server
   switchPolicyChan <- select switchChan policyChan
   let loop :: [(SwitchHandle, Chan (Maybe (TransactionID, SCMessage)), MVar ())]
@@ -373,13 +406,13 @@ selectMatches classifier x _ = map fst (filter hasQuery classifier)
         matchingId (ActGetPkt _) = False
         matchingId (ActMonSwitch _) = False
 
-runQueryOnSwitch :: Nettle
+runQueryOnSwitch :: OpenFlowServer
                  -> SwitchHandle
                  -> [(Match, [Act])]
                  -> Counters
                  -> Callbacks
                  -> IO (MVar ())
-runQueryOnSwitch nettle switch classifier counters callbacks = do
+runQueryOnSwitch server switch classifier counters callbacks = do
   let callbackMatches = Map.mapWithKey (selectMatches classifier) 
                           (Map.filter (isJust.callbackInterval) callbacks)
   let getMatches (Right delay) = Right delay

@@ -1,14 +1,7 @@
 -- |Nettle with additional features. None of this code is Frenetic-specific.
 module Frenetic.NettleEx
-  ( Nettle
-  , module Nettle.OpenFlow
+  ( module Nettle.OpenFlow
   , module Nettle.Servers.Server
-  , closeServer
-  , acceptSwitch
-  , makeSwitchChan
-  , sendToSwitch
-  , sendToSwitchWithID
-  , startOpenFlowServerEx
   , ethVLANId
   , ethVLANPcp
   , ethSrcIP
@@ -23,68 +16,11 @@ import Frenetic.Common
 import qualified Data.Map as Map
 import Nettle.OpenFlow hiding (intersect)
 import qualified Nettle.Servers.Server as Server
-import Nettle.Servers.Server hiding (acceptSwitch, closeServer, sendToSwitch,
-  sendToSwitchWithID)
+import Nettle.Servers.Server
 import Nettle.Ethernet.EthernetFrame
 import Nettle.Ethernet.AddressResolutionProtocol
 import Prelude hiding (catch)
 import Control.Exception
-
-data Nettle = Nettle {
-  server :: OpenFlowServer
-}
-
-startOpenFlowServerEx :: Maybe HostName -> ServerPortNumber -> IO Nettle
-startOpenFlowServerEx host port = do
-  server <- Server.startOpenFlowServer Nothing -- bind to this address
-                                6633    -- port to listen on
-  return (Nettle server)
-
-makeSwitchChan :: Nettle
-               -> IO (Chan (SwitchHandle, SwitchFeatures, 
-                            Chan (Maybe (TransactionID, SCMessage))))
-makeSwitchChan nettle = do
-  chan <- newChan
-  forkIO $ forever $ do
-    v <- acceptSwitch nettle
-    writeChan chan v
-  return chan
-
-acceptSwitch :: Nettle
-             -> IO (SwitchHandle,
-                    SwitchFeatures,
-                    Chan (Maybe (TransactionID, SCMessage)))
-acceptSwitch nettle = do
-  let exnHandler (e :: SomeException) = do
-        infoM "nettle" $ "could not accept switch " ++ show e
-        accept
-      accept = do
-        (Server.acceptSwitch (server nettle)) `catches`
-          [ Handler (\(e :: AsyncException) -> throw e),
-            Handler exnHandler ]
-  (switch, switchFeatures) <- accept
-  switchMessages <- newChan
-  let loop = do
-        m <- receiveFromSwitch switch
-        writeChan switchMessages m
-        loop
-  threadId <- forkIO $ loop
-  return (switch, switchFeatures, switchMessages)
-
-closeServer :: Nettle -> IO ()
-closeServer nettle = Server.closeServer (server nettle)
-
-sendToSwitch :: SwitchHandle -> (TransactionID, CSMessage) -> IO ()
-sendToSwitch sw (xid, msg) = do
-  debugM "nettle" $ "msg to switch with xid=" ++ show xid ++ "; msg=" ++
-                    show msg
-  Server.sendToSwitch sw (xid, msg)
-
-sendToSwitchWithID :: Nettle -> SwitchID -> (TransactionID, CSMessage) -> IO ()
-sendToSwitchWithID nettle sw (xid, msg) = do
-  debugM "nettle" $ "msg to switch with xid=" ++ show xid ++ "; msg=" ++
-                    show msg
-  Server.sendToSwitchWithID (server nettle) sw (xid, msg)
 
 csMsgWithResponse :: CSMessage -> Bool
 csMsgWithResponse msg = case msg of

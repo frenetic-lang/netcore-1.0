@@ -1,6 +1,5 @@
 module Frenetic.Switches.OpenFlow
   ( OpenFlow (..)
-  , Nettle (..)
   , toPacket
   , actnTranslate
   , ptrnMatchPkt
@@ -109,7 +108,7 @@ nettleEthernetBody pkt = case enclosedFrame pkt of
   Right (HCons _ (HCons body _)) -> Just body
   Left _ -> Nothing
 
-data OpenFlow = OpenFlow Nettle
+data OpenFlow = OpenFlow OpenFlowServer
 
 modTranslate :: Modification -> ActionSequence
 modTranslate (Modification{..}) =
