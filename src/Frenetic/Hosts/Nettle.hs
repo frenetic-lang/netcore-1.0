@@ -176,10 +176,9 @@ handleSwitch :: OpenFlowServer
              -> SwitchHandle
              -> Pol
              -> MVar ()
-             -> Chan (Maybe (TransactionID, SCMessage))
              -> NettleServerOpts
              -> IO ()
-handleSwitch server callbacks counters switch pol kill msgChan opts = do
+handleSwitch server callbacks counters switch pol kill opts = do
   -- 1. Clear the flow table
   -- 2. In parallel:
   --    a. Receive a message from the switch
@@ -188,11 +187,24 @@ handleSwitch server callbacks counters switch pol kill msgChan opts = do
   -- 4. On new message, evaluate it with the last policy (not consistent
   --    update!)
   -- 5. On new policy, update the switch and accumulator
+  
+  -- Maybe BUG: Arjun worried might not kill
   let switchID = handle2SwitchID switch
+  -- create switch message channel
+  msgChan <- newChan
+  let loop = do
+        m <- receiveFromSwitch switch
+        writeChan msgChan m 
+        case m of
+          Just _ -> loop 
+          Nothing -> return ()
+  forkIO $ loop
+  -- create kill message channel
   killChan <- newChan
   killThreadId <- forkIO $ do
     v <- takeMVar kill
     writeChan killChan v
+  -- main function
   debugM "controller" $ "policy is " ++ show pol
   let classifier = compile (handle2SwitchID switch) pol
   debugM "controller" $ "classifier is " ++ show classifier
@@ -300,8 +312,7 @@ tryLogIO NettleServerOpts{..} val =
     _ -> return ()
 
 makeSwitchChan :: OpenFlowServer
-               -> IO (Chan (SwitchHandle, SwitchFeatures, 
-                            Chan (Maybe (TransactionID, SCMessage))))
+               -> IO (Chan (SwitchHandle, SwitchFeatures))
 makeSwitchChan server = do
   chan <- newChan
   forkIO $ forever $ do
@@ -310,9 +321,7 @@ makeSwitchChan server = do
   return chan
 
 acceptSwitchRetry :: OpenFlowServer
-             -> IO (SwitchHandle,
-                    SwitchFeatures,
-                    Chan (Maybe (TransactionID, SCMessage)))
+             -> IO (SwitchHandle, SwitchFeatures)
 acceptSwitchRetry server = do
   let exnHandler (e :: SomeException) = do
         infoM "nettle" $ "could not accept switch " ++ show e
@@ -322,36 +331,27 @@ acceptSwitchRetry server = do
           [ Handler (\(e :: AsyncException) -> throw e), -- handles ^C and such
             Handler exnHandler ]
   (switch, switchFeatures) <- accept
-  switchMessages <- newChan
-  let loop = do
-        m <- receiveFromSwitch switch
-        writeChan switchMessages m
-        loop
-  threadId <- forkIO $ loop
-  return (switch, switchFeatures, switchMessages)
+  return (switch, switchFeatures)
 
 nettleServer :: NettleServerOpts -> Chan Program -> IO ()
 nettleServer opts policyChan = do
   server <- startOpenFlowServer Nothing 6633
   switchChan <- makeSwitchChan server
   switchPolicyChan <- select switchChan policyChan
-  let loop :: [(SwitchHandle, Chan (Maybe (TransactionID, SCMessage)), MVar ())]
+  let loop :: [(SwitchHandle, MVar ())]
            -> Callbacks
            -> Counters
            -> Pol
            -> Map Switch [Queue]
            -> [MVar ()]
-           -> Either (SwitchHandle, 
-                     SwitchFeatures, Chan (Maybe (TransactionID, SCMessage)))
-                     Program
+           -> Either (SwitchHandle, SwitchFeatures) Program
            -> IO ()
       loop switches callbacks counters pol queues outputs 
-           (Left (switch,features,msgChan)) = do
+           (Left (switch,features)) = do
         let switchId = handle2SwitchID switch
         noticeM "controller" $ "switch " ++ show switchId ++ " connected"
         kill <- newEmptyMVar
-        forkIO (handleSwitch server callbacks counters switch pol
-                             kill msgChan opts)
+        forkIO (handleSwitch server callbacks counters switch pol kill opts)
         createQueuesForSwitch server queues switchId -- TODO: del existing qs?
         let inSwitchEvt = (InSwitchEvt $ SwitchConnected switchId features)
         tryLogIO opts inSwitchEvt
@@ -359,26 +359,25 @@ nettleServer opts policyChan = do
         mapM_ (processOut server callbacks counters) outs
         debugM "controller" $ "waiting for program/switch after new switch."
         next <- readChan switchPolicyChan
-        loop ((switch,msgChan,kill):switches) callbacks counters pol
+        loop ((switch,kill):switches) callbacks counters pol
              queues outputs next
       loop switches _ _ _ queues killMVars (Right program) = do
         debugM "controller" $ "recv new NetCore program"
         let (queues', sugaredPolicy) = evalProgram program
         let (callbacks, generators, pol) = desugarPolicy sugaredPolicy
         tryLogIO opts pol
-        let killVars = killMVars ++ (map (\(_,_,k) -> k) switches)
+        let killVars = killMVars ++ (map (\(_,k) -> k) switches)
         mapM_ (\k -> putMVar k ()) killVars
         mapM_ takeMVar killVars -- wait for termination
         debugM "controller" $ "killed helper threads"
-        let switchIds = map (\(h, _, _) -> handle2SwitchID h) switches
+        let switchIds = map (\(h, _) -> handle2SwitchID h) switches
         mapM_ (deleteQueuesForSwitch server queues) switchIds
         mapM_ (createQueuesForSwitch server queues') switchIds
         counters <- initCounters callbacks
-        let handle (switch, msgChan, _) = do
+        let handle (switch, _) = do
               kill <- newEmptyMVar
-              forkIO (handleSwitch server callbacks counters switch 
-                                   pol kill msgChan opts)
-              return (switch, msgChan, kill)
+              forkIO (handleSwitch server callbacks counters switch pol kill opts)
+              return (switch, kill)
         switches' <- mapM handle switches
         killOutputs' <- newEmptyMVar
         forkIO (handlePolicyOutputs server callbacks counters pol generators
