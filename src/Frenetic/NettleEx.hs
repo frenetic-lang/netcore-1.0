@@ -31,16 +31,14 @@ import Prelude hiding (catch)
 import Control.Exception
 
 data Nettle = Nettle {
-  server :: OpenFlowServer,
-  switches :: IORef (Map SwitchID SwitchHandle)
+  server :: OpenFlowServer
 }
 
 startOpenFlowServerEx :: Maybe HostName -> ServerPortNumber -> IO Nettle
 startOpenFlowServerEx host port = do
   server <- Server.startOpenFlowServer Nothing -- bind to this address
                                 6633    -- port to listen on
-  switches <- newIORef Map.empty
-  return (Nettle server switches)
+  return (Nettle server)
 
 makeSwitchChan :: Nettle
                -> IO (Chan (SwitchHandle, SwitchFeatures, 
@@ -65,7 +63,6 @@ acceptSwitch nettle = do
           [ Handler (\(e :: AsyncException) -> throw e),
             Handler exnHandler ]
   (switch, switchFeatures) <- accept
-  modifyIORef (switches nettle) (Map.insert (handle2SwitchID switch) switch)
   switchMessages <- newChan
   let loop = do
         m <- receiveFromSwitch switch
