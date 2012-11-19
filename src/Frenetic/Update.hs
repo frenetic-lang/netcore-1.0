@@ -50,7 +50,7 @@ reduce_pol p = p
 
 gen_update_pols _ _ [] _ _ =  (PoBasic None [], PoBasic None [])
 gen_update_pols orig ver (sw : switches) allPorts extPorts =
-  let (p1,p2) = gen_update_pols orig ver switches allPorts extPorts in 
-  ((PoUnion (version_internal_pol orig ver sw (allPorts sw) (extPorts sw)) p1),
-   (PoUnion (version_full_pol orig ver sw (allPorts sw) (extPorts sw)) p2))
+  let (p1,p2) = (\x -> (reduce_pol $ fst x, reduce_pol $ snd x)) $ gen_update_pols orig ver switches allPorts extPorts in
+  ((PoUnion (reduce_pol (version_internal_pol orig ver sw (allPorts sw) (extPorts sw))) p1),
+   (PoUnion (reduce_pol (version_full_pol orig ver sw (allPorts sw) (extPorts sw))) p2))
   

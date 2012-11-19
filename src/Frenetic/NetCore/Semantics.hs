@@ -426,6 +426,11 @@ dsPolicy (Restrict pol pred) = do
 dsPolicy (SendPackets chan) = do
   x <- newGenPacket chan
   return (PolGenPacket x)
+dsPolicy (Sequence pol1 pol2) = do
+  pol1' <- dsPolicy pol1
+  pol2' <- dsPolicy pol2  
+  return (PolSeq pol1' pol2')
+  
 
 dsAction :: Action -> DS Act
 dsAction (Forward pt mods) =

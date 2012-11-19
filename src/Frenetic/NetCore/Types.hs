@@ -100,6 +100,7 @@ data Policy
   | SendPackets (Chan (Loc, ByteString))
     -- ^If a program writes a located packet to this channel, the controller
     -- will send the packet to its location.
+  | Sequence Policy Policy    
   deriving (Eq)
 
 data Queue = Queue Switch Port QueueID Word16
