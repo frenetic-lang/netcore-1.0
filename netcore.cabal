@@ -60,6 +60,7 @@ Library
     Frenetic.Slices.VlanAssignment,
     Frenetic.Switches.OpenFlow,
     Frenetic.Update,
+    Frenetic.Update1,
     Nettle.Ethernet.AddressResolutionProtocol,
     Nettle.Ethernet.EthernetFrame,
     Nettle.IPv4.IPAddress,
