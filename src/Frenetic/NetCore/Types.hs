@@ -47,6 +47,8 @@ type LocPacket = (Loc, Packet)
 data PseudoPort
   = Physical Port
   | AllPorts
+    -- Totally useful for policy composition
+  | InPort    
   | ToQueue Queue
   deriving (Eq, Ord, Show, Data, Typeable)
 

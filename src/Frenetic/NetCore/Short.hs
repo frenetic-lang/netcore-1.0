@@ -23,6 +23,7 @@ module Frenetic.NetCore.Short
   , modDlSrc
   , modDlDst
   , modDlVlan
+  , stripDlVlan    
   , modDlVlanPcp
   , modNwSrc
   , modNwDst
@@ -121,6 +122,7 @@ instance Monoid Policy where
 modDlSrc     value = unmodified {modifyDlSrc = Just value}
 modDlDst     value = unmodified {modifyDlDst = Just value}
 modDlVlan    value = unmodified {modifyDlVlan = Just value}
+stripDlVlan    = unmodified {modifyDlVlan = Nothing}
 modDlVlanPcp value = unmodified {modifyDlVlanPcp = Just value}
 modNwSrc     value = unmodified {modifyNwSrc = Just value}
 modNwDst     value = unmodified {modifyNwDst = Just value}
