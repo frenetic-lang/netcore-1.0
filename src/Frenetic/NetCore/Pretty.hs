@@ -54,6 +54,7 @@ prettyForward (port, mods) = prettyPseudoPort port <> mods' where
 -- |Render a pseudoport as "Port p" or "Flood"
 prettyPseudoPort (Physical p) = text "Port " <> integer (fromIntegral p)
 prettyPseudoPort AllPorts = text "AllPorts"
+prettyPseudoPort InPort = text "InPort"
 prettyPseudoPort (ToQueue q) = text "ToQueue " <> prettyQueue q
 prettyQueue (Queue s p q w) = align . tupled $ 
                               [text (show s), integer (fromIntegral p), 

@@ -41,6 +41,8 @@ reducePo (PoUnion p1 p2) =
          (_, PoBottom) -> p1'
          otherwise ->  PoUnion p1' p2' where
 reducePo (Restrict pol pred) = Restrict (reducePo pol) pred
+-- mjr: I'm sure there's something we can do here
+reducePo (Sequence pol1 pol2) = Sequence (reducePo pol1) (reducePo pol2)
 reducePo (SendPackets chan) = SendPackets chan
 
 isNonNegatedAtom pred = case pred of

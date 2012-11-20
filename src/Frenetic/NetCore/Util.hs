@@ -37,6 +37,8 @@ modifyActions f pol = case pol of
   PoBottom -> PoBottom
   PoBasic pred acts -> PoBasic pred (f acts)
   PoUnion pol1 pol2 -> PoUnion (modifyActions f pol1) (modifyActions f pol2)
+  -- mjr: Not 100% on the right semantics for sequence
+  Sequence pol1 pol2 -> Sequence (modifyActions f pol1) (modifyActions f pol2)  
   Restrict pol pred -> Restrict (modifyActions f pol) pred
   SendPackets _ -> pol
 
@@ -46,6 +48,7 @@ policyImage pol = case pol of
   PoBottom -> []
   PoBasic _ acts -> acts
   PoUnion pol1 pol2 -> policyImage pol1 ++ policyImage pol2
+  Sequence _ _ -> error "Tried to take policyImage of a Sequence policy"
   Restrict pol pred -> policyImage pol
   SendPackets _ -> []
 
@@ -80,6 +83,7 @@ poDom :: Policy -> Predicate
 poDom PoBottom = None
 poDom (PoBasic pred _) = pred
 poDom (PoUnion pol1 pol2) = Or (poDom pol1) (poDom pol2)
+poDom (Sequence pol1 _) = poDom pol1
 poDom (Restrict pol pred) = And (poDom pol) (Not pred)
 poDom (SendPackets _) = None -- TODO(arjun): but this has a range, right?
 
@@ -88,6 +92,7 @@ size :: Policy -> Int
 size PoBottom = 1
 size (PoBasic p _) = prSize p + 1
 size (PoUnion p1 p2) = size p1 + size p2 + 1
+size (Sequence p1 p2) = size p1 + size p2 + 1
 size (Restrict pol pred) = size pol + prSize pred + 1
 size (SendPackets _) = 1
 

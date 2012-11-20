@@ -108,6 +108,8 @@ synthRestrict pol pred = case pol of
     PoBasic (And pred' pred) acts
   PoUnion pol1 pol2 ->
     PoUnion (synthRestrict pol1 pred) (synthRestrict pol2 pred)
+  Sequence pol1 pol2 ->
+    Sequence (synthRestrict pol1 pred) pol2
   Restrict (SendPackets chan) pred' -> 
     Restrict (SendPackets chan) (And pred pred')
   Restrict pol pred' -> 

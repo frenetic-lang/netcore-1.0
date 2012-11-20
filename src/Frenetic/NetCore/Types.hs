@@ -226,6 +226,7 @@ instance Show Policy where
     PoBottom -> "PoBottom"
     PoBasic pred acts -> "(" ++ show pred ++ " ==> " ++ show acts ++ ")"
     PoUnion pol1 pol2 -> show pol1 ++ " <+> " ++ show pol2
+    Sequence pol1 pol2 -> "Sequence (" ++ show pol1 ++ ") (" ++ show pol2 ++ ")"
     Restrict pol' pred -> "(" ++ show pol' ++ ")" ++ " <%> " ++ "(" ++ show pred ++ ")"
     SendPackets _ -> "SendPackets"
 
