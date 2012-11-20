@@ -278,6 +278,7 @@ actOnMatch (ActFwd (Physical pt) (Modification{..})) (Match{..}) =
            (modifyTpSrc `ifLeft` srcTransportPort)
            (modifyTpDst `ifLeft` dstTransportPort)
 actOnMatch (ActFwd AllPorts _) _ = Nothing
+actOnMatch (ActFwd InPort _) _ = Nothing -- TODO(mjr): Not sure what this func is...
 actOnMatch (ActFwd (ToQueue _) _) _ = Nothing -- TODO(arjun): easy IMO
 actOnMatch (ActQueryPktCounter _) _ = Nothing
 actOnMatch (ActQueryByteCounter _) _ = Nothing

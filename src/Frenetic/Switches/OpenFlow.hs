@@ -31,6 +31,7 @@ instance Matchable IPAddressPrefix where
 
 physicalPortOfPseudoPort (Physical p) = SendOutPort (PhysicalPort p)
 physicalPortOfPseudoPort AllPorts = SendOutPort Flood
+physicalPortOfPseudoPort Frenetic.NetCore.Types.InPort = SendOutPort NettleEx.InPort
 physicalPortOfPseudoPort (ToQueue (Queue _ p q _)) = Enqueue p q
 
 predicateOfMatch :: Match -> Predicate
