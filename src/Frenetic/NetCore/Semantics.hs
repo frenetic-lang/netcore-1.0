@@ -99,6 +99,18 @@ instance Show Callback where
 type Callbacks = Map Id Callback
 
 seqAct :: Act -> Act -> Maybe Act
+seqAct (ActFwd p mods1) (ActFwd InPort mods2) = Just (ActFwd p mods3)
+  where mods3 = Modification
+                  (modifyDlSrc mods2 `ifLeft` modifyDlSrc mods1)
+                  (modifyDlDst mods2 `ifLeft` modifyDlDst mods1)
+                  (modifyDlVlan mods2 `ifLeft` modifyDlVlan mods1)
+                  (modifyDlVlanPcp mods2 `ifLeft` modifyDlVlanPcp mods1)
+                  (modifyNwSrc mods2 `ifLeft` modifyNwSrc mods1)
+                  (modifyNwDst mods2 `ifLeft` modifyNwDst mods1)
+                  (modifyNwTos mods2 `ifLeft` modifyNwTos mods1)
+                  (modifyTpSrc mods2 `ifLeft` modifyTpSrc mods1)
+                  (modifyTpDst mods2 `ifLeft` modifyTpDst mods1)
+
 seqAct (ActFwd _ mods1) (ActFwd p mods2) = Just (ActFwd p mods3)
   where mods3 = Modification
                   (modifyDlSrc mods2 `ifLeft` modifyDlSrc mods1)
