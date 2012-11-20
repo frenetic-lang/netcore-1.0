@@ -58,6 +58,7 @@ policyOutputs :: Policy -> [(Chan (Loc, ByteString), Predicate)]
 policyOutputs PoBottom = []
 policyOutputs (PoBasic _ _) = []
 policyOutputs (PoUnion pol1 pol2) = policyOutputs pol1 ++ policyOutputs pol2
+policyOutputs (Sequence pol1 pol2) = policyOutputs pol1 ++ policyOutputs pol2
 policyOutputs (Restrict (SendPackets chan) pred) = [(chan, pred)]
 policyOutputs (Restrict pol pred) = policyOutputs (synthRestrict pol pred)
 policyOutputs (SendPackets chan) = [(chan, Any)]
