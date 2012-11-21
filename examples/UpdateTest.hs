@@ -7,7 +7,6 @@ import Data.Word
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Frenetic.NetCore
-import Frenetic.Hosts.Nettle
 import Control.Monad (forever)
 import Frenetic.NetCore.Util (poDom)
 
@@ -105,13 +104,13 @@ pol1 =
       <!> [ Forward (physical 3) unmodified ])
      <%> (switch 106))
 
-extPorts 101 = [physical 1, physical 2, physical 3, physical 4]
-extPorts 102 = [physical 1, physical 2, physical 3, physical 4]
-extPorts 103 = [physical 1, physical 2, physical 3, physical 4]
-extPorts 104 = [physical 1, physical 2, physical 3, physical 4]
+extPorts 101 = [1, 2, 3, 4]
+extPorts 102 = [1, 2, 3, 4]
+extPorts 103 = [1, 2, 3, 4]
+extPorts 104 = [1, 2, 3, 4]
 extPorts _ = []
 
 main = do
   polChan <- newChan
   writeChan polChan (pol1, extPorts)
-  consistentNettleServer defaultNettleServerOpts polChan
+  consistentController polChan
