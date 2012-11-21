@@ -111,6 +111,6 @@ extPorts 104 = [1, 2, 3, 4]
 extPorts _ = []
 
 main = do
-  polChan <- newChan
-  writeChan polChan (pol1, extPorts)
-  consistentController polChan
+  -- polChan <- newChan
+  -- writeChan polChan (pol1, extPorts)
+  controller pol1
