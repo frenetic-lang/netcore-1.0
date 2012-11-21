@@ -254,6 +254,21 @@ preimgOfAct (ActFwd (Physical pt) (Modification{..})) (Match{..}) = do
   return $ Match inPort srcEthAddress dstEthAddress vLANID vLANPriority
                  ethFrameType ipTypeOfService matchIPProtocol srcIPAddress 
                  dstIPAddress srcTransportPort dstTransportPort
+preimgOfAct (ActFwd InPort (Modification{..})) (Match{..}) = do
+  srcEthAddress <- eqIfJust modifyDlSrc srcEthAddress
+  dstEthAddress <- eqIfJust modifyDlDst dstEthAddress
+  let unvlan Nothing = 0xffff
+      unvlan (Just v) = v
+  vLANID <- eqIfJust (fmap unvlan modifyDlVlan) vLANID
+  vLANPriority <- eqIfJust modifyDlVlanPcp vLANPriority
+  ipTypeOfService <- eqIfJust modifyNwTos ipTypeOfService
+  srcIPAddress <- eqIfJustIP modifyNwSrc srcIPAddress
+  dstIPAddress <- eqIfJustIP modifyNwDst dstIPAddress
+  srcTransportPort <- eqIfJust modifyTpSrc srcTransportPort
+  dstTransportPort <- eqIfJust modifyTpDst dstTransportPort
+  return $ Match Nothing srcEthAddress dstEthAddress vLANID vLANPriority
+                 ethFrameType ipTypeOfService matchIPProtocol srcIPAddress 
+                 dstIPAddress srcTransportPort dstTransportPort                 
 preimgOfAct _ _ = Nothing
 
 actOnMatch :: Act -> Match -> Maybe Match
