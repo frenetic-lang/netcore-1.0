@@ -474,8 +474,8 @@ consistentNettleServer opts policyChan = do
       loop switches ver policy extPorts (Left (switch,features)) = do
         let switchId = handle2SwitchID switch
         let (internal,external) = gen_update_pols policy ver switches extPorts
-        debugM "controller" $ "internal policy" ++ (show internal)
-        debugM "controller" $ "external policy" ++ (show external)        
+        debugM "controller" $ "internal policy" ++ (toString internal)
+        debugM "controller" $ "external policy" ++ (toString external)        
         writeChan childChan (Right $ Policy internal)
         writeChan childChan (Right $ Policy (internal <+> external))
         writeChan childChan (Left (switch,features))
@@ -483,8 +483,8 @@ consistentNettleServer opts policyChan = do
         loop (switchId:switches) ver policy extPorts next
       loop switches ver _ _ (Right (policy, extPorts)) = do
         let (internal,external) = gen_update_pols policy ver switches extPorts
-        debugM "controller" $ "internal policy" ++ (show internal)
-        debugM "controller" $ "external policy" ++ (show external)        
+        debugM "controller" $ "internal policy" ++ (toString internal)
+        debugM "controller" $ "external policy" ++ (toString external)        
         writeChan childChan (Right $ Policy internal)
         writeChan childChan (Right $ Policy (internal <+> external))
         next <- readChan switchPolicyChan
