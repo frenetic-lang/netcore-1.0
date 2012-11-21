@@ -110,19 +110,12 @@ extPorts 103 = [1, 2, 3, 4]
 extPorts 104 = [1, 2, 3, 4]
 extPorts _ = []
 
-pol2 = ((((dlDst 1)
+pol2 = ((((dlDst 2)
        ==> [ Forward (physical 1) unmodified ]
        <+>
-       (dlDst 2)
-       ==> [ Forward (physical 2) unmodified ]
-       <+>
        (dlDst 3)
-       ==> [ Forward (physical 3) unmodified ]
-       <+>
-       (dlDst 4)
-       ==> [ Forward (physical 4) unmodified ])
-      <!> [ Forward (physical 5) unmodified ])
-     <%> (switch 101))
+       ==> [ Forward (physical 2) unmodified ]
+     <%> (switch 1))
 
 main = do
   polChan <- newChan
