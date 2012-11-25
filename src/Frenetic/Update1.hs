@@ -15,6 +15,6 @@ edge_policy p ver =
 gen_update_pols orig ver switches extPorts =
   (internal_policy orig ver,
    Sequence (edge_policy orig ver) 
-  ((prAnd $ map (\sw -> ((prOr $ map IngressPort (extPorts sw)) <&&> (Switch sw))) switches) 
+  ((prOr $ map (\sw -> ((prOr $ map IngressPort (extPorts sw)) <&&> (Switch sw))) switches) 
    ==> [Forward InPort stripDlVlan]))
   
