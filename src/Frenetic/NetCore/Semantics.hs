@@ -461,6 +461,7 @@ dsPolicy (Sequence pol1 pol2) = do
 
 unionClean (PolUnion PolEmpty a) = unionClean a
 unionClean (PolUnion a PolEmpty) = unionClean a
+unionClean (PolUnion a b) = PolUnion (unionClean a) (unionClean b)
 unionClean (PolRestrict a pred) = PolRestrict (unionClean a) pred
 unionClean a = a
 
