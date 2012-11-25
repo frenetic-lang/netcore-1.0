@@ -15,10 +15,12 @@ internal_policy p ver =
   
 edge_policy p ver =
   (Sequence p (Any ==> [Forward InPort (modDlVlan (Just ver))])) <%> (DlVlan Nothing)
+
+strip_policy switches extPorts =
+  (((prOr $ map (\sw -> ((prOr $ map IngressPort (extPorts sw)) <&&> (Switch sw))) switches) 
+    ==> [Forward InPort stripDlVlan]) <!> [Forward InPort unmodified])
   
 gen_update_pols orig ver switches extPorts =
-  (internal_policy orig ver,
-   Sequence (edge_policy orig ver) 
-  (((prOr $ map (\sw -> ((prOr $ map IngressPort (extPorts sw)) <&&> (Switch sw))) switches) 
-   ==> [Forward InPort stripDlVlan]) <!> [Forward InPort unmodified]))
+  (Sequence (internal_policy orig ver) (strip_policy switches extPorts),
+   Sequence (edge_policy orig ver) (strip_policy switches extPorts))
   
