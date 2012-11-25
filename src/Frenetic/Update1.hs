@@ -6,6 +6,9 @@ import Frenetic.NetCore.Compiler
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
 
+infixr 5 <!>
+(<!>) pol acts = pol <+> (Not (poDom pol) ==> acts)
+
 internal_policy p ver =
   p <%> (DlVlan (Just ver))
   
@@ -15,6 +18,6 @@ edge_policy p ver =
 gen_update_pols orig ver switches extPorts =
   (internal_policy orig ver,
    Sequence (edge_policy orig ver) 
-  ((prOr $ map (\sw -> ((prOr $ map IngressPort (extPorts sw)) <&&> (Switch sw))) switches) 
-   ==> [Forward InPort stripDlVlan]))
+  (((prOr $ map (\sw -> ((prOr $ map IngressPort (extPorts sw)) <&&> (Switch sw))) switches) 
+   ==> [Forward InPort stripDlVlan]) <!> [Forward InPort unmodified]))
   
