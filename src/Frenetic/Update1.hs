@@ -14,7 +14,7 @@ internal_policy p ver =
   p <%> (DlVlan (Just ver))
   
 edge_policy p ver =
-  (Sequence p (Any ==> [Forward InPort (modDlVlan (Just ver))])) <%> (DlVlan Nothing)
+  (Sequence p (Any ==> [Forward InPort (unmodified {modifyDlVlanPcp = Just 1, modifyDlVlan = Just (Just ver)})])) <%> (DlVlan Nothing)
 
 strip_policy switches extPorts =
   (((prOr $ map (\sw -> ((prOr $ map IngressPort (extPorts sw)) <&&> (Switch sw))) switches) 
