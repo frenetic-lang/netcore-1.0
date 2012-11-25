@@ -460,6 +460,9 @@ dsPolicy (Sequence pol1 pol2) = do
   return (deSeq pol1' pol2')
     
 deSeq (PolUnion p1 p2) p3 = PolUnion (deSeq p1 p3) (deSeq p2 p3)
+deSeq (PolRestrict p1 pred) p3 = PolRestrict (deSeq p1 p3) pred
+deSeq (PolGenPacket id) _ = PolGenPacket id
+deSeq PolEmpty _ = PolEmpty
 deSeq (PolProcessIn pred acts) pol = (foldl PolUnion PolEmpty) $ map (deSeq1 pred pol) acts
 
 rightIfJust Nothing a = a
