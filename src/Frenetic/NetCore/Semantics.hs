@@ -479,6 +479,27 @@ rightIfJust _ b = b
 unionModR Modification{..} (Modification
                             modifyDlSrc1
                             modifyDlDst1
+                            (Just Nothing)
+                            modifyDlVlanPcp1
+                            modifyNwSrc1
+                            modifyNwDst1
+                            modifyNwTos1
+                            modifyTpSrc1
+                            modifyTpDst1)
+  =
+  Modification (modifyDlSrc `rightIfJust` modifyDlSrc1)
+               (modifyDlDst `rightIfJust` modifyDlDst1)
+               (Just Nothing)
+               Nothing
+               (modifyNwSrc `rightIfJust` modifyNwSrc1)
+               (modifyNwDst `rightIfJust` modifyNwDst1)
+               (modifyNwTos `rightIfJust` modifyNwTos1)
+               (modifyTpSrc `rightIfJust` modifyTpSrc1)
+               (modifyTpDst `rightIfJust` modifyTpDst1)
+
+unionModR Modification{..} (Modification
+                            modifyDlSrc1
+                            modifyDlDst1
                             modifyDlVlan1
                             modifyDlVlanPcp1
                             modifyNwSrc1
