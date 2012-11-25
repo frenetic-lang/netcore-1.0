@@ -130,7 +130,7 @@ skelCart f bs1 bs2 =
 skelMinimize :: Skeleton actn
              -> Skeleton actn
 skelMinimize bones = minimizeShadowing getPat bones
-  where getPat (Bone p1 as) = p1
+  where getPat (Bone p1 a) = Just p1
 
 {-| Compile a predicate to intermediate form. -}
 pred :: Switch
@@ -154,15 +154,20 @@ pred sw pr = case pr of
   IngressPort pt -> [Bone (matchAny { inPort = Just pt }) True]
   Switch s' | sw == s' -> [Bone matchAny True]
           | otherwise -> []
-  And pr1 pr2 -> skelMinimize skel12'
+  And pr1 pr2 -> predMinimize skel12'
     where skel1 = pred sw pr1
           skel2 = pred sw pr2
           (skel12', skel1', skel2') = skelCart (&&) skel1 skel2
-  Or pr1 pr2 -> skelMinimize $ skel12' ++ skel1' ++ skel2'
+  Or pr1 pr2 -> predMinimize $ skel12' ++ skel1' ++ skel2'
     where skel1 = pred sw pr1
           skel2 = pred sw pr2
           (skel12', skel1', skel2') = skelCart (||) skel1 skel2
-  Not pr -> skelMinimize $ skelMap not (pred sw pr) ++ [Bone matchAny True]
+  Not pr -> predMinimize $ skelMap not (pred sw pr) ++ [Bone matchAny True]
+
+predMinimize :: Skeleton Bool -> Skeleton Bool
+predMinimize bones = minimizeShadowing getPat bones
+  where getPat (Bone p1 True) = Just p1
+        getPat (Bone p1 False) = Nothing        
 
 classifierActions :: Skeleton [Act] -> [Act]
 classifierActions cl = concatMap f cl
