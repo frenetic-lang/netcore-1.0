@@ -457,8 +457,13 @@ dsPolicy (SendPackets chan) = do
 dsPolicy (Sequence pol1 pol2) = do
   pol1' <- dsPolicy pol1
   pol2' <- dsPolicy pol2  
-  return (deSeq pol1' pol2')
-    
+  return (unionClean $ deSeq pol1' pol2')
+
+unionClean (PolUnion PolEmpty a) = unionClean a
+unionClean (PolUnion a PolEmpty) = unionClean a
+unionClean (PolRestrict a pred) = PolRestrict (unionClean a) pred
+unionClean a = a
+
 deSeq (PolUnion p1 p2) p3 = PolUnion (deSeq p1 p3) (deSeq p2 p3)
 deSeq (PolRestrict p1 pred) p3 = PolRestrict (deSeq p1 p3) pred
 deSeq (PolGenPacket id) _ = PolGenPacket id
