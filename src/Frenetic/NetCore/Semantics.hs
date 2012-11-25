@@ -55,7 +55,7 @@ data Pol
   | PolUnion Pol Pol
   | PolRestrict Pol Predicate
   | PolGenPacket Id
-  | PolSeq Pol Pol
+  -- | PolSeq Pol Pol
   deriving (Show, Eq, Data, Typeable)
 
 data Act
@@ -157,8 +157,8 @@ synthRestrictPol pol pred = case pol of
     PolProcessIn (And pred' pred) acts
   PolUnion pol1 pol2 ->
     PolUnion (synthRestrictPol pol1 pred) (synthRestrictPol pol2 pred)
-  PolSeq pol1 pol2 ->
-    PolSeq (synthRestrictPol pol1 pred) pol2 -- No need to restrict pol2!
+  -- PolSeq pol1 pol2 ->
+  --   PolSeq (synthRestrictPol pol1 pred) pol2 -- No need to restrict pol2!
   PolRestrict (PolGenPacket chan) pred' -> 
     PolRestrict (PolGenPacket chan) (And pred pred')
   PolRestrict pol pred' -> 
@@ -186,7 +186,7 @@ pol (PolGenPacket x) inp = case inp of
   InGenPkt y sw pt pkt raw -> 
     if x == y then [OutPkt sw pt pkt (Right raw)] else []
   otherwise -> []
-pol (PolSeq p1 p2) inp = concatMap (pol p2) (mapMaybe outToIn (pol p1 inp))
+-- pol (PolSeq p1 p2) inp = concatMap (pol p2) (mapMaybe outToIn (pol p1 inp))
 
 action :: Act -> In -> Out
 action (ActFwd pt mods) (InPkt (Loc sw _) hdrs maybePkt) = case maybePkt of
@@ -457,8 +457,82 @@ dsPolicy (SendPackets chan) = do
 dsPolicy (Sequence pol1 pol2) = do
   pol1' <- dsPolicy pol1
   pol2' <- dsPolicy pol2  
-  return (PolSeq pol1' pol2')
-  
+  return (deSeq pol1' pol2')
+    
+deSeq (PolUnion p1 p2) p3 = PolUnion (deSeq p1 p3) (deSeq p2 p3)
+deSeq (PolProcessIn pred acts) pol = (foldl PolUnion PolEmpty) $ map (deSeq1 pred pol) acts
+
+rightIfJust Nothing a = a
+rightIfJust a Nothing = a
+rightIfJust _ b = b
+
+-- This may not handle the semantics of 'stripVlan' correctly
+unionModR Modification{..} (Modification
+                            modifyDlSrc1
+                            modifyDlDst1
+                            modifyDlVlan1
+                            modifyDlVlanPcp1
+                            modifyNwSrc1
+                            modifyNwDst1
+                            modifyNwTos1
+                            modifyTpSrc1
+                            modifyTpDst1)
+  =
+  Modification (modifyDlSrc `rightIfJust` modifyDlSrc1)
+               (modifyDlDst `rightIfJust` modifyDlDst1)
+               (modifyDlVlan `rightIfJust` modifyDlVlan1)
+               (modifyDlVlanPcp `rightIfJust` modifyDlVlanPcp1)
+               (modifyNwSrc `rightIfJust` modifyNwSrc1)
+               (modifyNwDst `rightIfJust` modifyNwDst1)
+               (modifyNwTos `rightIfJust` modifyNwTos1)
+               (modifyTpSrc `rightIfJust` modifyTpSrc1)
+               (modifyTpDst `rightIfJust` modifyTpDst1)
+
+
+deSeq1 pred pol act = PolRestrict (transformPol pol act) pred
+
+transformPol (PolUnion p1 p2) a = PolUnion (transformPol p1 a) (transformPol p2 a) 
+transformPol (PolProcessIn pred acts) act = PolProcessIn (transformPred pred act) (map (transformAct act) acts)
+
+transformAct (ActFwd pOld modOld) (ActFwd InPort modNew) = ActFwd pOld (modOld `unionModR` modNew)
+transformAct (ActFwd pOld modOld) (ActFwd pNew modNew) = ActFwd pNew (modOld `unionModR` modNew)
+-- transformAct a b = error "Don't know how to sequences actions " ++ (show a) ++ " " ++ (show b)
+
+transformPred (And p1 p2) act = And (transformPred p1 act) (transformPred p2 act)
+transformPred (Or p1 p2) act = Or (transformPred p1 act) (transformPred p2 act)
+transformPred (Not p) act = Not (transformPred p act)
+transformPred (DlSrc val) (ActFwd p Modification{..}) = (deletePred val modifyDlSrc DlSrc)
+transformPred (DlDst val) (ActFwd p Modification{..}) = (deletePred val modifyDlDst DlDst)
+transformPred (DlTyp val) (ActFwd p Modification{..}) = DlTyp val
+transformPred (DlVlan val) (ActFwd p Modification{..}) = (deletePred val modifyDlVlan DlVlan)
+transformPred (DlVlanPcp val) (ActFwd p Modification{..}) = (deletePred val modifyDlVlanPcp DlVlanPcp)
+{- Need to handle IP prefix matching over set ip addresses. Avoiding for now -}
+-- transformPred (NwSrc val) (ActFwd p Modification{..}) = (deletePred val modifyNwSrc NwSrc)
+-- transformPred (NwDst val) (ActFwd p Modification{..}) = (deletePred val modifyNwDst NwDst)
+transformPred (NwProto val) (ActFwd p Modification{..}) = NwProto val
+transformPred (NwTos val) (ActFwd p Modification{..}) = (deletePred val modifyNwTos NwTos)
+transformPred (TpSrcPort val) (ActFwd p Modification{..}) = (deletePred val modifyTpSrc TpSrcPort)
+transformPred (TpDstPort val) (ActFwd p Modification{..}) = (deletePred val modifyTpDst TpDstPort)
+transformPred (IngressPort val) (ActFwd (Physical p) Modification{..}) = (deletePred val (Just p) IngressPort)
+transformPred (IngressPort val) (ActFwd InPort Modification{..}) = IngressPort val
+transformPred (Switch val) (ActFwd p Modification{..}) = Switch val
+transformPred Any act = Any
+transformPred None act = None
+
+
+deletePred a (Just b) field = if (a == b) then Any else None
+deletePred a Nothing field = field a
+
+-- getModVal Modification{..} DlSrc = modifyDlSrc
+-- getModVal Modification{..} DlDst = modifyDlDst
+-- getModVal Modification{..} DlVlan = modifyDlVlan
+-- getModVal Modification{..} DlVlanPcp = modifyDlVlanPcp
+-- getModVal Modification{..} NwSrc = modifyNwSrc
+-- getModVal Modification{..} NwDst = modifyNwDst
+-- getModVal Modification{..} NwTos = modifyNwTos
+-- getModVal Modification{..} TpSrcPort = modifyTpSrc
+-- getModVal Modification{..} TpDstPort = modifyTpDst
+-- getModVal _ _ = Nothing
 
 dsAction :: Action -> DS Act
 dsAction (Forward pt mods) =
