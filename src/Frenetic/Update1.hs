@@ -5,6 +5,7 @@ import Nettle.OpenFlow.Match
 import Frenetic.NetCore.Compiler
 import Frenetic.NetCore.Types
 import Frenetic.NetCore.Short
+import Frenetic.NetCore.Util (poDom)
 
 infixr 5 <!>
 (<!>) pol acts = pol <+> (Not (poDom pol) ==> acts)
