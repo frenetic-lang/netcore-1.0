@@ -36,73 +36,73 @@ pol1 =
       <!> [ Forward (physical 5) unmodified ])
      <%> (switch 101))
     
-    <+>
+    -- <+>
 
-    ((((dlDst 5)
-       ==> [ Forward (physical 1) unmodified ]
-       <+>
-       (dlDst 6)
-       ==>  [ Forward (physical 2) unmodified ]
-       <+>
-       (dlDst 7)
-       ==> [ Forward (physical 3) unmodified ]
-       <+>
-       (dlDst 8)
-       ==> [ Forward (physical 4) unmodified ])
-      <!> [ Forward (physical 5) unmodified ])
-     <%> (switch 102))
+    -- ((((dlDst 5)
+    --    ==> [ Forward (physical 1) unmodified ]
+    --    <+>
+    --    (dlDst 6)
+    --    ==>  [ Forward (physical 2) unmodified ]
+    --    <+>
+    --    (dlDst 7)
+    --    ==> [ Forward (physical 3) unmodified ]
+    --    <+>
+    --    (dlDst 8)
+    --    ==> [ Forward (physical 4) unmodified ])
+    --   <!> [ Forward (physical 5) unmodified ])
+    --  <%> (switch 102))
     
-    <+>
+    -- <+>
 
-    ((((dlDst 9)
-       ==> [ Forward (physical 1) unmodified ]
-       <+>
-       (dlDst 10)
-       ==> [ Forward (physical 2) unmodified ]
-       <+>
-       (dlDst 11)
-       ==> [ Forward (physical 3) unmodified ]
-       <+>
-       (dlDst 12)
-       ==> [ Forward (physical 4) unmodified ])
-      <!> [ Forward (physical 5) unmodified ])
-     <%> (switch 103))
+    -- ((((dlDst 9)
+    --    ==> [ Forward (physical 1) unmodified ]
+    --    <+>
+    --    (dlDst 10)
+    --    ==> [ Forward (physical 2) unmodified ]
+    --    <+>
+    --    (dlDst 11)
+    --    ==> [ Forward (physical 3) unmodified ]
+    --    <+>
+    --    (dlDst 12)
+    --    ==> [ Forward (physical 4) unmodified ])
+    --   <!> [ Forward (physical 5) unmodified ])
+    --  <%> (switch 103))
     
-    <+>
+    -- <+>
 
-    ((((dlDst 13)
-      ==> [ Forward (physical 1) unmodified ]
-      <+>
-      (dlDst 14)
-      ==> [ Forward (physical 2) unmodified ]
-      <+>
-      (dlDst 15)
-      ==> [ Forward (physical 3) unmodified ]
-      <+>
-      (dlDst 16)
-      ==>  [ Forward (physical 4) unmodified ])
-      <!> [ Forward (physical 5) unmodified ])
-     <%> (switch 104))
+    -- ((((dlDst 13)
+    --   ==> [ Forward (physical 1) unmodified ]
+    --   <+>
+    --   (dlDst 14)
+    --   ==> [ Forward (physical 2) unmodified ]
+    --   <+>
+    --   (dlDst 15)
+    --   ==> [ Forward (physical 3) unmodified ]
+    --   <+>
+    --   (dlDst 16)
+    --   ==>  [ Forward (physical 4) unmodified ])
+    --   <!> [ Forward (physical 5) unmodified ])
+    --  <%> (switch 104))
     
-    <+>
+    -- <+>
 
-    (((((dlDst 1) <||> (dlDst 2) <||> (dlDst 3) <||> (dlDst 4))
-       ==> [ Forward (physical 1) unmodified ]
-       <+>
-       ((dlDst 5) <||> (dlDst 6) <||> (dlDst 7) <||> (dlDst 8))
-       ==> [ Forward (physical 2) unmodified ])
-      <!> [ Forward (physical 3) unmodified ])
-     <%> (switch 105))
+    -- (((((dlDst 1) <||> (dlDst 2) <||> (dlDst 3) <||> (dlDst 4))
+    --    ==> [ Forward (physical 1) unmodified ]
+    --    <+>
+    --    ((dlDst 5) <||> (dlDst 6) <||> (dlDst 7) <||> (dlDst 8))
+    --    ==> [ Forward (physical 2) unmodified ])
+    --   <!> [ Forward (physical 3) unmodified ])
+    --  <%> (switch 105))
     
-    <+>
+    -- <+>
 
-    (((((dlDst 9) <||> (dlDst 10) <||> (dlDst 11) <||> (dlDst 12))
-       ==> [ Forward (physical 1) unmodified ]
-       <+>
-       ((dlDst 13) <||> (dlDst 14) <||> (dlDst 15) <||> (dlDst 16))
-       ==> [ Forward (physical 2) unmodified ])
-      <!> [ Forward (physical 3) unmodified ])
-     <%> (switch 106))
+    -- (((((dlDst 9) <||> (dlDst 10) <||> (dlDst 11) <||> (dlDst 12))
+    --    ==> [ Forward (physical 1) unmodified ]
+    --    <+>
+    --    ((dlDst 13) <||> (dlDst 14) <||> (dlDst 15) <||> (dlDst 16))
+    --    ==> [ Forward (physical 2) unmodified ])
+    --   <!> [ Forward (physical 3) unmodified ])
+    --  <%> (switch 106))
 
 extPorts 101 = [1, 2, 3, 4]
 extPorts 102 = [1, 2, 3, 4]
