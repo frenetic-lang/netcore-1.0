@@ -64,7 +64,7 @@ instance Arbitrary Pol where
     otherwise -> oneof 
       [ liftM2 PolProcessIn (resize (s-1) arbitrary) (resize (s-1) arbitrary)
       , liftM2 PolUnion (resize (s-1) arbitrary) (resize (s-1) arbitrary)
-      , liftM2 PolSeq (resize (s-1) arbitrary) (resize (s-1) arbitrary)
+      -- , liftM2 PolSeq (resize (s-1) arbitrary) (resize (s-1) arbitrary)
       , liftM2 PolRestrict (resize (s-1) arbitrary) (resize (s-1) arbitrary)
       , liftM PolGenPacket (resize (s-1) arbGenPktId)
       ]
