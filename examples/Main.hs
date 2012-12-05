@@ -19,6 +19,7 @@ import qualified BaseMon
 import qualified PacketOut
 import qualified ReserveWeb
 import qualified OneRes
+import qualified UpdateTest
 -- import qualified ShortestPath
 import qualified TransparentCache
 import qualified WireMonitor
@@ -69,6 +70,8 @@ argSpec =
       "a controller that sends out packets"
   , Option [] ["reserve"] (NoArg (Example ReserveWeb.main))
       "reserve Web"
+  , Option ['u'] ["update"] (NoArg (Example UpdateTest.main))
+      "Consistent updates example"
   , Option ['h'] ["help"] (NoArg Help) "print this help message"
   , Option [ ] ["basemon"] (NoArg (Example BaseMon.main)) "Basic Monitoring"
   , Option [] ["oneres"] (NoArg (Example OneRes.main)) 

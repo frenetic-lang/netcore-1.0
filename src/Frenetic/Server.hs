@@ -2,6 +2,7 @@ module Frenetic.Server
   ( controller
   , dynController
   , controllerProgram
+  , consistentController    
   , debugController
   , debugDynController
   ) where
@@ -38,6 +39,13 @@ controller policy = do
 -- programs can also configure queues.
 controllerProgram :: Chan Program -> IO ()
 controllerProgram = nettleServer defaultNettleServerOpts
+
+-- |Starts an OpenFlow controller that runs dynamic NetCore programs.
+--
+-- Unlike policies, which only specify the forwarding behavior of the network,
+-- programs can also configure queues.
+-- consistentController :: Chan (Policy, SwitchID -> [Port] -> IO ()
+consistentController = consistentNettleServer defaultNettleServerOpts
 
 -- |Identical to @dynController@, except that the controller logs
 -- policies and packets deployed to the network, as well as incoming

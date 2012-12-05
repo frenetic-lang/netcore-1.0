@@ -180,18 +180,18 @@ compilePolicy s (PolUnion po1 po2) =
       where skel1 = compilePolicy s po1
             skel2 = compilePolicy s po2
             (skel12', skel1', skel2') = skelCart (<+>) skel1 skel2
-compilePolicy sw (PolSeq pol1 pol2) = skelMinimize cf3
-  where cf1 = compilePolicy sw pol1
-        cf2 = compilePolicy sw pol2
-        acts1 = classifierActions cf1
-        cf2Preimages = map (\act1 -> mapMaybe (mkPreimg act1) cf2) acts1
-        mkPreimg act1 (Bone pat2 acts2) = case preimgOfAct act1 pat2 of
-          Just pat2' -> Just (Bone pat2' (catMaybes (map (seqAct act1) acts2)))
-          Nothing -> Nothing
-        cf1cf2 = map (inter (\_ rhs -> rhs) cf1) cf2Preimages
-        cf3 = case cf1cf2 of
-          [] -> []
-          (x:xs) -> foldr (union (<+>)) x xs
+-- compilePolicy sw (PolSeq pol1 pol2) = skelMinimize cf3
+--   where cf1 = compilePolicy sw pol1
+--         cf2 = compilePolicy sw pol2
+--         acts1 = classifierActions cf1
+--         cf2Preimages = map (\act1 -> mapMaybe (mkPreimg act1) cf2) acts1
+--         mkPreimg act1 (Bone pat2 acts2) = case preimgOfAct act1 pat2 of
+--           Just pat2' -> Just (Bone pat2' (catMaybes (map (seqAct act1) acts2)))
+--           Nothing -> Nothing
+--         cf1cf2 = map (inter (\_ rhs -> rhs) cf1) cf2Preimages
+--         cf3 = case cf1cf2 of
+--           [] -> []
+--           (x:xs) -> foldr (union (<+>)) x xs
 compilePolicy _ (PolRestrict (PolGenPacket _) _) = []
 compilePolicy _ (PolGenPacket _) = []
 compilePolicy s (PolRestrict pol pred) =
