@@ -118,6 +118,6 @@ learningSwitch = do
   delayedPolChan <- calmChan 1000 polChan
   return delayedPolChan
 
-main = do
+main host = do
   polChan <- learningSwitch
-  dynController polChan
+  dynController host polChan

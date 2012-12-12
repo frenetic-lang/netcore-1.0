@@ -17,52 +17,61 @@ import Control.Monad
 -- The controller reads NetCore policies from the given channel. When
 -- the controller receives a policy on the channel, it compiles it and
 -- reconfigures the network to run it.
-dynController :: Chan Policy
-              -> IO ()
-dynController polChan = do
+dynController :: Maybe String
+                 -> Chan Policy
+                 -> IO ()
+dynController host polChan = do
   chan <- newChan
   forkIO $ forever $ do
     pol <- readChan polChan
     writeChan chan (Policy pol)
-  nettleServer defaultNettleServerOpts chan
+  nettleServer defaultNettleServerOpts{host=host} chan
 
 -- |Starts an OpenFlow controller that runs a static NetCore policy.
-controller :: Policy -> IO ()
-controller policy = do
+controller :: Maybe String
+              -> Policy 
+              -> IO ()
+controller host policy = do
   ch <- newChan
   writeChan ch policy
-  dynController ch
+  dynController host ch
 
 -- |Starts an OpenFlow controller that runs dynamic NetCore programs.
 --
 -- Unlike policies, which only specify the forwarding behavior of the network,
 -- programs can also configure queues.
-controllerProgram :: Chan Program -> IO ()
-controllerProgram = nettleServer defaultNettleServerOpts
+controllerProgram :: Maybe String -> Chan Program -> IO ()
+controllerProgram host = nettleServer defaultNettleServerOpts{host=host}
 
 -- |Starts an OpenFlow controller that runs dynamic NetCore programs.
 --
 -- Unlike policies, which only specify the forwarding behavior of the network,
 -- programs can also configure queues.
 -- consistentController :: Chan (Policy, SwitchID -> [Port] -> IO ()
-consistentController = consistentNettleServer defaultNettleServerOpts
+consistentController = consistentNettleServer
 
 -- |Identical to @dynController@, except that the controller logs
 -- policies and packets deployed to the network, as well as incoming
 -- packets and queries from the network, to @logChan@.
-debugDynController :: Chan String -> Chan Policy -> IO ()
-debugDynController logChan polChan = do
+debugDynController :: Maybe String 
+                      -> Chan String 
+                      -> Chan Policy 
+                      -> IO ()
+debugDynController host logChan polChan = do
   chan <- newChan
   forkIO $ forever $ do
     pol <- readChan polChan
     writeChan chan (Policy pol)
-  nettleServer (NettleServerOpts { logIO = Just logChan }) chan
+  nettleServer (NettleServerOpts{ logIO = Just logChan, host = host }) chan
 
 -- |Identical to @controller@, except that the controller logs packets
 -- injected into the network and queries gathered from the network.
-debugController :: Chan String -> Policy -> IO ()
-debugController logChan pol = do
+debugController :: Maybe String 
+                   -> Chan String 
+                   -> Policy 
+                   -> IO ()
+debugController host logChan pol = do
   ch <- newChan
   writeChan ch pol
-  debugDynController logChan ch
+  debugDynController host logChan ch
 

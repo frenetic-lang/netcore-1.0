@@ -302,10 +302,11 @@ data NettleServerOpts = NettleServerOpts
   { logIO :: Maybe (Chan String) 
     -- ^Output JSON representations of policies and packets to deploy
     -- and incoming packets and stats.
+    , host :: Maybe String
   }
 
 defaultNettleServerOpts :: NettleServerOpts
-defaultNettleServerOpts = NettleServerOpts { logIO = Nothing }
+defaultNettleServerOpts = NettleServerOpts { logIO = Nothing, host = Nothing }
 
 tryLogIO :: JSON.Data a => NettleServerOpts -> a -> IO ()
 tryLogIO NettleServerOpts{..} val =
