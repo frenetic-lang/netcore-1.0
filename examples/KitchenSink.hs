@@ -49,6 +49,6 @@ sink routing = do
                                ]
   return policies
 
-main = do
+main addr = do
   policies <- sink learningSwitch
-  dynController policies
+  dynController addr policies

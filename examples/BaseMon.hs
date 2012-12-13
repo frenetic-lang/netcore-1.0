@@ -25,19 +25,19 @@ el= [((Frenetic.Topo.Switch 101, 1),(Host 1,0)), ((Frenetic.Topo.Switch 101, 2),
 topo :: Graph
 topo = buildGraph el
 
-mkMonitorPolicy :: Policy -> Graph -> IO ()
-mkMonitorPolicy fwd g = 
+-- mkMonitorPolicy :: Policy -> Graph -> IO ()
+mkMonitorPolicy addr fwd g = 
   let monitorCallback ei ( sw, n ) = do
         putStrLn ("Counter for " ++ show ei ++ " on " ++ show sw ++ " is: " ++ show n) in 
   let p = foldl (\acc h -> (DlDst (ethernetAddress 0 0 0 0 0 (fromIntegral h :: Word8))
         ==> [GetPacket 0 (monitorCallback h)]) `PoUnion` acc) PoBottom (hosts g)  in
-     controller (fwd `PoUnion` p)
+     controller addr (fwd `PoUnion` p)
 
 --myMain :: IO ()
 --myMain = mkMonitorPolicy (OneRes.policy) topo
 
-main = do
-  mkMonitorPolicy (Repeater.policy) topo
+main addr = do
+  mkMonitorPolicy addr (Repeater.policy) topo
 
 --main = do
 --  (c1, query1Act) <- countPkts 1000

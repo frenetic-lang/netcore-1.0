@@ -20,5 +20,5 @@ policy =  (Switch 101 <&&> IngressPort 2) ==>
       <+> (Switch 102 <&&> DlVlan (Just 1)) ==> forward [2]
       <+> (Switch 102 <&&> DlVlan Nothing) ==> forward [3]
 
-main = controller policy
+main addr = controller addr policy
 

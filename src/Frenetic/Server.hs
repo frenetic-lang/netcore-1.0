@@ -48,7 +48,7 @@ controllerProgram host = nettleServer defaultNettleServerOpts{host=host}
 -- Unlike policies, which only specify the forwarding behavior of the network,
 -- programs can also configure queues.
 -- consistentController :: Chan (Policy, SwitchID -> [Port] -> IO ()
-consistentController = consistentNettleServer
+consistentController host = consistentNettleServer defaultNettleServerOpts{host=host}
 
 -- |Identical to @dynController@, except that the controller logs
 -- policies and packets deployed to the network, as well as incoming

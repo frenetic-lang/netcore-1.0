@@ -49,7 +49,7 @@ spoofSwitchArp switchId serverMac serverIp = do
                                serverMac (ipAddressToWord32 serverIp)
                                pktDlSrc (ipAddressToWord32 fromIp))
 
-main = do
+main addr = do
   arpSpoof <- spoofSwitchArp 1 serverMac serverIp
-  controller $ arpSpoof <+> Any ==> allPorts unmodified
+  controller addr $ arpSpoof <+> Any ==> allPorts unmodified
 

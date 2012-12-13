@@ -51,7 +51,7 @@ buildMonTable ns =
                [] -> do return () 
   
 
-main = do
+main addr = do
   buildCTable
   let ns = (nodes topo)
   buildMonTable ns
@@ -65,5 +65,5 @@ main = do
     (sw, n) <- readChan (fst (findWithDefault (c,q) 2 t))
     putStrLn ("Packts to " ++ show sw ++ ": " ++  show n)
     hFlush stdout
-  controller (Repeater.policy `PoUnion` p)
+  controller addr (Repeater.policy `PoUnion` p)
 

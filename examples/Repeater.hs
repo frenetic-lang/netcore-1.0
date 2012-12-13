@@ -12,4 +12,4 @@ policy = Any ==> allPorts unmodified
 --          (TpSrcPort 22 <||> TpSrcPort 80) ==> 
 --          [Forward (Physical 3) unmodified])
 --
-main = controller policy
+main addr = controller addr policy

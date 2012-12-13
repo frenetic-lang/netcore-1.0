@@ -35,8 +35,8 @@ mkResRouting t =
 
 policy = mkResRouting makeTop
 
-main = do
-  controller policy
+main addr = do
+  controller addr policy
   --controller (Any ==> allPorts unmodified)
 
 

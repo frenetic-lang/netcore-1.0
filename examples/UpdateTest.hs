@@ -117,7 +117,7 @@ extPorts _ = []
 --        ==> [ Forward (physical 2) unmodified ])
 --      <%> (switch 1)
 
-main = do
+main addr = do
   polChan <- newChan
   writeChan polChan (pol1, extPorts)
-  consistentController polChan
+  consistentController addr polChan
