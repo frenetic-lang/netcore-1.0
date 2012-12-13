@@ -90,7 +90,8 @@ isNotOutNothing _ = True
 
 -- TODO(arjun): do not duplicate code
 -- Forces lots of sequencing tests that actually process packets
-prop_compileSeqOK = do
+{-
+xprop_compileSeqOK = do
   pred1 <- arbitrary
   pred2 <- arbitrary
   fwds1 <- arbFwds
@@ -134,7 +135,7 @@ prop_compileSeqOK = do
          "\n\nexpected len: " ++ show (length expected) ++
          "\n\ngot len: " ++ show (length outs))
         (expected == outs)
-
+-}
 {-
 xcase_seq_bug1 = classify sw pt pkt classifier = Just acts
  where sw = 12671443700482

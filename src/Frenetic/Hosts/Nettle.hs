@@ -324,7 +324,7 @@ makeSwitchChan server = do
   return chan
 
 acceptSwitchRetry :: OpenFlowServer
-             -> IO (SwitchHandle, SwitchFeatures)
+                  -> IO (SwitchHandle, SwitchFeatures)
 acceptSwitchRetry server = do
   let exnHandler (e :: SomeException) = do
         infoM "nettle" $ "could not accept switch " ++ show e
@@ -336,70 +336,10 @@ acceptSwitchRetry server = do
   (switch, switchFeatures) <- accept
   return (switch, switchFeatures)
 
-nettleServer :: NettleServerOpts -> Chan Program -> IO ()
-nettleServer opts policyChan = do
-  server <- startOpenFlowServer Nothing 6633
-  switchChan <- makeSwitchChan server
-  switchPolicyChan <- select switchChan policyChan
-  let loop :: [(SwitchHandle, MVar ())]
-           -> Callbacks
-           -> Counters
-           -> Pol
-           -> Map Switch [Queue]
-           -> [MVar ()]
-           -> Either (SwitchHandle, SwitchFeatures) Program
-           -> IO ()
-      loop switches callbacks counters pol queues outputs 
-           (Left (switch,features)) = do
-        let switchId = handle2SwitchID switch
-        noticeM "controller" $ "switch " ++ show switchId ++ " connected"
-        kill <- newEmptyMVar
-        forkIO (handleSwitch server callbacks counters switch pol kill opts)
-        createQueuesForSwitch server queues switchId -- TODO: del existing qs?
-        let inSwitchEvt = (InSwitchEvt $ SwitchConnected switchId features)
-        tryLogIO opts inSwitchEvt
-        let outs = evalPol pol inSwitchEvt
-        mapM_ (processOut server callbacks counters) outs
-        debugM "controller" $ "waiting for program/switch after new switch."
-        next <- readChan switchPolicyChan
-        loop ((switch,kill):switches) callbacks counters pol
-             queues outputs next
-      loop switches _ _ _ queues killMVars (Right program) = do
-        debugM "controller" $ "recv new NetCore program"
-        let (queues', sugaredPolicy) = evalProgram program
-        let (callbacks, generators, pol) = desugarPolicy sugaredPolicy
-        tryLogIO opts pol
-        let killVars = killMVars ++ (map (\(_,k) -> k) switches)
-        mapM_ (\k -> putMVar k ()) killVars
-        mapM_ takeMVar killVars -- wait for termination
-        debugM "controller" $ "killed helper threads"
-        let switchIds = map (\(h, _) -> handle2SwitchID h) switches
-        mapM_ (deleteQueuesForSwitch server queues) switchIds
-        mapM_ (createQueuesForSwitch server queues') switchIds
-        counters <- initCounters callbacks
-        let handle (switch, _) = do
-              kill <- newEmptyMVar
-              forkIO (handleSwitch server callbacks counters switch pol kill opts)
-              return (switch, kill)
-        switches' <- mapM handle switches
-        killOutputs' <- newEmptyMVar
-        forkIO (handlePolicyOutputs server callbacks counters pol generators
-                                    killOutputs' opts)
-        killCallbackInvokers' <- invokeCallbacksOnTimers counters callbacks
-        debugM "controller" $ "waiting for program/switch after new program."
-        next <- readChan switchPolicyChan
-        loop switches' callbacks counters pol queues'
-             [killOutputs', killCallbackInvokers'] next
-  v <- readChan switchPolicyChan
-  dummyOutput <- newEmptyMVar
-  forkIO $ do
-    takeMVar dummyOutput
-    putMVar dummyOutput ()
-    debugM "controller" $ "dummy thead terminated"
-  loop [] Map.empty Map.empty PolEmpty Map.empty [dummyOutput] v
-  closeServer server
-
-nettleServer' :: OpenFlowServer -> NettleServerOpts -> Chan (Either (SwitchHandle, SwitchFeatures) Program) -> IO ()
+nettleServer' :: OpenFlowServer 
+              -> NettleServerOpts 
+              -> Chan (Either (SwitchHandle, SwitchFeatures) Program) 
+              -> IO ()
 nettleServer' server opts switchPolicyChan = do
   let loop :: [(SwitchHandle, MVar ())]
            -> Callbacks
@@ -458,6 +398,13 @@ nettleServer' server opts switchPolicyChan = do
     debugM "controller" $ "dummy thead terminated"
   loop [] Map.empty Map.empty PolEmpty Map.empty [dummyOutput] v
   closeServer server
+
+nettleServer :: NettleServerOpts -> Chan Program -> IO ()
+nettleServer opts policyChan = do
+  server <- startOpenFlowServer Nothing 6633
+  switchChan <- makeSwitchChan server
+  switchPolicyChan <- select switchChan policyChan
+  nettleServer' server opts switchPolicyChan
 
 consistentNettleServer :: NettleServerOpts -> Chan (Policy, SwitchID -> [Word16]) -> IO ()
 consistentNettleServer opts policyChan = do
