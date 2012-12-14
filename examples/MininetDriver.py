@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import socket
 from subprocess import Popen, call
-from mininet.node import RemoteController, UserSwitch
+from mininet.node import RemoteController, OVSKernelSwitch
 from mininet.net import Mininet
 import mininet.topolib
 import mininet.topo
@@ -38,7 +38,7 @@ class MininetRunner(object):
     # Mininet can cleanup after itself
     quiet_system('mn -c')
     self.controller = controller
-    self.net = Mininet(topo=topo,controller=RemoteController,switch=UserSwitch)
+    self.net = Mininet(topo=topo,controller=RemoteController,switch=OVSKernelSwitch)
     self.net.start()
     self.hosts = self.net.hosts
 
