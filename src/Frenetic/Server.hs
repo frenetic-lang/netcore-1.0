@@ -88,15 +88,17 @@ debugController host logChan pol = do
 -- |Start a controller that receives and deploys JSON-formatted policies.
 -- Queries and switch events are sent back in JSON format.  Note that this
 -- controller only supports a single connection.
-remoteController :: PortNumber    -- ^Port on which to listen for JSON messages.
+remoteController :: Maybe String
+                 -> PortNumber    -- ^Port on which to listen for JSON messages.
                  -> Int           -- ^Timeout (in milliseconds).
                                   -- A negative value indicates no timeout.
                  -> IO ()
-remoteController port timeout = withSocketsDo $ do
+remoteController host port timeout = withSocketsDo $ do
   -- Start the controller.
   toNetCoreChan <- newChan
   fromNetCoreChan <- newChan
-  forkIO $ forever $ nettleRemoteServer defaultNettleServerOpts toNetCoreChan
+  let opts = defaultNettleServerOpts { host=host }
+  forkIO $ forever $ nettleRemoteServer opts toNetCoreChan
   -- Threads started to handle a remote connection will need to be cleaned up
   -- if the connection dies.
   deadChildren <- newEmptyMVar
