@@ -9,5 +9,5 @@ public = -- And (PrPattern $ top { ptrnDlTyp = Exact 0x800 })
 policy = (Not public ==> allPorts unmodified) <+>
          (public ==> forward [3])
 
-main =
-  controller policy
+main addr =
+  controller addr policy

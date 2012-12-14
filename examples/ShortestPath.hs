@@ -137,4 +137,4 @@ buildTopo (Left(error)) = buildGraph []
 buildTopo (Right(list)) = buildGraph (makeEdgeList list)
   
   
-main = controller (makePolicy (buildTopo (parseTopo netOutput)))
+main addr = controller addr (makePolicy (buildTopo (parseTopo netOutput)))

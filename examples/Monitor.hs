@@ -130,7 +130,7 @@ monitor routeChan = do
 -- |Runs a learning switch and a monitoring process that blocks hosts that
 -- send too much data. Blocked hosts are eventually unblocked, if they
 -- stop sending traffic.
-main = do
+main addr = do
   routeChan <- learningSwitch
   polChan <- monitor routeChan
-  dynController polChan
+  dynController addr polChan

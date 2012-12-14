@@ -150,7 +150,7 @@ doArp routeChan = do
 
 -- |Runs ARP on top of a learning switch to gradually learn both routes and the
 -- ARP table.  Provides both regular connectivity and synthetic ARP replies.
-main = do
+main addr = do
   lsChan <- learningSwitch
   policyChan <- doArp lsChan
-  dynController policyChan
+  dynController addr policyChan

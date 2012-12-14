@@ -37,7 +37,8 @@ import System.IO
 data Arg
   = Logfile String
   | Verbosity String
-  | Example (IO ())
+  | Example (Maybe String -> IO ())
+  | Host String
   | Help
 
 argSpec =
@@ -45,8 +46,10 @@ argSpec =
       "log to FILE"
   , Option ['v'] ["verbosity"] (ReqArg Verbosity "PRIORITY")
       "sets the verbosity of the log"
-  , Option ['a'] ["arp"] (NoArg (Example Arp.main))
-      "an interesting controller-based ARP cache"
+  -- , Option ['a'] ["arp"] (NoArg (Example Arp.main))
+  --     "an interesting controller-based ARP cache"
+  , Option ['a'] ["address"] (ReqArg Host "ADDRESS")
+      "address for server to bind to"
   , Option [] ["arpspoof"] (NoArg (Example ArpSpoof.main))
       "respond to arp requests for 10.0.0.101 with a fake mac address."
   , Option [] ["monitor"] (NoArg (Example Monitor.main))
@@ -113,15 +116,18 @@ setLogger prio handler = do
 setLog logPriority ((Logfile path) : rest) = do
   handler <- fileHandler path logPriority
   setLogger logPriority handler
-  start rest
+  setHost rest
 setLog logPriority rest = do
   handler <- streamHandler stderr logPriority
   setLogger logPriority handler
-  start rest
+  setHost rest
 
-start [Example proc] = proc
-start [] = fail "too few arguments"
-start _ =  fail "too many arguments"
+setHost ((Host host) : rest) = start (Just host) rest
+setHost rest = start Nothing rest
+
+start host [Example proc] = proc host
+start _ [] = fail "too few arguments"
+start _ _ =  fail "too many arguments"
 
 main = do
   rawArgs <- getArgs

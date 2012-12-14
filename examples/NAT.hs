@@ -161,7 +161,7 @@ nat = do
     writeChan polChan (nonNATPolicy <+> fwdPol <+> queryPol)
   return polChan
 
-main = do
+main addr = do
   putStrLn "I am the NAT!"
   polChan <- nat
   pktChan <- newChan
@@ -174,5 +174,5 @@ main = do
                   (IngressPort 2 ==> forward [1]) <+>
                   (Any ==> q)
   forkIO $ forever $ loop
-  controller badPolicy
+  controller addr badPolicy
 

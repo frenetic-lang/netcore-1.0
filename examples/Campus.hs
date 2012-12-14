@@ -104,7 +104,7 @@ adminPols = do
     writeChan polChan $ Any ==> adminQuery
     return polChan
 
-main = do
+main addr = do
   trustedPolChan <- trustedPols
   untrustedPolChan <- untrustedPols
   adminPolChan <- adminPols
@@ -112,5 +112,5 @@ main = do
                , (untrustedSlice, untrustedPolChan)
                , (adminSlice, adminPolChan) ]
   polChan <- dynTransform slices
-  dynController polChan
+  dynController addr polChan
 

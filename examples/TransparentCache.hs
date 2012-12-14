@@ -168,10 +168,10 @@ startDebugLoop fp = do
   return logChan
   
 
-main = do
+main addr = do
   allChan <- transparentCache
   logChan <- startDebugLoop "transparentCacheDebugLog.log"
-  debugDynController logChan allChan
+  debugDynController addr logChan allChan
 
 
 
