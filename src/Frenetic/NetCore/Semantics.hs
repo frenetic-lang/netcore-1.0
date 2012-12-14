@@ -60,8 +60,8 @@ data Pol
 
 data Act
   = ActFwd PseudoPort Modification
-  | ActQueryPktCounter Id
-  | ActQueryByteCounter Id
+  | ActQueryPktCounter Id Int
+  | ActQueryByteCounter Id Int
   | ActGetPkt Id
   | ActMonSwitch Id
   deriving (Show, Eq, Data, Typeable)
@@ -195,23 +195,23 @@ action (ActFwd pt mods) (InPkt (Loc sw _) hdrs maybePkt) = case maybePkt of
 action (ActFwd _ _) (InGenPkt _ _ _ _ _) = OutNothing
 action (ActFwd _ _) (InCounters _ _ _ _ _) = OutNothing
 action (ActFwd _ _) (InSwitchEvt _) = OutNothing
-action (ActQueryPktCounter x) (InCounters y sw pred numPkts _) =
+action (ActQueryPktCounter x _) (InCounters y sw pred numPkts _) =
   if x == y then
     OutUpdPktCounter x sw pred numPkts
   else
     OutNothing
-action (ActQueryPktCounter _) (InPkt _ _ _) = OutNothing
-action (ActQueryPktCounter x) (InGenPkt _ _ _ _ _) = OutIncrPktCounter x
-action (ActQueryPktCounter _) (InSwitchEvt _) = OutNothing
-action (ActQueryByteCounter x) (InCounters y sw pred _ numBytes) =
+action (ActQueryPktCounter _ _) (InPkt _ _ _) = OutNothing
+action (ActQueryPktCounter x _) (InGenPkt _ _ _ _ _) = OutIncrPktCounter x
+action (ActQueryPktCounter _ _) (InSwitchEvt _) = OutNothing
+action (ActQueryByteCounter x _) (InCounters y sw pred _ numBytes) =
   if x == y then
     OutUpdByteCounter x sw pred numBytes
   else
     OutNothing
-action (ActQueryByteCounter _) (InPkt _ _ _) = OutNothing
-action (ActQueryByteCounter x) (InGenPkt _ _ _ _ pkt) =
+action (ActQueryByteCounter _ _) (InPkt _ _ _) = OutNothing
+action (ActQueryByteCounter x _) (InGenPkt _ _ _ _ pkt) =
   OutIncrByteCounter x (fromIntegral (BS.length pkt))
-action (ActQueryByteCounter _) (InSwitchEvt _) = OutNothing
+action (ActQueryByteCounter _ _) (InSwitchEvt _) = OutNothing
 action (ActGetPkt x) (InPkt loc hdrs _) = OutGetPkt x loc hdrs
 action (ActGetPkt _) (InGenPkt _ _ _ _ _) = OutNothing
 action (ActGetPkt _) (InCounters _ _ _ _ _) = OutNothing
@@ -295,8 +295,8 @@ actOnMatch (ActFwd (Physical pt) (Modification{..})) (Match{..}) =
 actOnMatch (ActFwd AllPorts _) _ = Nothing
 actOnMatch (ActFwd InPort _) _ = Nothing -- TODO(mjr): Not sure what this func is...
 actOnMatch (ActFwd (ToQueue _) _) _ = Nothing -- TODO(arjun): easy IMO
-actOnMatch (ActQueryPktCounter _) _ = Nothing
-actOnMatch (ActQueryByteCounter _) _ = Nothing
+actOnMatch (ActQueryPktCounter _ _) _ = Nothing
+actOnMatch (ActQueryByteCounter _ _) _ = Nothing
 actOnMatch (ActGetPkt _) _ = Nothing
 actOnMatch (ActMonSwitch _) _ = Nothing
 
@@ -569,10 +569,10 @@ dsAction (Forward pt mods) =
   return (ActFwd pt mods)
 dsAction (CountPackets _ interval cb) = do
   x <- newCallback (CallbackPktCounter interval cb)
-  return (ActQueryPktCounter x)
+  return (ActQueryPktCounter x interval)
 dsAction (CountBytes _ interval cb) = do
   x <- newCallback (CallbackByteCounter interval cb)
-  return (ActQueryByteCounter x)
+  return (ActQueryByteCounter x interval)
 dsAction (GetPacket _ cb) = do
   x <- newCallback (CallbackGetPkt cb)
   return (ActGetPkt x)

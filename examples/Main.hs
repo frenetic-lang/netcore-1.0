@@ -26,6 +26,7 @@ import qualified WireMonitor
 import qualified ErrorDetect
 import qualified Campus
 import qualified VlanBug
+import qualified RemoteController
 
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
@@ -88,6 +89,8 @@ argSpec =
       "A small example of a campus network with several slices."
   , Option [] ["vlanbug"] (NoArg (Example VlanBug.main))
       "Demonstrate a bug with how OpenVSwitch handles VLAN tags."
+  , Option [] ["remote"] (NoArg (Example RemoteController.main))
+      "Start a remote controller listening for JSON messages on port 6634."
   ]
 
 init [Help] = putStrLn (usageInfo "Usage Info" argSpec)

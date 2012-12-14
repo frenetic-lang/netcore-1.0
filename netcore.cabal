@@ -38,6 +38,7 @@ Library
     Nettle.Ethernet.EthernetAddress,
     Frenetic.Common,
     Frenetic.NetCore,
+    Frenetic.NetCore.JSON
     Frenetic.NetCore.Semantics,
     Frenetic.NetCore.Short,
     Frenetic.NetCore.Types,
@@ -82,7 +83,7 @@ Library
     FlexibleContexts, DoAndIfThenElse, RecordWildCards,
     DeriveDataTypeable
   ghc-options:
-    -fwarn-incomplete-patterns
+    -fwarn-incomplete-patterns -threaded
   hs-source-dirs:
     src
     nettle-openflow/src

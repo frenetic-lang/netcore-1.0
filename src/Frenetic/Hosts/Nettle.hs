@@ -335,9 +335,23 @@ acceptSwitchRetry server = do
   (switch, switchFeatures) <- accept
   return (switch, switchFeatures)
 
+programToSemanticPol :: Program ->
+                        (Map Switch [Queue],
+                         Callbacks, 
+                         [(Id, Chan (Loc, ByteString))],
+                         Pol)
+programToSemanticPol program = 
+  let (queues', sugaredPolicy) = evalProgram program
+      (callbacks, generators, pol) = desugarPolicy sugaredPolicy in
+  (queues', callbacks, generators, pol)
+
 nettleServer' :: OpenFlowServer 
               -> NettleServerOpts 
-              -> Chan (Either (SwitchHandle, SwitchFeatures) Program) 
+              -> Chan (Either (SwitchHandle, SwitchFeatures) 
+                              (Map Switch [Queue],
+                               Callbacks, 
+                               [(Id, Chan (Loc, ByteString))],
+                               Pol))
               -> IO ()
 nettleServer' server opts switchPolicyChan = do
   let loop :: [(SwitchHandle, MVar ())]
@@ -346,7 +360,11 @@ nettleServer' server opts switchPolicyChan = do
            -> Pol
            -> Map Switch [Queue]
            -> [MVar ()]
-           -> Either (SwitchHandle, SwitchFeatures) Program
+           -> Either (SwitchHandle, SwitchFeatures) 
+                     (Map Switch [Queue],
+                      Callbacks, 
+                      [(Id, Chan (Loc, ByteString))],
+                      Pol)
            -> IO ()
       loop switches callbacks counters pol queues outputs 
            (Left (switch,features)) = do
@@ -363,10 +381,9 @@ nettleServer' server opts switchPolicyChan = do
         next <- readChan switchPolicyChan
         loop ((switch,kill):switches) callbacks counters pol
              queues outputs next
-      loop switches _ _ _ queues killMVars (Right program) = do
+      loop switches _ _ _ queues killMVars 
+           (Right (queues', callbacks, generators, pol)) = do
         debugM "controller" $ "recv new NetCore program"
-        let (queues', sugaredPolicy) = evalProgram program
-        let (callbacks, generators, pol) = desugarPolicy sugaredPolicy
         tryLogIO opts pol
         let killVars = killMVars ++ (map (\(_,k) -> k) switches)
         mapM_ (\k -> putMVar k ()) killVars
@@ -399,19 +416,43 @@ nettleServer' server opts switchPolicyChan = do
   closeServer server
 
 nettleServer :: NettleServerOpts -> Chan Program -> IO ()
-nettleServer opts policyChan = do
+nettleServer opts progChan = do
   server <- startOpenFlowServer Nothing 6633
   switchChan <- makeSwitchChan server
-  switchPolicyChan <- select switchChan policyChan
-  nettleServer' server opts switchPolicyChan
+  polChan <- mapChan progChan (\prog -> return $ programToSemanticPol prog)
+  switchPolChan <- select switchChan polChan
+  nettleServer' server opts switchPolChan
 
-consistentNettleServer :: NettleServerOpts -> Chan (Policy, SwitchID -> [Word16]) -> IO ()
+nettleRemoteServer :: NettleServerOpts
+                   -> Chan (Map Switch [Queue],
+                            Callbacks, 
+                            [(Id, Chan (Loc, ByteString))],
+                            Pol)
+                   -> IO ()
+nettleRemoteServer opts chan = do
+  server <- startOpenFlowServer Nothing 6633
+  switchChan <- makeSwitchChan server
+  switchPolChan <- select switchChan chan
+  nettleServer' server opts switchPolChan
+
+consistentNettleServer :: NettleServerOpts 
+                       -> Chan (Policy, SwitchID -> [Word16]) 
+                       -> IO ()
 consistentNettleServer opts policyChan = do
   server <- startOpenFlowServer Nothing 6633
   switchChan <- makeSwitchChan server
   switchPolicyChan <- select switchChan policyChan
   childChan <- newChan
-  forkIO $ nettleServer' server opts childChan
+  let wrapper :: Either (SwitchHandle, SwitchFeatures) Program
+              -> IO (Either (SwitchHandle, SwitchFeatures) 
+                        (Map Switch [Queue],
+                         Callbacks, 
+                         [(Id, Chan (Loc, ByteString))],
+                         Pol))
+      wrapper (Right p) = return (Right $ programToSemanticPol p)
+      wrapper (Left x)  = return (Left x)
+  liftedChildChan <- mapChan childChan wrapper
+  forkIO $ nettleServer' server opts liftedChildChan
   let loop :: [SwitchID]
            -> Word16
            -> Policy
@@ -444,8 +485,8 @@ selectMatches :: [(Match, [Act])] -> Int -> a -> [Match]
 selectMatches classifier x _ = map fst (filter hasQuery classifier)
   where hasQuery (_, acts) = any matchingId acts
         matchingId (ActFwd _ _) = False
-        matchingId (ActQueryPktCounter y) = x == y
-        matchingId (ActQueryByteCounter y) = x == y
+        matchingId (ActQueryPktCounter y _) = x == y
+        matchingId (ActQueryByteCounter y _) = x == y
         matchingId (ActGetPkt _) = False
         matchingId (ActMonSwitch _) = False
 
