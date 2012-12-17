@@ -57,9 +57,7 @@ NetCore is open-source, with code available on Github:
     cd netcore
     git submodule init
     git submodule update
-    cabal configure --enable-tests
-    cabal build
-    cabal install
+    make
 
 ### Demos
 
