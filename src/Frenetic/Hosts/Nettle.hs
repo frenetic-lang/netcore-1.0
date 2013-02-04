@@ -270,7 +270,7 @@ handleSwitch server callbacks counters switch pol kill opts = do
               tryLogIO opts inp
               mapM_ (processOut server callbacks counters) (evalPol pol inp)
 
-        otherwise -> return () -- ignore all other messages 
+        otherwise -> debugM "controller" $ show otherwise -- ignore all other messages 
 
 deleteQueue :: OpenFlowServer -> Queue -> IO ()
 deleteQueue server (Queue switch port queue _) = do
