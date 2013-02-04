@@ -34,11 +34,14 @@ arbFwd = liftM2 ActFwd arbitrary arbitrary
 arbFwds :: Gen [Act]
 arbFwds = oneof [ liftM2 (:) arbFwd arbFwds, return [] ]
 
+arbInterval :: Gen Int
+arbInterval = oneof [ return (-1), return 0, return 1, return 30 ]
+
 instance Arbitrary Act where
   arbitrary = oneof
     [ arbFwd
-    , liftM ActQueryPktCounter arbCountersId
-    , liftM ActQueryByteCounter arbCountersId
+    , liftM2 ActQueryPktCounter arbCountersId arbInterval
+    , liftM2 ActQueryByteCounter arbCountersId arbInterval
     , liftM ActGetPkt arbGetPktId
     , liftM ActMonSwitch arbMonSwitchId
     ]
