@@ -5,7 +5,7 @@ import Control.Monad
 import qualified Data.Map as Map
 import Frenetic.NetCore
 import Frenetic.NetCore.Pretty
-import Frenetic.NetCore.Types (size)
+import Frenetic.NetCore.Short (size)
 import Frenetic.TopoGen
 import Frenetic.PolicyGen
 import Frenetic.Slices.Compile
@@ -36,7 +36,7 @@ data Options = Options {
 defaultOptions :: Options
 defaultOptions = Options {
   optEdge = False
-, optAST = False
+, optAST = True
 , optTime = True
 , optIso = False
 , optComp = False

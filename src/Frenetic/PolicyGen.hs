@@ -25,6 +25,8 @@ import qualified Frenetic.NetCore.Types as NetCore
 import System.IO.Unsafe
 import Nettle.Ethernet.EthernetAddress (EthernetAddress (..), broadcastAddress)
 
+import Debug.Trace
+
 -- |Convert a list to a list of adjacent pairs
 toHops :: [a] -> [(a, a)]
 toHops [] = []
@@ -67,7 +69,9 @@ simuFloodQuery topo q = mconcat policies where
 -- |Construct an all-pairs-shortest-path routing policy between hosts, using the
 -- ID of the host as the MAC address.
 shortestPath :: Graph -> Policy
-shortestPath topo = mconcat policies where
+shortestPath topo = policy' where
+  policy' = crunch policy $ map (fromJust . getSwitch topo) $ map fst $ lSwitches topo
+  policy = mconcat policies
   routingTopo = toUnitWeight topo
   hostsSet = Set.fromList (lHosts topo)
   policies = map pathPolicy $ Set.toList hostsSet

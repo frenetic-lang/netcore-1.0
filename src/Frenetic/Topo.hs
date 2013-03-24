@@ -104,25 +104,25 @@ lHosts :: Graph -> [(Node,Host)]
 lHosts topo = foldr f [] l
   where l = labNodes topo
         f (n,Host h) l = (n,h):l
-        f e _ = error ("lHosts: " ++ show e)
+        f _ l = l
 
 hosts :: Graph -> [Host]
 hosts topo = foldr f [] l
   where l = labNodes topo  
         f (_,Host h) l = h:l
-        f e _ = error ("lHosts: " ++ show e)
+        f _ l = l
                 
 lSwitches :: Graph -> [(Node,Switch)]
 lSwitches topo = foldr f [] l
   where l = labNodes topo
         f (n,Switch s) l = (n,s):l
-        f e _ = error ("lSwitches: " ++ show e)
+        f _ l = l
 
 switches :: Graph -> [Switch]
 switches topo = foldr f [] l
   where l = labNodes topo  
         f (_,Switch s) l = s:l
-        f e _ = error ("switches: " ++ show e)
+        f _ l = l
 
 links :: Graph -> [Link]
 links topo = map f l 
