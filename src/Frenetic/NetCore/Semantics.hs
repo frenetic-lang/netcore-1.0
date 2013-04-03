@@ -22,6 +22,7 @@ module Frenetic.NetCore.Semantics
   , actOnMatch
   , preimgOfAct
   , seqAct
+  , outToMicroflowAction
   )  where
 
 import Prelude hiding (pred)
@@ -97,6 +98,10 @@ instance Show Callback where
   show (CallbackMonSwitch _) = "CallbackMonSwitch"
 
 type Callbacks = Map Id Callback
+
+outToMicroflowAction (OutPkt _ pt _ (Left _)) = Just (ActFwd pt unmodified)
+outToMicroflowAction (OutGetPkt x _ _) = Just (ActGetPkt x)
+outToMicroflowAction _ = Nothing
 
 seqAct :: Act -> Act -> Maybe Act
 seqAct (ActFwd p mods1) (ActFwd InPort mods2) = Just (ActFwd p mods3)

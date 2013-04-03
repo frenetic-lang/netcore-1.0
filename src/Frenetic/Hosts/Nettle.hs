@@ -214,7 +214,7 @@ handleSwitch server callbacks counters switch pol kill opts = do
   debugM "controller" $ "flow table is " ++ show flowTbl
   killMVar' <- runQueryOnSwitch server switch classifier counters callbacks
   -- Priority 65535 is for microflow rules from reactive-specialization
-  let flowMods = deleteAllFlows : (intersperse BarrierRequest (zipWith mkAddFlow flowTbl  [65534, 65533 ..]))
+  let flowMods = [deleteAllFlows]
   mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
   killOrMsg <- select killChan msgChan
   forever $ do
@@ -268,7 +268,12 @@ handleSwitch server callbacks counters switch pol kill opts = do
                           NotMatched -> bufferID
               let inp = InPkt loc pkt buf
               tryLogIO opts inp
-              mapM_ (processOut server callbacks counters) (evalPol pol inp)
+              let outputs = evalPol pol inp
+              -- Why does this use side-effects? WHy do I even care?
+              actions <- actnTranslate (mapMaybe outToMicroflowAction outputs)
+              let flowMod = mkAddFlow (frameToExactMatch inPort frame, actions) 65535
+              sendToSwitch switch (0, flowMod)
+              mapM_ (processOut server callbacks counters) outputs
 
         otherwise -> debugM "controller" $ show otherwise -- ignore all other messages 
 
