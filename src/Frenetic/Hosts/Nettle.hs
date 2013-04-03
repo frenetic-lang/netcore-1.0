@@ -214,7 +214,7 @@ handleSwitch server callbacks counters switch pol kill opts = do
   debugM "controller" $ "flow table is " ++ show flowTbl
   killMVar' <- runQueryOnSwitch server switch classifier counters callbacks
   -- Priority 65535 is for microflow rules from reactive-specialization
-  let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
+  let flowMods = deleteAllFlows : (intersperse BarrierRequest (zipWith mkAddFlow flowTbl  [65534, 65533 ..]))
   mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
   killOrMsg <- select killChan msgChan
   forever $ do

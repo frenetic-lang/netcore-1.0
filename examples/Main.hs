@@ -27,6 +27,7 @@ import qualified ErrorDetect
 import qualified Campus
 import qualified VlanBug
 import qualified RemoteController
+import qualified VerifTest
 
 import System.Log.Logger
 import System.Log.Handler hiding (setLevel)
@@ -56,6 +57,8 @@ argSpec =
       "monitor traffic from source IPs"
   , Option ['r'] ["repeater"] (NoArg (Example Repeater.main))
       "a simple repeater"
+  , Option [] ["vvv"] (NoArg (Example VerifTest.main))
+      "bc-waxman,6,42"
   , Option [] ["query1"] (NoArg (Example Query1.main))
       "a repeater that also counts packets"
   , Option [] ["query2"] (NoArg (Example Query2.main))

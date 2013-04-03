@@ -121,8 +121,8 @@ skelCart f bs1 bs2 =
         case intersect ptrn1 ptrn2 of
           Just ptrn12 ->
             (bs ++ [Bone ptrn12 (f actns1 actns2)],
-             if ptrn12 == ptrn1 then Nothing else Just x,
-             if ptrn12 == ptrn2 then Nothing else Just y)
+             {- if ptrn12 == ptrn1 then Nothing else -} Just x,
+             {- if ptrn12 == ptrn2 then Nothing else -} Just y)
           Nothing ->
             (bs, Just x, Just y)
 
