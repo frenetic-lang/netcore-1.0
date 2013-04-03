@@ -264,7 +264,7 @@ handleSwitch server callbacks counters switch pol kill opts = do
               let buf = case reason of
                           ExplicitSend -> Nothing -- TODO(arjun): what?
                           -- TODO(arjun): this is totally broken
-                          -- we are ignoring the bufferID if it is present!
+                          -- we are ignoring the bufferID if it is present! <<- wtf is this
                           NotMatched -> bufferID
               let inp = InPkt loc pkt buf
               tryLogIO opts inp
