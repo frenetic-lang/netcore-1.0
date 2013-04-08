@@ -1,7 +1,6 @@
 -- |Nettle with additional features. None of this code is Frenetic-specific.
 module Frenetic.NettleEx
   ( module Nettle.OpenFlow
-  , module Nettle.Servers.Server
   , ethVLANId
   , ethVLANPcp
   , ethSrcIP

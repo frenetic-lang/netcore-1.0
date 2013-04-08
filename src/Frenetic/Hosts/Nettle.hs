@@ -17,6 +17,7 @@ import Data.Binary (decode)
 import Frenetic.NetCore.Semantics
 import Frenetic.NetCore.Compiler
 import Frenetic.Update1
+import Frenetic.Caching.Cache
 import Frenetic.Switches.OpenFlow
 import Data.List (nub, find, intersperse)
 import Frenetic.NettleEx hiding (Id)
@@ -210,12 +211,15 @@ handleSwitch server callbacks counters switch pol kill opts = do
   debugM "controller" $ "policy is " ++ show pol
   let classifier = compile (handle2SwitchID switch) pol
   debugM "controller" $ "classifier is " ++ show classifier
+  killMVar' <- runQueryOnSwitch server switch classifier counters callbacks
+  {--
   flowTbl <- toFlowTable classifier
   debugM "controller" $ "flow table is " ++ show flowTbl
-  killMVar' <- runQueryOnSwitch server switch classifier counters callbacks
   -- Priority 65535 is for microflow rules from reactive-specialization
-  let flowMods = [deleteAllFlows]
+  let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
   mapM_ (sendToSwitch switch) (zip [0,0..] flowMods)
+  --}
+  killCache <- sendToCache switch classifier
   killOrMsg <- select killChan msgChan
   forever $ do
     v <- readChan killOrMsg
@@ -223,6 +227,8 @@ handleSwitch server callbacks counters switch pol kill opts = do
       Left () -> do
         putMVar killMVar' ()
         takeMVar killMVar'
+        putMVar killCache ()
+	takeMVar killCache 
         putMVar kill ()
         tid <- myThreadId
         killThread tid
@@ -264,16 +270,11 @@ handleSwitch server callbacks counters switch pol kill opts = do
               let buf = case reason of
                           ExplicitSend -> Nothing -- TODO(arjun): what?
                           -- TODO(arjun): this is totally broken
-                          -- we are ignoring the bufferID if it is present! <<- wtf is this
+                          -- we are ignoring the bufferID if it is present!
                           NotMatched -> bufferID
               let inp = InPkt loc pkt buf
               tryLogIO opts inp
-              let outputs = evalPol pol inp
-              -- Why does this use side-effects? WHy do I even care?
-              actions <- actnTranslate (mapMaybe outToMicroflowAction outputs)
-              let flowMod = mkAddFlow (frameToExactMatch inPort frame, actions) 65535
-              sendToSwitch switch (0, flowMod)
-              mapM_ (processOut server callbacks counters) outputs
+              mapM_ (processOut server callbacks counters) (evalPol pol inp)
 
         otherwise -> debugM "controller" $ show otherwise -- ignore all other messages 
 

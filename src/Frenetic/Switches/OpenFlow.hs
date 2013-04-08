@@ -19,6 +19,7 @@ import qualified Data.Set as Set
 import Data.List (find)
 import qualified Nettle.IPv4.IPAddress as IPAddr
 import Nettle.Ethernet.AddressResolutionProtocol
+import Nettle.Servers.Server (OpenFlowServer)
 import Frenetic.Pattern
 import Frenetic.NetCore.Types
 import Frenetic.NettleEx hiding (AllPorts)
