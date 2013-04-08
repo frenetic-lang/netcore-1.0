@@ -52,6 +52,8 @@ Library
     Frenetic.TopoGen
     Frenetic.TopoParser
   other-modules:
+    Frenetic.Caching.CacheUtil,
+    Frenetic.Caching.Cache,
     Frenetic.Hosts.Nettle,
     Frenetic.NetCore.Compiler,
     Frenetic.NetCore.Pretty,
