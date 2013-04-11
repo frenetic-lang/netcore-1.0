@@ -190,17 +190,17 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     let insertFlow statsMap flowID =  Map.insert flowID ((!!) flowTbl flowID, 0, 0) statsMap
     statsTbl <- newIORef $ foldl insertFlow Map.empty [0 .. (length flowTbl)-1] 
     
-    kill' <- runFlowStats sw1 classifier
+    --kill' <- runFlowStats sw1 classifier
     forkIO $ do
        takeMVar kill
-       putMVar kill' ()
-       takeMVar kill'
+       --putMVar kill' ()
+       --takeMVar kill'
        putMVar kill ()
     debugM "controller" $ "flow table is " ++ show flowTbl
     --  killMVar' <- runQueryOnSwitch server switch classifier counters callbacks
     -- Priority 65535 is for microflow rules from reactive-specialization 
     let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
-    mapM_ (Server.sendToSwitch sw1) (zip [0,0..] flowMods)
+   -- mapM_ (Server.sendToSwitch sw1) (zip [0,0..] flowMods)
     msgChan1 <- newChan
     let loop = do
         m <- Server.receiveFromSwitch sw1
@@ -231,8 +231,11 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
 		Nothing -> do
 	      -- do a longest prefix match lookup in the classifer and give the statistics.      
 	      -- Create a flowstats packet and send it to the controller.   
-	          debugM "CacheLayer" $ "Received a query from the controller and sent to switch" ++ show query
+	          debugM "CacheLayer" $ "Received a query from the controller and sent to switchi - " ++ show query
 	          Server.sendToSwitch sw1 query
+	    Left msg -> do
+	      debugM "controller" $ "Packet out from the controller " ++ show msg
+	      Server.sendToSwitch sw1 msg
 	    Right Nothing -> do
 	      debugM "controller" $ "The switch seems to have disconnected"
 	    Right scmsg@(Just (xID, msg)) ->  case msg of
@@ -259,26 +262,33 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
 	                                enclosedFrame=Right frame})) -> do
 		 let match_packet stat@(xid, ((ptrn,acts),pktcnt, bytecnt)) = 
 		        ptrnMatchPkt packet ptrn 
+	         debugM "CacheLayer" $ "Saw this packet at the cache layer - " ++ show (packet)
 		 statsMap <- readIORef statsTbl
 		 case Data.List.find match_packet (Map.toList statsMap) of
 		   Just (xid, ((ptrn, acts), pktcnt, bytecnt)) -> do 
-		     let csmsg = PacketOut (PacketOutRecord (Right pkt) Nothing
-		                      acts)
-		     let pktbytes = fromIntegral len      
+		     --let csmsg = PacketOut (PacketOutRecord (Right pkt) Nothing
+		     --                 acts)
+		     let pktbytes = fromIntegral len
+	             debugM "CacheLayer" $ "Actions to apply to the packet at the cache layer - " ++ show (acts)
 	             writeIORef statsTbl (Map.insert xid ((ptrn, acts), pktcnt+1, bytecnt+pktbytes) statsMap)	      
-		     case hasController acts of
+		     {--case hasController acts of
 		       True -> do
-	                 writeChan msgChan scmsg
+	                 debugM "CacheLayer" $ "Sent a packet to the controller from the cache layer - " ++ show (toPacket packet)
+			 writeChan msgChan scmsg
 		       False -> do
 		         Server.sendToSwitch sw1 (0, csmsg)
-	           Nothing -> do
+	             --}
+		     evalOFActions sw acts xID msg
+		   Nothing -> do
+		     debugM "Controller" $ "No rules match this packet and hence sent to controller"
 	             writeChan msgChan scmsg
 		    
 	      _ -> do
-	         debugM "controller" $ "received a message from the switch" ++ show msg
+	         debugM "controller" $ "received a message from the switch - " ++ show msg
 	         writeChan msgChan scmsg
             
 
+{--
 -- TODO: THis will not work if you have modifications and then ToController
 hasController :: ActionSequence -> Bool
 hasController acts = 
@@ -286,34 +296,35 @@ hasController acts =
     (SendOutPort (ToController _)):acts1 -> True
     act:acts1 -> hasController acts1
     [] -> False
+--}
 
 
-{--
-evalOFActions :: SwitchHandle -> OF.ActionSequence -> SCMessage -> IO(SCMessage)
-evalOFActions sw acts pkt = 
-  case isController acts of
-    True -> do
-      pktOut <- (evalOFAction sw act pkt)
-      evalOFActions sw acts1 pktOut
-    [] -> return 
+evalOFActions :: SwitchHandle -> ActionSequence -> TransactionID -> SCMessage -> IO()
+evalOFActions sw acts xid msg = 
+  case acts of
+    act:acts1 -> do
+      msgOut <- (evalOFAction sw act xid msg)
+      evalOFActions sw acts1 xid msgOut
+    [] -> do 
+      debugM "controller" $ "Empty actions!!" 
 
-evalOFAction :: SwitchHandle -> OF.Action -> SCMessage -> IO (SCMessage)
-evalOFAction sw act pkt@{PacketInfo {..}} =
+evalOFAction :: SwitchHandle -> Nettle.OpenFlow.Action -> TransactionID -> SCMessage -> IO (SCMessage)
+evalOFAction sw@(SwitchHandle (sw1,(msgChan,_))) act xid msg@(PacketIn pkt@(PacketInfo {..})) =
   case act of
     SendOutPort port ->
       case port of
-        PhysicalPort pt -> do
-	   let msg = PacketOut (PacketOutRecord pkt Nothing
-	                        [physicalPortOfPseudoPort pt])
-	   sendToSwitch sw (0, msg)
-
-	Flood -> do 
-	  
-	AllPhysicalPorts ->
-	ToController maxlen ->
-	_ -> pkt
-    _ ->     
---}
+        ToController _ -> do
+	  debugM "CacheLayer" $ "Sent a packet to the controller from the cache layer - " ++ show (toPacket pkt)
+	  writeChan msgChan (Just (xid, msg))
+	  return msg
+	_ -> do  
+	  let msgOut = PacketOut (PacketOutRecord (Right packetData) Nothing
+	                        [act])
+	  Server.sendToSwitch sw1 (0, msgOut)
+          return msg
+    _ -> do
+      -- TODO: include modification actions
+      return msg    
 
 
 sendToCache :: SwitchHandle -> [(Match, [Act])] -> IO (MVar ())
