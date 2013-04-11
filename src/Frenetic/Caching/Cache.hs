@@ -213,38 +213,107 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     forever $ do
         v <- readChan queryOrMsg
 	case v of
-	    Left query@(xid, msg) -> do 
+	    Left query@(xid, StatsRequest (FlowStatsRequest {statsRequestMatch = match, ..})) -> do 
+	      -- Need to write the function Matches :: Match -> Match-> Bool (Look at Semantics.hs L625) 
 	      statsMap <- readIORef statsTbl
-	      let getPktCount = 
-	            case (Map.lookup (fromIntegral xid) statsMap) of
-	              Just (_,x,y) -> x
-		      Nothing -> -1 
-	         
-	      --debugM "CacheLayer" $ "Received a query from the controller" ++ show query
-	      debugM "CacheLayer" $ "flowStats at the Cache layer : PktCount = " ++ show getPktCount
-	      Server.sendToSwitch sw1 query
+	      let find_match stat@(xid, ((ptrn,acts),pktcnt, bytecnt)) = 
+		        match == ptrn 
+	      case (Data.List.find find_match (Map.toList statsMap)) of
+	        Just (id,((match1,acts),pktcnt,bytecnt)) -> do
+	          let scmsg = StatsReply (FlowStatsReply False [FlowStats {flowStatsMatch = match1, 
+	          					  flowStatsActions = acts,
+							  --flowStatsPriority = xid,
+							  flowStatsPacketCount = pktcnt,
+							  flowStatsByteCount = bytecnt}
+					  ])
+	          writeChan msgChan (Just (xid,scmsg)) 
+	          debugM "CacheLayer" $ "flowStats at the Cache layer : PktCount = " ++ show pktcnt
+		Nothing -> do
+	      -- do a longest prefix match lookup in the classifer and give the statistics.      
+	      -- Create a flowstats packet and send it to the controller.   
+	          debugM "CacheLayer" $ "Received a query from the controller and sent to switch" ++ show query
+	          Server.sendToSwitch sw1 query
 	    Right Nothing -> do
 	      debugM "controller" $ "The switch seems to have disconnected"
-	    Right (Just (xID, msg)) ->  case msg of
+	    Right scmsg@(Just (xID, msg)) ->  case msg of
 	      StatsReply (FlowStatsReply _ stats) -> do
 	          -- xid is the ID of the counter
 		  let xid = fromIntegral xID
 		  statsMap <- readIORef statsTbl
 	          let counterId = fromIntegral xid 
                   let getStats (FlowStats{..}) = (flowStatsPacketCount, flowStatsByteCount)
-                  let update statsMap stat = 
-		         case (Map.lookup xid statsMap) of
-			    Just (flow,pktCount, byteCount) -> 
-			          let (x,y) = getStats stat in
-			             Map.insert xid (flow,pktCount+x,byteCount+y) statsMap
-			    Nothing -> statsMap 
-	          writeIORef statsTbl (foldl update statsMap stats) 
-	    Right (msg) -> do
-	      debugM "controller" $ "received a message from the switch" ++ show msg
-	      writeChan msgChan msg
+                  let update (x0,y0) stat = 
+			let (x,y) = getStats stat in
+			       (x0+x,y0+y)      -- Fix this, you should do incremental sum
+		  let (pktcnt,bytecnt) = foldl update (0,0) stats	    
+		  case (Map.lookup xid statsMap) of
+	            Just (flow,x, y) -> do
+	              writeIORef statsTbl (Map.insert xid (flow,pktcnt,bytecnt) statsMap)
+		    Nothing -> do
+		      debugM "controller" $ "There is no flow entry corresponding to the reply in the Cache"  
+	      PacketIn (packet@(PacketInfo {receivedOnPort=inPort, 
+	                                reasonSent=reason,
+	                                bufferID=bufferID,
+					packetLength=len,
+					packetData=pkt,
+	                                enclosedFrame=Right frame})) -> do
+		 let match_packet stat@(xid, ((ptrn,acts),pktcnt, bytecnt)) = 
+		        ptrnMatchPkt packet ptrn 
+		 statsMap <- readIORef statsTbl
+		 case Data.List.find match_packet (Map.toList statsMap) of
+		   Just (xid, ((ptrn, acts), pktcnt, bytecnt)) -> do 
+		     let csmsg = PacketOut (PacketOutRecord (Right pkt) Nothing
+		                      acts)
+		     let pktbytes = fromIntegral len      
+	             writeIORef statsTbl (Map.insert xid ((ptrn, acts), pktcnt+1, bytecnt+pktbytes) statsMap)	      
+		     case hasController acts of
+		       True -> do
+	                 writeChan msgChan scmsg
+		       False -> do
+		         Server.sendToSwitch sw1 (0, csmsg)
+	           Nothing -> do
+	             writeChan msgChan scmsg
+		    
+	      _ -> do
+	         debugM "controller" $ "received a message from the switch" ++ show msg
+	         writeChan msgChan scmsg
             
 
+-- TODO: THis will not work if you have modifications and then ToController
+hasController :: ActionSequence -> Bool
+hasController acts = 
+  case acts of
+    (SendOutPort (ToController _)):acts1 -> True
+    act:acts1 -> hasController acts1
+    [] -> False
 
+
+{--
+evalOFActions :: SwitchHandle -> OF.ActionSequence -> SCMessage -> IO(SCMessage)
+evalOFActions sw acts pkt = 
+  case isController acts of
+    True -> do
+      pktOut <- (evalOFAction sw act pkt)
+      evalOFActions sw acts1 pktOut
+    [] -> return 
+
+evalOFAction :: SwitchHandle -> OF.Action -> SCMessage -> IO (SCMessage)
+evalOFAction sw act pkt@{PacketInfo {..}} =
+  case act of
+    SendOutPort port ->
+      case port of
+        PhysicalPort pt -> do
+	   let msg = PacketOut (PacketOutRecord pkt Nothing
+	                        [physicalPortOfPseudoPort pt])
+	   sendToSwitch sw (0, msg)
+
+	Flood -> do 
+	  
+	AllPhysicalPorts ->
+	ToController maxlen ->
+	_ -> pkt
+    _ ->     
+--}
 
 
 sendToCache :: SwitchHandle -> [(Match, [Act])] -> IO (MVar ())
