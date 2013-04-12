@@ -190,25 +190,27 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     let insertFlow statsMap flowID =  Map.insert flowID ((!!) flowTbl flowID, 0, 0) statsMap
     statsTbl <- newIORef $ foldl insertFlow Map.empty [0 .. (length flowTbl)-1] 
     
-    --kill' <- runFlowStats sw1 classifier
-    forkIO $ do
-       takeMVar kill
-       --putMVar kill' ()
-       --takeMVar kill'
-       putMVar kill ()
+    kill' <- runFlowStats sw1 classifier
     debugM "controller" $ "flow table is " ++ show flowTbl
     --  killMVar' <- runQueryOnSwitch server switch classifier counters callbacks
     -- Priority 65535 is for microflow rules from reactive-specialization 
     let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
-   -- mapM_ (Server.sendToSwitch sw1) (zip [0,0..] flowMods)
+    -- mapM_ (Server.sendToSwitch sw1) (zip [0,0..] flowMods)
     msgChan1 <- newChan
     let loop = do
         m <- Server.receiveFromSwitch sw1
+	debugM "controller" $ "Received message1 at cache layer - " ++ show m
         writeChan msgChan1 m
         case m of
           Just _ -> loop
           Nothing -> return ()
-    forkIO $ loop
+    tid <- forkIO $ loop
+    forkIO $ do
+       takeMVar kill
+       killThread tid
+       putMVar kill' ()
+       takeMVar kill'
+       putMVar kill ()
     queryOrMsg <- select queryChan msgChan1
     forever $ do
         v <- readChan queryOrMsg
@@ -260,35 +262,38 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
 					packetLength=len,
 					packetData=pkt,
 	                                enclosedFrame=Right frame})) -> do
-		 let match_packet stat@(xid, ((ptrn,acts),pktcnt, bytecnt)) = 
-		        ptrnMatchPkt packet ptrn 
-	         debugM "CacheLayer" $ "Saw this packet at the cache layer - " ++ show (packet)
-		 statsMap <- readIORef statsTbl
-		 case Data.List.find match_packet (Map.toList statsMap) of
-		   Just (xid, ((ptrn, acts), pktcnt, bytecnt)) -> do 
-		     --let csmsg = PacketOut (PacketOutRecord (Right pkt) Nothing
-		     --                 acts)
-		     let pktbytes = fromIntegral len
-	             debugM "CacheLayer" $ "Actions to apply to the packet at the cache layer - " ++ show (acts)
-	             writeIORef statsTbl (Map.insert xid ((ptrn, acts), pktcnt+1, bytecnt+pktbytes) statsMap)	      
-		     {--case hasController acts of
-		       True -> do
-	                 debugM "CacheLayer" $ "Sent a packet to the controller from the cache layer - " ++ show (toPacket packet)
-			 writeChan msgChan scmsg
-		       False -> do
-		         Server.sendToSwitch sw1 (0, csmsg)
-	             --}
-		     evalOFActions sw acts xID msg
-		   Nothing -> do
-		     debugM "Controller" $ "No rules match this packet and hence sent to controller"
-	             writeChan msgChan scmsg
-		    
+		 case reason of
+		   ExplicitSend -> writeChan msgChan scmsg
+		   _ -> do
+			 let match_packet stat@(xid, ((ptrn,acts),pktcnt, bytecnt)) = 
+			        ptrnMatchPkt packet ptrn 
+		         debugM "CacheLayer" $ "Saw this packet at the cache layer - " ++ show (packet)
+			 statsMap <- readIORef statsTbl
+			 case Data.List.find match_packet (Map.toList statsMap) of
+			   Just (xid, ((ptrn, acts), pktcnt, bytecnt)) -> do 
+			     let csmsg = PacketOut (PacketOutRecord (Right pkt) Nothing
+			                      acts)
+			     let pktbytes = fromIntegral len
+		             debugM "CacheLayer" $ "Actions to apply to the packet at the cache layer - " ++ show (acts)
+		             writeIORef statsTbl (Map.insert xid ((ptrn, acts), pktcnt+1, bytecnt+pktbytes) statsMap)	      
+			    {-- case hasController acts of
+			       True -> do
+		                 debugM "CacheLayer" $ "Sent a packet to the controller from the cache layer - " ++ show (toPacket packet)
+				 writeChan msgChan scmsg
+			       False -> do
+			         Server.sendToSwitch sw1 (0, csmsg)
+		             --}
+			     evalOFActions sw acts xID msg
+			   Nothing -> do
+			     debugM "Controller" $ "No rules match this packet and hence sent to controller"
+		             writeChan msgChan scmsg
+			    
 	      _ -> do
 	         debugM "controller" $ "received a message from the switch - " ++ show msg
 	         writeChan msgChan scmsg
             
 
-{--
+
 -- TODO: THis will not work if you have modifications and then ToController
 hasController :: ActionSequence -> Bool
 hasController acts = 
@@ -296,7 +301,7 @@ hasController acts =
     (SendOutPort (ToController _)):acts1 -> True
     act:acts1 -> hasController acts1
     [] -> False
---}
+
 
 
 evalOFActions :: SwitchHandle -> ActionSequence -> TransactionID -> SCMessage -> IO()
@@ -315,7 +320,8 @@ evalOFAction sw@(SwitchHandle (sw1,(msgChan,_))) act xid msg@(PacketIn pkt@(Pack
       case port of
         ToController _ -> do
 	  debugM "CacheLayer" $ "Sent a packet to the controller from the cache layer - " ++ show (toPacket pkt)
-	  writeChan msgChan (Just (xid, msg))
+	  let msg1 = PacketIn (PacketInfo {bufferID, packetLength, receivedOnPort, reasonSent = ExplicitSend, packetData, enclosedFrame})
+	  writeChan msgChan (Just (xid, msg1))
 	  return msg
 	_ -> do  
 	  let msgOut = PacketOut (PacketOutRecord (Right packetData) Nothing
