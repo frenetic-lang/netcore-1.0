@@ -75,6 +75,7 @@ processOut :: OpenFlowServer -> Callbacks -> Counters -> Out -> IO ()
 processOut server _ _ (OutPkt sw pt hdrs pkt) = do
   let msg = PacketOut (PacketOutRecord pkt Nothing 
                                        [physicalPortOfPseudoPort pt])
+  debugM "controller" $ "Packet out1 from the controller" ++ show (pkt)
   sendToSwitchWithID server sw (0, msg)
 processOut _ _ _ OutNothing = do
   return ()
@@ -267,6 +268,7 @@ handleSwitch server callbacks counters switch pol kill opts = do
           case toPacket pk of
             Nothing -> return ()
             Just pkt -> do
+	      debugM "controller" $ "Packet seen1 at the controller" ++ show (toPacket pk)
               let buf = case reason of
                           ExplicitSend -> Nothing -- TODO(arjun): what?
                           -- TODO(arjun): this is totally broken

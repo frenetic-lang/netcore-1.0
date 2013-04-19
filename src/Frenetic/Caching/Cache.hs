@@ -182,19 +182,41 @@ untilNothing :: IO (Maybe a) -> (a -> IO ()) -> IO ()
 untilNothing sense act = 
     Server.untilNothing sense act
 
+policyStream sw statsTbl = forever $ do
+    let delay = 1000
+    threadDelay (delay * 1000)
+    statsMap <- readIORef statsTbl
+    let compare1 x1 x2 =
+          let (Just stat1@( ((m1,a1),p1,b1)),Just stat2@( ((m2,a2),p2,b2))) 
+	         = ((Map.lookup x1 statsMap ),(Map.lookup x2 statsMap)) in 
+	  compare (fromIntegral p1) (fromIntegral p2)
+    let flow_index = [0..length(Map.elems statsMap)-1]	  
+    let sorted_index = sortBy compare1 flow_index 
+    let cache_index = take 5 sorted_index
+    debugM "cachelayer" $ "the cache index is : " ++ show cache_index
+    let cache = map (\id -> let Just (flow,_,_) = Map.lookup id statsMap in flow) 
+                  (sortBy compare cache_index)
+    -- kill' <- runFlowStats sw1 classifier
+    debugM "controller" $ "The hardware flow table is " ++ show cache
+    -- Priority 65535 is for microflow rules from reactive-specialization 
+    let flowMods = deleteAllFlows : (zipWith mkAddFlow cache  [65534, 65533 ..])
+    mapM_ (Server.sendToSwitch sw) (zip [0,0..] flowMods)
+
+    	  
+
 
 runCache :: SwitchHandle -> [(Match, [Act])] -> MVar() -> IO ()
 runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     flowTbl <- toFlowTable classifier
+    
     -- Map each flow to its PacketCounter and ByteCounter
     let insertFlow statsMap flowID =  Map.insert flowID ((!!) flowTbl flowID, 0, 0) statsMap
     statsTbl <- newIORef $ foldl insertFlow Map.empty [0 .. (length flowTbl)-1] 
     
-    kill' <- runFlowStats sw1 classifier
-    debugM "controller" $ "flow table is " ++ show flowTbl
-    --  killMVar' <- runQueryOnSwitch server switch classifier counters callbacks
+    -- kill' <- runFlowStats sw1 classifier
+    -- debugM "controller" $ "flow table is " ++ show flowTbl
     -- Priority 65535 is for microflow rules from reactive-specialization 
-    let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
+    -- let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
     -- mapM_ (Server.sendToSwitch sw1) (zip [0,0..] flowMods)
     msgChan1 <- newChan
     let loop = do
@@ -205,11 +227,18 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
           Just _ -> loop
           Nothing -> return ()
     tid <- forkIO $ loop
+    {--
+    Fork a thread that receives a signal and the flowtable statistics every 10 seconds. 
+    When it receives the signal, it computes the new flowtable to be sent to the switch.
+    
+    --}
+    tid1 <- forkIO $ policyStream sw1 statsTbl
     forkIO $ do
        takeMVar kill
        killThread tid
-       putMVar kill' ()
-       takeMVar kill'
+       killThread tid1
+       --putMVar kill' ()
+       --takeMVar kill'
        putMVar kill ()
     queryOrMsg <- select queryChan msgChan1
     forever $ do
