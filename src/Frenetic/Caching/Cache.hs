@@ -76,6 +76,17 @@ getr = R.readIORef
 r != n = R.writeIORef r n
 
 
+space_threshold = 5
+
+data RuleState = RuleState {
+	ruleID		:: Int,
+	ruleMatch	:: Match,
+	ruleActs	:: ActionSequence,
+	pktCount	:: Int,
+	byteCount	:: Int,
+	ruleCost	:: Float
+	} deriving (Show, Eq)
+
 
 type Channels = (Chan (Maybe (TransactionID, SCMessage)),Chan (TransactionID, CSMessage))
 data SwitchHandle = SwitchHandle !(Server.SwitchHandle, Channels)
@@ -182,26 +193,26 @@ untilNothing :: IO (Maybe a) -> (a -> IO ()) -> IO ()
 untilNothing sense act = 
     Server.untilNothing sense act
 
-policyStream sw statsTbl = forever $ do
+policyStream sw ruleTbl = forever $ do
     let delay = 1000
     threadDelay (delay * 1000)
-    statsMap <- readIORef statsTbl
+    ruleMap <- readIORef ruleTbl
     let compare1 x1 x2 =
-          let (Just stat1@( ((m1,a1),p1,b1)),Just stat2@( ((m2,a2),p2,b2))) 
-	         = ((Map.lookup x1 statsMap ),(Map.lookup x2 statsMap)) in 
+          let (Just (RuleState {pktCount=p1}),Just (RuleState {pktCount=p2})) 
+	         = ((Map.lookup x1 ruleMap ),(Map.lookup x2 ruleMap)) in 
 	  compare (fromIntegral p1) (fromIntegral p2)
-    let flow_index = [0..length(Map.elems statsMap)-1]	  
+    let flow_index = [0..length(Map.elems ruleMap)-1]	  
     let sorted_index = sortBy compare1 flow_index 
-    let cache_index = take 5 sorted_index
+    let cache_index = take space_threshold sorted_index
     debugM "cachelayer" $ "the cache index is : " ++ show cache_index
-    let cache = map (\id -> let Just (flow,_,_) = Map.lookup id statsMap in flow) 
+    let cache = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in (ruleMatch, ruleActs)) 
                   (sortBy compare cache_index)
     -- kill' <- runFlowStats sw1 classifier
     debugM "controller" $ "The hardware flow table is " ++ show cache
     -- Priority 65535 is for microflow rules from reactive-specialization 
     let flowMods = deleteAllFlows : (zipWith mkAddFlow cache  [65534, 65533 ..])
     mapM_ (Server.sendToSwitch sw) (zip [0,0..] flowMods)
-
+    
     	  
 
 
@@ -210,8 +221,12 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     flowTbl <- toFlowTable classifier
     
     -- Map each flow to its PacketCounter and ByteCounter
-    let insertFlow statsMap flowID =  Map.insert flowID ((!!) flowTbl flowID, 0, 0) statsMap
-    statsTbl <- newIORef $ foldl insertFlow Map.empty [0 .. (length flowTbl)-1] 
+    let insertFlow ruleMap rid =  
+          let (match,acts) = (!!) flowTbl rid in
+	  let rulestate = RuleState {ruleID=rid, ruleMatch = match, ruleActs = acts, pktCount = 0
+	                            , byteCount = 0, ruleCost = 1} in
+	  Map.insert rid rulestate ruleMap
+    ruleMapRef <- newIORef $ foldl insertFlow Map.empty [0 .. (length flowTbl)-1] 
     
     -- kill' <- runFlowStats sw1 classifier
     -- debugM "controller" $ "flow table is " ++ show flowTbl
@@ -232,7 +247,7 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     When it receives the signal, it computes the new flowtable to be sent to the switch.
     
     --}
-    tid1 <- forkIO $ policyStream sw1 statsTbl
+    tid1 <- forkIO $ policyStream sw1 ruleMapRef
     forkIO $ do
        takeMVar kill
        killThread tid
@@ -246,19 +261,20 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
 	case v of
 	    Left query@(xid, StatsRequest (FlowStatsRequest {statsRequestMatch = match, ..})) -> do 
 	      -- Need to write the function Matches :: Match -> Match-> Bool (Look at Semantics.hs L625) 
-	      statsMap <- readIORef statsTbl
-	      let find_match stat@(xid, ((ptrn,acts),pktcnt, bytecnt)) = 
-		        match == ptrn 
-	      case (Data.List.find find_match (Map.toList statsMap)) of
-	        Just (id,((match1,acts),pktcnt,bytecnt)) -> do
-	          let scmsg = StatsReply (FlowStatsReply False [FlowStats {flowStatsMatch = match1, 
-	          					  flowStatsActions = acts,
+	      ruleMap <- readIORef ruleMapRef
+	      let find_match (xid, fstate@(RuleState {..})) = 
+		        match == ruleMatch 
+	      case (Data.List.find find_match (Map.toList ruleMap)) of
+	        --Just (id, FlowState@((match1,acts),pktcnt,bytecnt)) -> do
+	        Just (id, RuleState {..}) -> do
+	          let scmsg = StatsReply (FlowStatsReply False [FlowStats {flowStatsMatch = ruleMatch, 
+	          					  flowStatsActions = ruleActs,
 							  --flowStatsPriority = xid,
-							  flowStatsPacketCount = pktcnt,
-							  flowStatsByteCount = bytecnt}
+							  flowStatsPacketCount = toInteger pktCount,
+							  flowStatsByteCount = toInteger byteCount}
 					  ])
 	          writeChan msgChan (Just (xid,scmsg)) 
-	          debugM "CacheLayer" $ "flowStats at the Cache layer : PktCount = " ++ show pktcnt
+	          debugM "CacheLayer" $ "flowStats at the Cache layer : PktCount = " ++ show pktCount
 		Nothing -> do
 	      -- do a longest prefix match lookup in the classifer and give the statistics.      
 	      -- Create a flowstats packet and send it to the controller.   
@@ -273,16 +289,18 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
 	      StatsReply (FlowStatsReply _ stats) -> do
 	          -- xid is the ID of the counter
 		  let xid = fromIntegral xID
-		  statsMap <- readIORef statsTbl
+		  ruleMap <- readIORef ruleMapRef
 	          let counterId = fromIntegral xid 
                   let getStats (FlowStats{..}) = (flowStatsPacketCount, flowStatsByteCount)
                   let update (x0,y0) stat = 
 			let (x,y) = getStats stat in
-			       (x0+x,y0+y)      -- Fix this, you should do incremental sum
+			       (x0+(fromInteger x),y0+(fromInteger y))      -- Fix this, you should do incremental sum
 		  let (pktcnt,bytecnt) = foldl update (0,0) stats	    
-		  case (Map.lookup xid statsMap) of
-	            Just (flow,x, y) -> do
-	              writeIORef statsTbl (Map.insert xid (flow,pktcnt,bytecnt) statsMap)
+		  case (Map.lookup xid ruleMap) of
+	            Just (RuleState {..}) -> do
+		      let rstate = RuleState {ruleID = ruleID, ruleMatch = ruleMatch, ruleActs = ruleActs,
+		                              pktCount = pktcnt, byteCount = bytecnt, ruleCost = ruleCost}
+	              writeIORef ruleMapRef (Map.insert xid rstate ruleMap)
 		    Nothing -> do
 		      debugM "controller" $ "There is no flow entry corresponding to the reply in the Cache"  
 	      PacketIn (packet@(PacketInfo {receivedOnPort=inPort, 
@@ -294,17 +312,19 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
 		 case reason of
 		   ExplicitSend -> writeChan msgChan scmsg
 		   _ -> do
-			 let match_packet stat@(xid, ((ptrn,acts),pktcnt, bytecnt)) = 
-			        ptrnMatchPkt packet ptrn 
+			 let match_packet (xid, RuleState {..}) = 
+			        ptrnMatchPkt packet ruleMatch 
 		         debugM "CacheLayer" $ "Saw this packet at the cache layer - " ++ show (packet)
-			 statsMap <- readIORef statsTbl
-			 case Data.List.find match_packet (Map.toList statsMap) of
-			   Just (xid, ((ptrn, acts), pktcnt, bytecnt)) -> do 
+			 ruleMap <- readIORef ruleMapRef
+			 case Data.List.find match_packet (Map.toList ruleMap) of
+			   Just (xid, RuleState {..}) -> do 
 			     let csmsg = PacketOut (PacketOutRecord (Right pkt) Nothing
-			                      acts)
+			                      ruleActs)
 			     let pktbytes = fromIntegral len
-		             debugM "CacheLayer" $ "Actions to apply to the packet at the cache layer - " ++ show (acts)
-		             writeIORef statsTbl (Map.insert xid ((ptrn, acts), pktcnt+1, bytecnt+pktbytes) statsMap)	      
+		             debugM "CacheLayer" $ "Actions to apply to the packet at the cache layer - " ++ show (ruleActs)
+		             let rstate = RuleState {ruleID = ruleID, ruleMatch = ruleMatch, ruleActs = ruleActs,
+		                              pktCount = pktCount+1, byteCount = byteCount+pktbytes, ruleCost = ruleCost}
+		             writeIORef ruleMapRef (Map.insert xid rstate ruleMap)	      
 			    {-- case hasController acts of
 			       True -> do
 		                 debugM "CacheLayer" $ "Sent a packet to the controller from the cache layer - " ++ show (toPacket packet)
@@ -312,7 +332,7 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
 			       False -> do
 			         Server.sendToSwitch sw1 (0, csmsg)
 		             --}
-			     evalOFActions sw acts xID msg
+			     evalOFActions sw ruleActs xID msg
 			   Nothing -> do
 			     debugM "Controller" $ "No rules match this packet and hence sent to controller"
 		             writeChan msgChan scmsg
