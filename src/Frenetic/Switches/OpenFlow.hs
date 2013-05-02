@@ -5,6 +5,7 @@ module Frenetic.Switches.OpenFlow
   , ptrnMatchPkt
   , physicalPortOfPseudoPort
   , predicateOfMatch
+  , intersect
   ) where
 
 import Frenetic.Common

@@ -25,6 +25,7 @@ Library
     fgl,
     process,
     random,
+    array,
     HList,
     hslogger == 1.2.*,
     binary == 0.5.1.*,

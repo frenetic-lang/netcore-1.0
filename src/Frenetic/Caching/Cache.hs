@@ -66,8 +66,9 @@ import qualified Frenetic.NetCore.Types as NetCore
 import qualified Text.JSON.Generic as JSON
 import Prelude hiding (catch)
 import Control.Exception
-import Data.Graph (Graph)
+import qualified Data.Graph as Graph
 import Data.List
+import qualified Data.Array as Array
 import Data.IORef as R
 import Debug.Trace (traceShow)
 --import Frenetic.Hosts.Nettle
@@ -76,7 +77,7 @@ getr = R.readIORef
 r != n = R.writeIORef r n
 
 
-space_threshold = 5
+space_threshold = 10
 
 data RuleState = RuleState {
 	ruleID		:: Int,
@@ -193,32 +194,68 @@ untilNothing :: IO (Maybe a) -> (a -> IO ()) -> IO ()
 untilNothing sense act = 
     Server.untilNothing sense act
 
-policyStream sw ruleTbl = forever $ do
+policyStream sw ruleTbl lattice = forever $ do
     let delay = 1000
     threadDelay (delay * 1000)
     ruleMap <- readIORef ruleTbl
     let compare1 x1 x2 =
           let (Just (RuleState {pktCount=p1}),Just (RuleState {pktCount=p2})) 
 	         = ((Map.lookup x1 ruleMap ),(Map.lookup x2 ruleMap)) in 
-	  compare (fromIntegral p1) (fromIntegral p2)
+		  compare (fromIntegral p1) (fromIntegral p2)
     let flow_index = [0..length(Map.elems ruleMap)-1]	  
     let sorted_index = sortBy compare1 flow_index 
-    let cache_index = take space_threshold sorted_index
+    let rules_interested = take space_threshold sorted_index
+    let cache_index = foldl (\ll x -> ll `union` (Graph.reachable lattice x) ) [] rules_interested
     debugM "cachelayer" $ "the cache index is : " ++ show cache_index
     let cache = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in (ruleMatch, ruleActs)) 
-                  (sortBy compare cache_index)
+                  (sort cache_index)
     -- kill' <- runFlowStats sw1 classifier
     debugM "controller" $ "The hardware flow table is " ++ show cache
     -- Priority 65535 is for microflow rules from reactive-specialization 
     let flowMods = deleteAllFlows : (zipWith mkAddFlow cache  [65534, 65533 ..])
     mapM_ (Server.sendToSwitch sw) (zip [0,0..] flowMods)
     
-    	  
+getDependencies :: [(Match,ActionSequence)] -> IO (Graph.Graph)
+getDependencies flowTbl = do
+    let classifier = zip [0..] flowTbl
+    let addEdge (x1, (m1,_)) elist (x2, (m2,_)) =
+    -- Note : The index here for the rules is in reverse to their prorities!
+          case x2 < x1 of
+            True -> (
+              case Frenetic.Switches.OpenFlow.intersect m1 m2 of
+                Just m3 -> (case m3==m2 of
+		              True -> elist ++ [(x1,x2)]
+			      False -> elist
+			      )
+                _ -> elist
+              )
+            False -> elist
+    let getEdges edge_list rule =
+          foldl (addEdge rule) edge_list classifier
+    let edges = foldl getEdges [] classifier
+
+    let bnds = (0,length classifier-1)
+    -- Can create a graph directly from the edges too!        
+    let graph = Graph.buildG bnds edges 
+    let tgraph = Graph.transposeG graph
+    -- let tsorder = Graph.topSort tgraph
+    let removeRedundancy child graph = 
+          let parents = (Array.!) tgraph child in
+          let successors = (\\) (Graph.reachable graph child) [child] in
+          let removeSuccessors parent graph = (Array.//) graph [(parent, (\\) ((Array.!) graph parent) successors)] in
+          foldr removeSuccessors graph parents
+    let temp_lattice = foldr removeRedundancy graph [0..(length classifier-1)]
+    debugM "cachelayer" $ "the original graph is : " ++ show graph
+    --debugM "cachelayer" $ "the topSort order is : " ++ show tsorder
+    debugM "cachelayer" $ "the lattice structure is : " ++ show temp_lattice
+    return temp_lattice
+
 
 
 runCache :: SwitchHandle -> [(Match, [Act])] -> MVar() -> IO ()
 runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     flowTbl <- toFlowTable classifier
+    debugM "controller" $ "flow table is " ++ show flowTbl
     
     -- Map each flow to its PacketCounter and ByteCounter
     let insertFlow ruleMap rid =  
@@ -229,7 +266,6 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     ruleMapRef <- newIORef $ foldl insertFlow Map.empty [0 .. (length flowTbl)-1] 
     
     -- kill' <- runFlowStats sw1 classifier
-    -- debugM "controller" $ "flow table is " ++ show flowTbl
     -- Priority 65535 is for microflow rules from reactive-specialization 
     -- let flowMods = deleteAllFlows : (zipWith mkAddFlow flowTbl  [65534, 65533 ..])
     -- mapM_ (Server.sendToSwitch sw1) (zip [0,0..] flowMods)
@@ -247,7 +283,8 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     When it receives the signal, it computes the new flowtable to be sent to the switch.
     
     --}
-    tid1 <- forkIO $ policyStream sw1 ruleMapRef
+    lattice <- getDependencies flowTbl
+    tid1 <- forkIO $ policyStream sw1 ruleMapRef lattice
     forkIO $ do
        takeMVar kill
        killThread tid
