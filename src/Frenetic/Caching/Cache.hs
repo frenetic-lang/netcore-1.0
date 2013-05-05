@@ -77,7 +77,10 @@ getr = R.readIORef
 r != n = R.writeIORef r n
 
 
-space_threshold = 10
+space_threshold = 4
+data CacheType = AllReachable | JustChildren
+--cacheType = AllReachable
+cacheType = JustChildren
 
 data RuleState = RuleState {
 	ruleID		:: Int,
@@ -194,27 +197,62 @@ untilNothing :: IO (Maybe a) -> (a -> IO ()) -> IO ()
 untilNothing sense act = 
     Server.untilNothing sense act
 
-policyStream sw ruleTbl lattice = forever $ do
-    let delay = 1000
-    threadDelay (delay * 1000)
-    ruleMap <- readIORef ruleTbl
-    let compare1 x1 x2 =
-          let (Just (RuleState {pktCount=p1}),Just (RuleState {pktCount=p2})) 
-	         = ((Map.lookup x1 ruleMap ),(Map.lookup x2 ruleMap)) in 
-		  compare (fromIntegral p1) (fromIntegral p2)
-    let flow_index = [0..length(Map.elems ruleMap)-1]	  
-    let sorted_index = sortBy compare1 flow_index 
-    let rules_interested = take space_threshold sorted_index
-    let cache_index = foldl (\ll x -> ll `union` (Graph.reachable lattice x) ) [] rules_interested
-    debugM "cachelayer" $ "the cache index is : " ++ show cache_index
-    let cache = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in (ruleMatch, ruleActs)) 
-                  (sort cache_index)
-    -- kill' <- runFlowStats sw1 classifier
-    debugM "controller" $ "The hardware flow table is " ++ show cache
-    -- Priority 65535 is for microflow rules from reactive-specialization 
-    let flowMods = deleteAllFlows : (zipWith mkAddFlow cache  [65534, 65533 ..])
-    mapM_ (Server.sendToSwitch sw) (zip [0,0..] flowMods)
-    
+policyStream sw ruleMapChan lattice = forever $ do
+    delayChan <- newChan
+    let delayLoop delayChan= forever $ do 
+          let delay = 10000
+          threadDelay (delay * 1000)
+	  writeChan delayChan 1
+    forkIO $ delayLoop delayChan
+    mapDelayChan <- select ruleMapChan delayChan
+    forever $ do
+      msg <- readChan mapDelayChan
+      case msg of 
+        Left ruleTbl -> do
+	  debugM "PolicyStream" $ "Useless ruleMaps"
+	Right 1 -> do
+          ruleTbl <- readChan ruleMapChan
+          ruleMap <- readIORef ruleTbl
+          let Just (RuleState {..}) = Map.lookup (length (Map.elems ruleMap) -1) ruleMap
+          debugM "CacheLayer" $ "flowStats at the Cache layer for $$$ rule: PktCount = " ++ show ruleMatch ++ show pktCount
+          let compare1 x1 x2 =
+                let (Just (RuleState {pktCount=p1}),Just (RuleState {pktCount=p2})) 
+                       = ((Map.lookup x1 ruleMap ),(Map.lookup x2 ruleMap)) in 
+              	  compare (fromIntegral p1) (fromIntegral p2)
+          let flow_index = [0..length(Map.elems ruleMap)-1]	  
+          let sorted_index = sortBy compare1 flow_index 
+          let rules_interested = take space_threshold sorted_index
+          debugM "cachelayer" $ "just before the case statement"
+          let sendCache cache = do 
+                -- kill' <- runFlowStats sw1 classifier
+                debugM "controller" $ "The hardware flow table is " ++ show cache
+                -- Priority 65535 is for microflow rules from reactive-specialization 
+                let flowMods = deleteAllFlows : (zipWith mkAddFlow cache  [65534, 65533 ..])
+                mapM_ (Server.sendToSwitch sw) (zip [0,0..] flowMods)
+          case cacheType of
+                 AllReachable -> do
+                   let cache_index = foldl (\ll x -> ll `union` (Graph.reachable lattice x) ) [] rules_interested
+                   debugM "cachelayer" $ "the cache index is : " ++ show cache_index
+                   let cache = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in (ruleMatch, ruleActs)) 
+                             (sort cache_index)
+                   sendCache cache	       
+              	  
+                 JustChildren -> do
+                   let (rule_index,child_index1) = foldl (\(l1,l2) x -> (l1 `union` [x], l2 `union` ((Array.!) lattice x))) ([],[]) rules_interested
+                   let child_index = (\\) child_index1 rule_index
+                   let cache_index = child_index `union` rule_index
+                   debugM "cachelayer" $ "the cache index is : " ++ show cache_index
+                   
+                   let cache = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in 
+                                                 case id `elem` child_index of
+              				          True -> (ruleMatch, [SendOutPort (ToController maxBound)])
+              				          False -> (ruleMatch, ruleActs)
+              					  ) 
+                             (sort cache_index)
+                   sendCache cache	       
+                        	     
+   
+
 getDependencies :: [(Match,ActionSequence)] -> IO (Graph.Graph)
 getDependencies flowTbl = do
     let classifier = zip [0..] flowTbl
@@ -284,7 +322,8 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     
     --}
     lattice <- getDependencies flowTbl
-    tid1 <- forkIO $ policyStream sw1 ruleMapRef lattice
+    ruleMapChan <- newChan
+    tid1 <- forkIO $ policyStream sw1 ruleMapChan lattice
     forkIO $ do
        takeMVar kill
        killThread tid
@@ -294,6 +333,7 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
        putMVar kill ()
     queryOrMsg <- select queryChan msgChan1
     forever $ do
+        writeChan ruleMapChan ruleMapRef
         v <- readChan queryOrMsg
 	case v of
 	    Left query@(xid, StatsRequest (FlowStatsRequest {statsRequestMatch = match, ..})) -> do 
@@ -361,6 +401,7 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
 		             debugM "CacheLayer" $ "Actions to apply to the packet at the cache layer - " ++ show (ruleActs)
 		             let rstate = RuleState {ruleID = ruleID, ruleMatch = ruleMatch, ruleActs = ruleActs,
 		                              pktCount = pktCount+1, byteCount = byteCount+pktbytes, ruleCost = ruleCost}
+	                     debugM "CacheLayer" $ "flowStats at the Cache layer for $$ rule : PktCount = " ++ show pktCount
 		             writeIORef ruleMapRef (Map.insert xid rstate ruleMap)	      
 			    {-- case hasController acts of
 			       True -> do
