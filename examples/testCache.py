@@ -14,7 +14,10 @@ basic = mininet.topolib.TreeTopo(depth=1, fanout=10)
 
 def getRunner(flag, topo=basic):
   ctrl = sp.Popen([md.CONTROLLER_PATH,
-                   flag,
+                   "--verbosity=DEBUG",
+		   "--log=caching2.log",
+		   "--runCaching"
+                   #flag
                    ],stdout=sp.PIPE)
 
   time.sleep(1)
@@ -30,7 +33,7 @@ def host_output(host, title, cmds):
   print host.cmd(cmd)
 
 def demo_learning_switch():
-  runner = getRunner('--runCaching')
+  runner = getRunner('--verbosity=DEBUG --log=caching2.log --runCaching')
   i = 0
   while (4*(i+1)<len(runner.hosts)):
     h = runner.hosts[4*i]
@@ -53,9 +56,9 @@ def demo_learning_switch():
       print h.IP()  
     '''
   time.sleep(10)
-  host_output(runner.hosts[0],
+  host_output(runner.hosts[4],
               ['Ping Connectivity over MAC Learning:'],
-              ['ping ' + runner.hosts[1].IP() + ' -c 3'])
+              ['ping ' + runner.hosts[7].IP() + ' -c 20'])
 
   runner.destroy()
 

@@ -78,9 +78,10 @@ r != n = R.writeIORef r n
 
 
 space_threshold = 4
-data CacheType = AllReachable | JustChildren
---cacheType = AllReachable
-cacheType = JustChildren
+data CacheType = Naive | AllReachable | JustChildren
+--cacheType = Naive
+cacheType = AllReachable
+--cacheType = JustChildren
 
 data RuleState = RuleState {
 	ruleID		:: Int,
@@ -230,8 +231,8 @@ policyStream sw ruleMapChan zombieRef lattice kill = forever $ do
                        = ((Map.lookup x1 ruleMap ),(Map.lookup x2 ruleMap)) in 
               	  compare (fromIntegral p1) (fromIntegral p2)
           let flow_index = [0..length(Map.elems ruleMap)-1]	  
-          let sorted_index = sortBy compare1 flow_index 
-          let rules_interested = take space_threshold (reverse sorted_index)
+          let sorted_index = reverse (sortBy compare1 flow_index) 
+          --let rules_interested = take space_threshold sorted_index
           debugM "cachelayer" $ "just before the case statement" ++ show sorted_index
           let sendCache cache = do 
                 debugM "controller" $ "The hardware flow table is " ++ show cache
@@ -239,8 +240,24 @@ policyStream sw ruleMapChan zombieRef lattice kill = forever $ do
                 let flowMods = deleteAllFlows : (zipWith mkAddFlow cache  [65534, 65533 ..])
                 mapM_ (Server.sendToSwitch sw) (zip [0,0..] flowMods)
           case cacheType of
-                 AllReachable -> do
-                   let cache_index = foldl (\ll x -> ll `union` (Graph.reachable lattice x) ) [] rules_interested
+	         Naive -> do
+                   let cache_index = take space_threshold flow_index
+                   debugM "cachelayer" $ "the cache index is : " ++ show cache_index
+                   let stats_matches = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in 
+		                                         (id, ruleMatch)) cache_index
+		   runFlowStats	sw stats_matches kill'				 
+                   let cache = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in (ruleMatch, ruleActs)) 
+                             (sort cache_index)
+                   sendCache cache	       
+
+		 AllReachable -> do
+                   let addCost (ll,cost) x = 
+		         let tcost = cost + length(Graph.reachable lattice x) in 
+		               case tcost <= space_threshold of
+		                 True -> (ll ++ [x], tcost)
+			         _ -> (ll, cost)
+		   let (rules_interested, cost) = foldl addCost ([],0) sorted_index                           
+		   let cache_index = foldl (\ll x -> ll `union` (Graph.reachable lattice x) ) [] rules_interested
                    writeIORef zombieRef []
                    debugM "cachelayer" $ "the cache index is : " ++ show cache_index
                    let stats_matches = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in 
@@ -251,6 +268,12 @@ policyStream sw ruleMapChan zombieRef lattice kill = forever $ do
                    sendCache cache	       
               	  
                  JustChildren -> do
+                   let addCost (ll,cost) x = 
+		          let tcost = cost + length((Array.!) lattice x) in 
+		                 case tcost <= space_threshold of
+		                   True -> (ll ++ [x], tcost)
+		                   _ -> (ll, cost)
+		   let (rules_interested, cost) = foldl addCost ([],0) sorted_index                           
                    let (rule_index,child_index1) = foldl (\(l1,l2) x -> (l1 `union` [x], l2 `union` ((Array.!) lattice x))) ([],[]) rules_interested
                    let child_index = (\\) child_index1 rule_index
                    let cache_index = child_index `union` rule_index
