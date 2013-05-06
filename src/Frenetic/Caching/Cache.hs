@@ -197,22 +197,32 @@ untilNothing :: IO (Maybe a) -> (a -> IO ()) -> IO ()
 untilNothing sense act = 
     Server.untilNothing sense act
 
-policyStream sw ruleMapChan lattice = forever $ do
+policyStream sw ruleMapChan zombieRef lattice kill = forever $ do
     delayChan <- newChan
     let delayLoop delayChan= forever $ do 
           let delay = 10000
           threadDelay (delay * 1000)
 	  writeChan delayChan 1
     forkIO $ delayLoop delayChan
+    tid <- myThreadId
+    kill' <- newEmptyMVar
+    forkIO $ do
+       takeMVar kill
+       killThread tid
+       --killThread tid1
+       putMVar kill' ()
+       takeMVar kill'
+       putMVar kill ()
     mapDelayChan <- select ruleMapChan delayChan
     forever $ do
       msg <- readChan mapDelayChan
       case msg of 
-        Left ruleTbl -> do
+        Left ruleMap -> do
 	  debugM "PolicyStream" $ "Useless ruleMaps"
+	  --debugM "PolicyStream" $ "Useless ruleMaps" ++ show ruleMap
 	Right 1 -> do
-          ruleTbl <- readChan ruleMapChan
-          ruleMap <- readIORef ruleTbl
+          ruleMap <- readChan ruleMapChan
+          --ruleMap <- readIORef ruleTbl
           let Just (RuleState {..}) = Map.lookup (length (Map.elems ruleMap) -1) ruleMap
           debugM "CacheLayer" $ "flowStats at the Cache layer for $$$ rule: PktCount = " ++ show ruleMatch ++ show pktCount
           let compare1 x1 x2 =
@@ -221,10 +231,9 @@ policyStream sw ruleMapChan lattice = forever $ do
               	  compare (fromIntegral p1) (fromIntegral p2)
           let flow_index = [0..length(Map.elems ruleMap)-1]	  
           let sorted_index = sortBy compare1 flow_index 
-          let rules_interested = take space_threshold sorted_index
-          debugM "cachelayer" $ "just before the case statement"
+          let rules_interested = take space_threshold (reverse sorted_index)
+          debugM "cachelayer" $ "just before the case statement" ++ show sorted_index
           let sendCache cache = do 
-                -- kill' <- runFlowStats sw1 classifier
                 debugM "controller" $ "The hardware flow table is " ++ show cache
                 -- Priority 65535 is for microflow rules from reactive-specialization 
                 let flowMods = deleteAllFlows : (zipWith mkAddFlow cache  [65534, 65533 ..])
@@ -232,7 +241,11 @@ policyStream sw ruleMapChan lattice = forever $ do
           case cacheType of
                  AllReachable -> do
                    let cache_index = foldl (\ll x -> ll `union` (Graph.reachable lattice x) ) [] rules_interested
+                   writeIORef zombieRef []
                    debugM "cachelayer" $ "the cache index is : " ++ show cache_index
+                   let stats_matches = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in 
+		                                         (id, ruleMatch)) cache_index
+		   runFlowStats	sw stats_matches kill'				 
                    let cache = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in (ruleMatch, ruleActs)) 
                              (sort cache_index)
                    sendCache cache	       
@@ -242,7 +255,10 @@ policyStream sw ruleMapChan lattice = forever $ do
                    let child_index = (\\) child_index1 rule_index
                    let cache_index = child_index `union` rule_index
                    debugM "cachelayer" $ "the cache index is : " ++ show cache_index
-                   
+                   writeIORef zombieRef rule_index
+		   let stats_matches = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in 
+		                                         (id, ruleMatch)) rule_index
+		   runFlowStats	sw stats_matches kill'				 
                    let cache = map (\id -> let Just (RuleState {..}) = Map.lookup id ruleMap in 
                                                  case id `elem` child_index of
               				          True -> (ruleMatch, [SendOutPort (ToController maxBound)])
@@ -323,17 +339,20 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
     --}
     lattice <- getDependencies flowTbl
     ruleMapChan <- newChan
-    tid1 <- forkIO $ policyStream sw1 ruleMapChan lattice
+    kill' <- newEmptyMVar
+    zombieRef <- newIORef []
+    tid1 <- forkIO $ policyStream sw1 ruleMapChan zombieRef lattice kill' 
     forkIO $ do
        takeMVar kill
        killThread tid
-       killThread tid1
-       --putMVar kill' ()
-       --takeMVar kill'
+       --killThread tid1
+       putMVar kill' ()
+       takeMVar kill'
        putMVar kill ()
     queryOrMsg <- select queryChan msgChan1
     forever $ do
-        writeChan ruleMapChan ruleMapRef
+        ruleMap <- readIORef ruleMapRef
+        writeChan ruleMapChan ruleMap
         v <- readChan queryOrMsg
 	case v of
 	    Left query@(xid, StatsRequest (FlowStatsRequest {statsRequestMatch = match, ..})) -> do 
@@ -387,18 +406,48 @@ runCache sw@(SwitchHandle (sw1, (msgChan, queryChan))) classifier kill = do
 					packetData=pkt,
 	                                enclosedFrame=Right frame})) -> do
 		 case reason of
-		   ExplicitSend -> writeChan msgChan scmsg
+		   ExplicitSend -> do
+		   {--
+		   Lookup the match in the table and find the ruleID 
+		   Check whether the rid is in the cache_child_index.
+		   If yes, do the same thing as below.
+		   --}
+		         zombie_index <- readIORef zombieRef
+			 let match_packet (xid, RuleState {..}) = 
+			        ptrnMatchPkt packet ruleMatch 
+		         debugM "CacheLayer" $ "Saw this packet at the cache layer2 - " ++ show (packet) ++ show zombie_index
+			 ruleMap <- readIORef ruleMapRef
+			 case Data.List.find match_packet (Map.toList ruleMap) of
+			   Just (xid, RuleState {..}) -> 
+			     case xid `elem` zombie_index of
+			       False -> do
+			         let csmsg = PacketOut (PacketOutRecord (Right pkt) Nothing
+			                          ruleActs)
+			         let pktbytes = fromIntegral len
+		                 debugM "CacheLayer2" $ "Actions to apply to the packet at the cache layer - " ++ show (ruleActs)
+		                 let rstate = RuleState {ruleID = ruleID, ruleMatch = ruleMatch, ruleActs = ruleActs,
+		                                  pktCount = pktCount+1, byteCount = byteCount+pktbytes, ruleCost = ruleCost}
+	                         debugM "CacheLayer2" $ "flowStats at the Cache layer for $$ rule : PktCount = " ++ show pktCount
+		                 writeIORef ruleMapRef (Map.insert xid rstate ruleMap)	      
+			         evalOFActions sw ruleActs xID msg
+		               True -> do
+		                 writeChan msgChan scmsg
 		   _ -> do
 			 let match_packet (xid, RuleState {..}) = 
 			        ptrnMatchPkt packet ruleMatch 
 		         debugM "CacheLayer" $ "Saw this packet at the cache layer - " ++ show (packet)
 			 ruleMap <- readIORef ruleMapRef
+			 {--
+			 case Map.lookup 10 ruleMap of 
+			   Just (RuleState {..}) -> do
+		             debugM "CacheLayer" $ "Result of pattern match for packet at the cache layer - " ++ show ruleMatch ++ show (ptrnMatchPkt packet ruleMatch) 
+			 --}    
 			 case Data.List.find match_packet (Map.toList ruleMap) of
 			   Just (xid, RuleState {..}) -> do 
 			     let csmsg = PacketOut (PacketOutRecord (Right pkt) Nothing
 			                      ruleActs)
 			     let pktbytes = fromIntegral len
-		             debugM "CacheLayer" $ "Actions to apply to the packet at the cache layer - " ++ show (ruleActs)
+		             debugM "CacheLayer" $ "Actions to apply to the packet at the cache layer - " ++ show ruleActs
 		             let rstate = RuleState {ruleID = ruleID, ruleMatch = ruleMatch, ruleActs = ruleActs,
 		                              pktCount = pktCount+1, byteCount = byteCount+pktbytes, ruleCost = ruleCost}
 	                     debugM "CacheLayer" $ "flowStats at the Cache layer for $$ rule : PktCount = " ++ show pktCount
@@ -476,14 +525,14 @@ sendToCache sh@(SwitchHandle (_, (msgChan, queryChan))) classifier = do
 
 
 
-runFlowStats :: Server.SwitchHandle -> [(Match, [Act])] -> IO (MVar ()) 
-runFlowStats switch classifier = do
+runFlowStats :: Server.SwitchHandle -> [(Int, Match)] -> MVar() -> IO () 
+runFlowStats switch matches kill = do
   dummyChan <- newChan
-  let matches = zip [0..] (map fst classifier)
-  let mkCb callbacks (x,m) = Map.insert x (CallbackPktCounter 100 (writeChan dummyChan)) callbacks
+  --let matches = zip [0..] (map fst classifier)
+  let mkCb callbacks (x,m) = Map.insert x (CallbackPktCounter 1000 (writeChan dummyChan)) callbacks
   let callbacks = foldl mkCb Map.empty matches
   let getMatches (Right delay) = Right delay 
-      getMatches (Left (x, _)) = Left (x, fst ((!!) classifier x))   
+      getMatches (Left (x, _)) = Left (x, ((Map.!) (Map.fromList matches) x))   
   let queryStream = map getMatches (callbackDelayStream callbacks)
   let body (Right delay) = do
         threadDelay (delay * 1000)
@@ -492,12 +541,11 @@ runFlowStats switch classifier = do
                         StatsRequest (FlowStatsRequest m AllTables Nothing))
         Server.sendToSwitch switch (mkReq match)
   tid <- forkIO $ mapM_ body queryStream
-  kill <- newEmptyMVar
   forkIO $ do
     takeMVar kill
     killThread tid 
     putMVar kill ()
-  return kill
+  debugM "cachelayer" $ "Killed the runFlowStats thread"  
 
 
 
