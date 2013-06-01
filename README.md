@@ -1,5 +1,13 @@
-NetCore
-========
+NetCore 1.0
+===========
+
+This is the old NetCore controller. We recommend using the new Frenetic controller:
+
+  http://www.github.com/frenetic-lang/frenetic
+
+Frenetic implements the main ideas of NetCore and has several more features and enhancements.
+
+--------------
 
 NetCore is a high-level network programming language. This package provides
 a NetCore compiler and runtime system for OpenFlow networks.
