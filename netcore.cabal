@@ -17,23 +17,23 @@ Description:
 
 Library
   build-depends:
-    base >= 4,
-    binary-strict >= 0.4.0,
+    base,
+    binary-strict,
     containers,
-    mtl >= 2.0.1.0,
+    mtl,
     ansi-wl-pprint,
     fgl,
     process,
     random,
-    HList,
-    hslogger == 1.2.*,
-    binary == 0.5.1.*,
-    bytestring == 0.9.*,
-    parsec == 3.1.*,
-    syb == 0.3.*,
-    bimap == 0.2.*,
-    network >= 2.3,
-    json >= 0.4.3
+    HList == 0.2.*,
+    hslogger,
+    binary,
+    bytestring,
+    parsec,
+    syb,
+    bimap,
+    network,
+    json
   exposed-modules:
     Nettle.Ethernet.EthernetAddress,
     Frenetic.Common,
@@ -77,7 +77,7 @@ Library
     Nettle.OpenFlow.Port,
     Nettle.OpenFlow.Statistics,
     Nettle.OpenFlow.Switch,
-    Nettle.Servers.Server    
+    Nettle.Servers.Server
   Extensions:
     ScopedTypeVariables, FlexibleInstances,
     FlexibleContexts, DoAndIfThenElse, RecordWildCards,
@@ -89,25 +89,24 @@ Library
     nettle-openflow/src
   cpp-options: "-DOPENFLOW_VERSION=1"
 
-benchmark frenetic-benchmark
+Executable frenetic-benchmark
   cpp-options: "-DOPENFLOW_VERSION=1"
-  type:          exitcode-stdio-1.0
-  build-depends: base >= 4 && < 5,
+  build-depends: base,
                  containers,
                  ansi-wl-pprint,
                  fgl,
-                 mtl >= 2.0.1.0,
+                 mtl,
                  process,
                  random,
-                 HList,
-                 hslogger == 1.2.*,
-                 binary == 0.5.1.*,
-                 bytestring == 0.9.*,
-                 parsec == 3.1.*,
-                 syb == 0.3.*,
-                 bimap == 0.2.*,
-                 network >= 2.3,
-                 json >= 0.4.3
+                 HList == 0.2.*,
+                 hslogger,
+                 binary,
+                 bytestring,
+                 parsec,
+                 syb,
+                 bimap,
+                 network,
+                 json
   Extensions: ScopedTypeVariables, TypeFamilies, FlexibleInstances,
     FlexibleContexts, DoAndIfThenElse, RecordWildCards,
     DeriveDataTypeable
@@ -137,15 +136,15 @@ Test-Suite frenetic-tests
     test-framework-th,
     test-framework-hunit,
     test-framework-quickcheck2,
-    HList,
-    hslogger == 1.2.*,
-    binary == 0.5.1.*,
-    bytestring == 0.9.*,
-    parsec == 3.1.*,
-    syb == 0.3.*,
-    bimap == 0.2.*,
-    network >= 2.3,
-    json >= 0.4.3
+    HList == 0.2.*,
+    hslogger,
+    binary,
+    bytestring,
+    parsec,
+    syb,
+    bimap,
+    network,
+    json
   ghc-options:
     -fwarn-incomplete-patterns
   Extensions:
